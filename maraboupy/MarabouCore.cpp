@@ -171,12 +171,23 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def("setInputUpperBound", &SymbolicBoundTightener::setInputUpperBound)
         .def("setReluBVariable", &SymbolicBoundTightener::setReluBVariable)
         .def("setReluFVariable", &SymbolicBoundTightener::setReluFVariable);
+    py::class_<Equation::Addend> addend(m, "Addend");
+    addend.def(py::init<double, unsigned>());
+    addend.def(py::init<Equation::Addend const&>());
+    addend.def("getCoefficient", &Equation::Addend::getCoefficient);
+    addend.def("getVariable", &Equation::Addend::getVariable);
     py::class_<Equation> eq(m, "Equation");
     eq.def(py::init());
     eq.def(py::init<Equation::EquationType>());
+    eq.def(py::init<Equation const&>());
     eq.def("addAddend", &Equation::addAddend);
+    eq.def("getAddends", &Equation::getAddends);
     eq.def("setScalar", &Equation::setScalar);
+    eq.def("getScalar", &Equation::getScalar);
+    eq.def("setType", &Equation::setType);
+    eq.def("getType", &Equation::getType);
     eq.def("dump", &Equation::dump);
+    eq.def("equivalent", &Equation::equivalent);
     py::enum_<Equation::EquationType>(eq, "EquationType")
         .value("EQ", Equation::EquationType::EQ)
         .value("GE", Equation::EquationType::GE)

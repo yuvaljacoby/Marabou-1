@@ -16,6 +16,7 @@
 #ifndef __Equation_h__
 #define __Equation_h__
 
+#include <vector>
 #include "List.h"
 
 /*
@@ -40,19 +41,25 @@ public:
     {
     public:
         Addend( double coefficient, unsigned variable );
+        Addend( const Addend& add );
 
         double _coefficient;
         unsigned _variable;
-
+        double getCoefficient();
+        unsigned getVariable();
         bool operator==( const Addend &other ) const;
     };
 
     Equation();
+    Equation(const Equation& eq);
     Equation( EquationType type );
 
     void addAddend( double coefficient, unsigned variable );
+    std::vector<Addend> getAddends();
     void setScalar( double scalar );
     void setType( EquationType type );
+    EquationType getType();
+    double getScalar();
 
     /*
       Go over the addends and rename variable oldVar to newVar.

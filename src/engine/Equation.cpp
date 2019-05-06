@@ -23,9 +23,24 @@ Equation::Addend::Addend( double coefficient, unsigned variable )
 {
 }
 
+Equation::Addend::Addend( const Addend& add )
+    : _coefficient( add._coefficient )
+    , _variable( add._variable )
+{
+}
+
 bool Equation::Addend::operator==( const Addend &other ) const
 {
     return ( _coefficient == other._coefficient ) && ( _variable == other._variable );
+}
+
+double Equation::Addend::getCoefficient()
+{
+    return _coefficient;
+}
+
+unsigned Equation::Addend::getVariable(){
+    return _variable;
 }
 
 Equation::Equation()
@@ -38,9 +53,26 @@ Equation::Equation( EquationType type )
 {
 }
 
+Equation::Equation(const Equation& eq)
+    : _type(eq._type)
+    {
+    _type = eq._type;
+    _scalar = eq._scalar;
+    for ( const auto &addend : eq._addends )
+        _addends.append( Addend( addend ));
+    /*_addends == eq._addends;*/
+}
+
 void Equation::addAddend( double coefficient, unsigned variable )
 {
     _addends.append( Addend( coefficient, variable ) );
+}
+
+std::vector<Equation::Addend> Equation::getAddends() {
+    // TODO: Find a way to return List in pybind11 and than we change here to return List instead of the copy
+    return { std::begin(_addends), std::end(_addends) };
+
+//    return v;
 }
 
 void Equation::setScalar( double scalar )
@@ -48,9 +80,19 @@ void Equation::setScalar( double scalar )
     _scalar = scalar;
 }
 
+Equation::EquationType Equation::getType()
+{
+    return _type;
+}
+
 void Equation::setType( EquationType type )
 {
     _type = type;
+}
+
+double Equation::getScalar()
+{
+    return _scalar;
 }
 
 void Equation::updateVariableIndex( unsigned oldVar, unsigned newVar )
