@@ -154,6 +154,7 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def("setNumberOfVariables", &InputQuery::setNumberOfVariables)
         .def("getNumberOfVariables", &InputQuery::getNumberOfVariables)
         .def("addEquation", &InputQuery::addEquation)
+        .def("getEquations", &InputQuery::getEquationsVector)
         .def("getSolutionValue", &InputQuery::getSolutionValue)
         .def("getNumInputVariables", &InputQuery::getNumInputVariables)
         .def("getNumOutputVariables", &InputQuery::getNumOutputVariables)

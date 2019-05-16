@@ -2,7 +2,6 @@ from maraboupy.MarabouRNN import *
 from maraboupy import MarabouCore
 
 
-# TODO: last network is using the new API, change the rest to also work with thats
 # <editor-fold desc="negative sum network definition">
 
 # Most simple RNN, only sums the positive inputs
@@ -231,9 +230,6 @@ def define_positive_sum_invariant_equations(query):
     invariant_equation.addAddend(-1, start_param)  # i
     invariant_equation.setScalar(0)
 
-    hidden_limit_eq = MarabouCore.Equation(hidden_limit_eq)
-    hidden_limit_eq.setScalar(1)
-
     # not (s_i f >= i) <--> s_i f < i <--> s_i f -i >= \epsilon
     output_equation = negate_equation(invariant_equation)
 
@@ -311,7 +307,56 @@ def define_positive_sum_network(xlim=(-1, 1)):
 
     return positive_sum_rnn_query
 
+def define_positive_sum_network2(xlim, ylim, n_iterations):
+    '''
+    Defines the positive_sum network in a marabou way, without the recurrent part
+    i.e. we define:
+        s_i b = s_i-1 f + x_i
+        y = s_i f
+    :param xlim: how to limit the input to the network
+    :return: query to marabou that defines the positive_sum rnn network (without recurent)
+    '''
+    # num_params_for_cell = 5
 
+    positive_sum_rnn_query = MarabouCore.InputQuery()
+    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+
+    # x
+    positive_sum_rnn_query.setLowerBound(0, xlim[0])
+    positive_sum_rnn_query.setUpperBound(0, xlim[1])
+
+    rnn_start_idx = 1 # i
+    rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1) #rnn_idx == s_i f
+    y_idx = rnn_idx + 1
+
+    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+
+    # y
+    positive_sum_rnn_query.setLowerBound(y_idx, -large)
+    positive_sum_rnn_query.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_idx)
+    output_equation.setScalar(0)
+    # output_equation.dump()
+    positive_sum_rnn_query.addEquation(output_equation)
+
+
+    # s_i f <= i <--> i - s_i f >= 0
+    invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_equation.addAddend(1, rnn_start_idx) # i
+    invariant_equation.addAddend(-1, rnn_idx)  # s_i f
+    invariant_equation.setScalar(0)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+    property_eq = negate_equation(property_eq)
+
+    return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq]
 # </editor-fold>
 
 # <editor-fold desc="zero network definition">
@@ -510,9 +555,8 @@ def define_zero_network(xlim=(-1, 1)):
 
 def define_last_network(xlim, ylim, n_iterations):
     '''
-    TODO:
     :param xlim: how to limit the input to the network
-    :return:
+    :return: (network, [rnn output indices], invariant equation, output equation
     '''
     num_params_before_rnn = 1
 
@@ -524,7 +568,6 @@ def define_last_network(xlim, ylim, n_iterations):
     query.setUpperBound(0, xlim[1])
 
     # rnn, the s_i = 0 * s_i-1 + x * 1
-    rnn_start_idx = 1
     rnn_idx = add_rnn_cell(query, [(0,1)], 0)
     y_idx = rnn_idx + 1
 
@@ -538,12 +581,13 @@ def define_last_network(xlim, ylim, n_iterations):
     output_equation.addAddend(1, y_idx)
     output_equation.addAddend(-1, rnn_idx)
     output_equation.setScalar(0)
+    # output_equation.dump()
     query.addEquation(output_equation)
 
 
-    # s_i f <= xlim[1]
+    # s_i-1 f <= xlim[1]
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-    invariant_equation.addAddend(1, rnn_idx)  # s_i f
+    invariant_equation.addAddend(1, rnn_idx - 2)  # s_i f
     invariant_equation.setScalar(xlim[1])
 
     # y <= ylim
@@ -552,7 +596,7 @@ def define_last_network(xlim, ylim, n_iterations):
     property_eq.setScalar(ylim[1])
     property_eq = negate_equation(property_eq)
 
-    return query, [rnn_start_idx], invariant_equation, [property_eq]
+    return query, [rnn_idx], invariant_equation, [property_eq]
 
 
 # </editor-fold>
@@ -648,7 +692,7 @@ def test_create_invariant_equations_sum():
     true_base = [base_hidden_limit_eq, base_output_equation, base_limit_eq]
     true_step = [hidden_limit_eq, output_equation]
 
-    [eq.dump() for eq in actual_base_eq]
+    # [eq.dump() for eq in actual_base_eq]
     assert len(actual_base_eq) == len(true_base)
     assert len(actual_step_eq ) == len(true_step)
 
@@ -724,6 +768,21 @@ def test_positive_sum_positive():
     # print('negative sum result:',
 
 
+def test_positive_sum_negative2():
+    num_iterations = 500
+    invariant_xlim = (1, 1.1)
+    y_lim = (0, num_iterations)
+
+    assert not prove_using_invariant_2(invariant_xlim, y_lim, num_iterations, define_positive_sum_network2)
+
+
+def test_positive_sum_positive2():
+    num_iterations = 500
+    invariant_xlim = (-1, 1)
+    y_lim = (0, num_iterations)
+
+    assert prove_using_invariant_2(invariant_xlim, y_lim, num_iterations, define_positive_sum_network2)
+
 def test_last_network_negative():
     num_iterations = 500
     invariant_xlim = (-1, 2)
@@ -732,7 +791,89 @@ def test_last_network_negative():
 
 
 def test_last_network_positive():
+    '''
+    create wanted property and invariant that holds
+    :return:
+    '''
     num_iterations = 500
     invariant_xlim = (-1, 1)
     y_lim = invariant_xlim
     assert prove_using_invariant_2(invariant_xlim, y_lim, num_iterations, define_last_network)
+
+
+def test_simple_example():
+    query = MarabouCore.InputQuery()
+    query.setNumberOfVariables(4)
+
+    # x
+    query.setLowerBound(0, 1)
+    query.setUpperBound(0, 1.2)
+
+    # i
+    query.setLowerBound(1, 0)
+    query.setLowerBound(1, 5)
+
+    # s_i-1 f
+    query.setLowerBound(2, 0)
+    query.setUpperBound(2, large)
+
+    # s_i b
+    query.setLowerBound(3, -large)
+    query.setUpperBound(3, large)
+
+    # s_i f
+    # query.setLowerBound(4, 0)
+    # query.setUpperBound(4, large)
+
+    # s_i f = ReLu(s_i b)
+    # MarabouCore.addReluConstraint(query, 3, 4)
+
+    # s_i b = x * 1 + s_i-1 f * 1
+    update_eq = MarabouCore.Equation()
+    update_eq.addAddend(1, 0)
+    update_eq.addAddend(1, 2)
+    update_eq.addAddend(-1, 3)
+    update_eq.setScalar(0)
+    query.addEquation(update_eq)
+
+    # s_i f <= i <--> i - s_i f >= 0
+    # invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    # invariant_equation.addAddend(1, 1)  # i
+    # invariant_equation.addAddend(-1, 4)  # s_i f
+    # invariant_equation.setScalar(0)
+
+    # base_equations, step_equations = create_invariant_equations(query, [1], invariant_equation)
+
+    # induction_step = negate_equation(invariant_equation)
+    # query.addEquation(induction_step)
+
+    # s_i-1 f <= i-1 <--> s_i-1 f - i <= -1 <--> i - s_i-1 f >= 1
+    # induction_hypothesis = MarabouCore.Equation(MarabouCore.Equation.GE)
+    # induction_hypothesis.addAddend(1, 1)
+    # induction_hypothesis.addAddend(-1, 2)
+    # induction_hypothesis.setScalar(1)
+    # query.addEquation(induction_hypothesis)
+
+    # i == 1
+    loop_eq = MarabouCore.Equation()
+    loop_eq.addAddend(1,1)
+    loop_eq.setScalar(1)
+    query.addEquation(loop_eq)
+
+    # s_i-1 f == 0
+    # loop_eq2 = MarabouCore.Equation()
+    # loop_eq2.addAddend(1, 2)
+    # loop_eq2.setScalar(0)
+    # query.addEquation(loop_eq2)
+
+    print("Querying for induction base")
+    vars1, stats1 = MarabouCore.solve(query, "", 0)
+    if len(vars1) > 0:
+        print("SAT")
+        print(vars1)
+        assert True
+    else:
+        print("UNSAT")
+        assert False
+
+    # {0: 1.1, 1: 1.0, 2:0.0, 3:1.1, 4:1.1}

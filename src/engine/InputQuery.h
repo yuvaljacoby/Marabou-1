@@ -47,6 +47,7 @@ public:
 
     const List<Equation> &getEquations() const;
     List<Equation> &getEquations();
+    std::vector<Equation> getEquationsVector();
     void removeEquationsByIndex( const Set<unsigned> indices );
 
     void addPiecewiseLinearConstraint( PiecewiseLinearConstraint *constraint );

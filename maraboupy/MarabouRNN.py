@@ -5,7 +5,11 @@ large = 1000.0
 small = 10 ** -2
 
 
-def marabou_solve_negate_eq(query):
+def marabou_solve_negate_eq(query, debug=False):
+    if debug:
+        for eq in query.getEquations():
+            eq.dump()
+
     vars1, stats1 = MarabouCore.solve(query, "", 0)
     if len(vars1) > 0:
         print("SAT")
@@ -27,33 +31,39 @@ def add_rnn_cell(query, input_weights, hidden_weight):
     '''
 
     last_idx = query.getNumberOfVariables()
-    query.setNumberOfVariables(last_idx + 3)
+    query.setNumberOfVariables(last_idx + 4)  # s_i-1 f, s_i b, s_i f, i
+
+    # i
+    query.setLowerBound(last_idx, 0)
+    query.setLowerBound(last_idx, large)
 
     # s_i-1 f
-    query.setLowerBound(last_idx, 0)
-    query.setUpperBound(last_idx, large)
-
-    # s_i b
-    query.setLowerBound(last_idx + 1, -large)
+    query.setLowerBound(last_idx + 1, 0)
     query.setUpperBound(last_idx + 1, large)
 
-    # s_i f
-    query.setLowerBound(last_idx + 2, 0)
+    # s_i b
+    query.setLowerBound(last_idx + 2, -large)
     query.setUpperBound(last_idx + 2, large)
+
+    # s_i f
+    query.setLowerBound(last_idx + 3, 0)
+    query.setUpperBound(last_idx + 3, large)
+
+    # s_i f = ReLu(s_i b)
+    MarabouCore.addReluConstraint(query, last_idx + 2, last_idx + 3)
 
     # s_i b = x_j * w_j for all j connected + s_i-1 f * hidden_weight
     update_eq = MarabouCore.Equation()
     for var_idx, weight in input_weights:
         update_eq.addAddend(weight, var_idx)
-    update_eq.addAddend(hidden_weight, last_idx)
-    update_eq.addAddend(-1, 2)
+    update_eq.addAddend(hidden_weight, last_idx + 1)
+    update_eq.addAddend(-1, last_idx + 2)
     update_eq.setScalar(0)
     query.addEquation(update_eq)
+    # update_eq.dump()
 
-    # s_i f = ReLu(s_i b)
-    MarabouCore.addReluConstraint(query, last_idx + 1, last_idx + 2)
 
-    return last_idx + 2
+    return last_idx + 3
 
 
 def negate_equation(eq):
@@ -95,10 +105,10 @@ def prove_invariant(xlim, network_define_f, invarinet_define_f):
         network.addEquation(eq)
 
     print("Querying for induction base")
-    if not marabou_solve_negate_eq(network):
+    if not marabou_solve_negate_eq(network, True):
         print("induction base fail")
         return False
-
+    # exit(1)
     # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
     network = network_define_f(xlim)
     base_invariant_equations, step_invariant_equations, invariant_eq = invarinet_define_f(network)
@@ -147,12 +157,14 @@ def prove_property_marabou(network, invariant_equations, output_equations):
     :param output_equations: equations that we want to check if holds
     :return: True / False
     '''
+    print("invariant_equations")
     for eq in invariant_equations:
-        # eq.dump()
+        eq.dump()
         network.addEquation(eq)
 
+    print("output_equations")
     for eq in output_equations:
-        # eq.dump()
+        eq.dump()
         network.addEquation(eq)
 
     print("Querying for output")
@@ -187,30 +199,31 @@ def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, invariant_
         return prove_property_marabou(network, invariant_eq, output_define_f(network, ylim, n_iterations))
 
 
-def create_invariant_equations(query, loop_index, rnn_first_indices, invariant_eq):
+def create_invariant_equations(query, loop_indices, invariant_eq):
     '''
     create the equations needed to prove using induction from the invariant_eq
     i.e. list of base equations and step equations
     :param query: The network definition, we need this only if loop_index == None
-    :param loop_index: The index of the loop variable, if doesn't exists yet than give None here and will add it to the query
-    :param rnn_first_indices: for each rnn cell in the network this is the first parameter index
+    :param loop_indices: The index of the loop variable, if doesn't exists yet than give None here and will add it to the query
+    :param rnn_end_indices: for each rnn cell in the network this is the output index
     :param invariant_eq: the invariant we want to prove
     :return: [base equations], [step equations]
     '''
     scalar_diff = 0
-    rnn_output_indices = [idx + 2 for idx in rnn_first_indices]
-    if loop_index is None:
-        loop_index = query.getNumberOfVariables()
-        query.setNumberOfVariables(loop_index + 1)
-        query.setLowerBound(loop_index, 0)
-        query.setUpperBound(loop_index, large)
+    # rnn_output_indices = [idx + 2 for idx in rnn_first_indices]
+    rnn_input_indices = [idx + 1 for idx in loop_indices]
+    rnn_output_indices = [idx + 3 for idx in loop_indices]
 
     induction_step = negate_equation(invariant_eq)
+    # induction_step = MarabouCore.Equation(invariant_eq)
+
+    # print('induction_step')
+    # induction_step.dump()
 
     induction_hypothesis = MarabouCore.Equation(invariant_eq.getType())
     for addend in invariant_eq.getAddends():
         # if for example we have s_i f - 2*i <= 0 we want s_i-1 f - 2*(i-1) <= 0 <--> s_i-1 f -2i <= -2
-        if addend.getVariable() == loop_index:
+        if addend.getVariable() in loop_indices:
             scalar_diff = addend.getCoefficient()
         # here we change s_i f to s_i-1 f
         if addend.getVariable() in rnn_output_indices:
@@ -218,21 +231,30 @@ def create_invariant_equations(query, loop_index, rnn_first_indices, invariant_e
         else:
             induction_hypothesis.addAddend(addend.getCoefficient(), addend.getVariable())
     induction_hypothesis.setScalar(invariant_eq.getScalar() + scalar_diff)
-
+    print('induction_hypothesis')
+    induction_hypothesis.dump()
 
     # make sure i == 1
-    loop_eq = MarabouCore.Equation()
-    loop_eq.addAddend(1, loop_index)
-    loop_eq.setScalar(1)
+    loop_equations = []
+    for i in loop_indices:
+        loop_eq = MarabouCore.Equation()
+        loop_eq.addAddend(1, i)
+        loop_eq.setScalar(1)
+        # print('loop_eq')
+        # loop_eq.dump()
+        loop_equations.append(loop_eq)
 
     zero_rnn_hidden = []
-    for idx in rnn_first_indices:
+    for idx in rnn_input_indices:
         base_hypothesis = MarabouCore.Equation()
         base_hypothesis.addAddend(1, idx)  # s_i-1 f == s_0 f
         base_hypothesis.setScalar(0)
+        # print('base_hypothesis')
+        # base_hypothesis.dump()
         zero_rnn_hidden.append(base_hypothesis)
 
-    return [loop_eq, induction_step] + zero_rnn_hidden, [induction_hypothesis, induction_step]
+    return [induction_step, induction_hypothesis] + loop_equations + zero_rnn_hidden, [induction_hypothesis,
+                                                                                       induction_step]
 
 
 def prove_invariant_2(network_define_f, xlim, ylim, n_iterations):
@@ -247,18 +269,20 @@ def prove_invariant_2(network_define_f, xlim, ylim, n_iterations):
     '''
 
     network, rnn_start_idxs, invariant_equation, _ = network_define_f(xlim, ylim, n_iterations)
-    base_equations, step_equations = create_invariant_equations(network, None, rnn_start_idxs, invariant_equation)
+    # print("invariant_equation:")
+    # invariant_equation.dump()
+    base_equations, step_equations = create_invariant_equations(network, rnn_start_idxs, invariant_equation)
 
     for eq in base_equations:
         network.addEquation(eq)
 
     print("Querying for induction base")
-    if not marabou_solve_negate_eq(network):
+    if not marabou_solve_negate_eq(network, True):
         print("induction base fail")
         return False
 
     # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
-    network, _, _, _ = network_define_f(xlim,ylim, n_iterations)
+    network, _, _, _ = network_define_f(xlim, ylim, n_iterations)
 
     for eq in step_equations:
         network.addEquation(eq)
@@ -282,7 +306,7 @@ def prove_using_invariant_2(xlim, ylim, n_iterations, network_define_f, use_z3=F
     if not prove_invariant_2(network_define_f, xlim, ylim, n_iterations):
         print("invariant doesn't hold")
         return False
-
+    # exit(1)
     if use_z3:
         raise NotImplementedError
         # return prove_property_z3(ylim, 1, ylim)

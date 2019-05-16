@@ -105,6 +105,12 @@ List<Equation> &InputQuery::getEquations()
     return _equations;
 }
 
+std::vector<Equation> InputQuery::getEquationsVector()
+{
+    // TODO: Find a way to return List in pybind11 and than we change here to return List instead of the copy
+    return {std::begin(_equations), std::end(_equations) };
+}
+
 void InputQuery::removeEquationsByIndex( const Set<unsigned> indices )
 {
     unsigned m = _equations.size();
