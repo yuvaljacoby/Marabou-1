@@ -79,7 +79,7 @@ def minimal_example():
 
     # i
     query.setLowerBound(3, 0)
-    query.setLowerBound(3, large)
+    query.setUpperBound(3, large)
 
     # s_i b = x * 1 + s_i-1 f * 1
     update_eq = MarabouCore.Equation()
