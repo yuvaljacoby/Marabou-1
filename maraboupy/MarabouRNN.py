@@ -35,7 +35,7 @@ def add_rnn_cell(query, input_weights, hidden_weight):
 
     # i
     query.setLowerBound(last_idx, 0)
-    query.setLowerBound(last_idx, large)
+    query.setUpperBound(last_idx, large)
 
     # s_i-1 f
     query.setLowerBound(last_idx + 1, 0)
