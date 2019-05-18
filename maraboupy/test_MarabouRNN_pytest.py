@@ -576,10 +576,3 @@ def test_zero_network_positive():
     y_lim = 10 ** -2
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_zero_network)
 
-def test_temp():
-    num_iterations = 500
-    xlim = (-1, 1)
-    ylim = 10 ** -2
-    network, _, _, _ = define_zero_network(xlim, ylim, num_iterations)
-    network.dump()
-    assert True
