@@ -6,6 +6,12 @@ small = 10 ** -3
 
 
 def marabou_solve_negate_eq(query, debug=False):
+    '''
+    Run marabou solver
+    :param query: query to execute
+    :param debug: if True printing all of the query equations
+    :return: True if UNSAT (no valid assignment), False otherwise
+    '''
     if debug:
         for eq in query.getEquations():
             eq.dump()
@@ -88,8 +94,7 @@ def add_rnn_cell(query, input_weights, hidden_weight, num_iterations):
 def create_invariant_equations(loop_indices, invariant_eq):
     '''
     create the equations needed to prove using induction from the invariant_eq
-    i.e. list of base equations and step equations
-    :param loop_indices: The index of the loop variable, if doesn't exists yet than give None here and will add it to the query
+    :param loop_indices: List of loop variables (i's), which is the first variable for an RNN cell
     :param invariant_eq: the invariant we want to prove
     :return: [base equations], [step equations]
     '''
@@ -179,7 +184,7 @@ def prove_property_marabou(network, invariant_equations, output_equations):
     :param network: marabou definition of the network
     :param invariant_equations: equations that the invariant promises
     :param output_equations: equations that we want to check if holds
-    :return: True / False
+    :return: True if the property holds, False otherwise
     '''
     not_output = []
     for eq in output_equations:
@@ -232,3 +237,22 @@ def prove_invariant(network_define_f, xlim, ylim, n_iterations):
     return marabou_solve_negate_eq(network)
 
 
+def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=False):
+    '''
+    Proving a property on a network using invariant's (with z3 or marabou)
+    :param xlim: tuple (min, max) of the input
+    :param ylim: tuple (min, max) of the output (what we want to check?)
+    :param n_iterations: number of times to "run" the rnn cell
+    :param network_define_f: function that returns the marabou network, invariant, output property
+    :param use_z3:
+    :return: True if the invariant holds and we can conclude the property from it, False otherwise
+    '''
+    if not prove_invariant(network_define_f, xlim, ylim, n_iterations):
+        print("invariant doesn't hold")
+        return False
+    if use_z3:
+        raise NotImplementedError
+        # return prove_property_z3(ylim, 1, ylim)
+    else:
+        network, _, invariant_equation, output_eq = network_define_f(xlim, ylim, n_iterations)
+        return prove_property_marabou(network, [invariant_equation], output_eq)
