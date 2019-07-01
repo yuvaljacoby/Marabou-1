@@ -237,7 +237,7 @@ def define_adversarial_robustness(xlim, n_iterations):
     network.setUpperBound(1, xlim[1][1])
 
     s_hidden_w = 1
-    z_hidden_w = 1.1
+    z_hidden_w = 1
     x0_s_w = 1
     x1_s_w = 5
     x0_z_w = 2
