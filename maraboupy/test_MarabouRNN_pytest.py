@@ -143,8 +143,6 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     :param n_iterations: number of inputs / times the rnn cell will be executed
     :return: query to marabou that defines the positive_sum rnn network (without recurent)
     '''
-    # num_params_for_cell = 5
-
     positive_sum_rnn_query = MarabouCore.InputQuery()
     positive_sum_rnn_query.setNumberOfVariables(1)  # x
 
@@ -154,6 +152,7 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
 
     rnn_start_idx = 1  # i
     rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations)  # rnn_idx == s_i f
+    s_i_1_f_idx = rnn_idx - 2
     y_idx = rnn_idx + 1
 
     positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
@@ -170,6 +169,10 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     # output_equation.dump()
     positive_sum_rnn_query.addEquation(output_equation)
 
+    base_eq = MarabouCore.Equation()
+    base_eq.addAddend(1, s_i_1_f_idx)
+    base_eq.setScalar(0)
+
     # s_i f <= i <--> i - s_i f >= 0
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
     invariant_equation.addAddend(1, rnn_start_idx)  # i
@@ -181,7 +184,7 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     property_eq.addAddend(1, y_idx)
     property_eq.setScalar(ylim[1])
 
-    return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq]
+    return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq], [base_eq]
 
 
 def define_last_network(xlim, ylim, n_iterations):
@@ -218,7 +221,7 @@ def define_last_network(xlim, ylim, n_iterations):
 
     # s_i-1 f <= xlim[1]
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-    invariant_equation.addAddend(1, rnn_idx - 2)  # s_i f
+    invariant_equation.addAddend(1, rnn_idx - 2)  # s_i-1 f
     invariant_equation.setScalar(xlim[1])
 
     # y <= ylim
@@ -227,6 +230,55 @@ def define_last_network(xlim, ylim, n_iterations):
     property_eq.setScalar(ylim[1])
 
     return query, [rnn_idx], invariant_equation, [property_eq]
+
+
+def define_two_sum_network(xlim, ylim, n_ierations):
+    '''
+    The network gets a series of numbers and outputs two neurons, one sums the positive numbers and the other
+    the negative
+    The propery we will
+    :param xlim: how to limit the input to the network
+    :param ylim: how to limit the output of the network
+    :param n_iterations: number of inputs / times the rnn cell will be executed
+    :return: query to marabou that defines the positive_sum rnn network (without recurent)
+    '''
+    network = MarabouCore.InputQuery()
+    network.setNumberOfVariables(1)  # x
+
+    # x
+    network.setLowerBound(0, xlim[0])
+    network.setUpperBound(0, xlim[1])
+
+    rnn_start_idx = 1  # i
+    rnn_idx = add_rnn_cell(network, [(0, 1)], 1, n_ierations)  # rnn_idx == s_i f
+    y_idx = rnn_idx + 1
+
+    network.setNumberOfVariables(y_idx + 1)
+
+    # y
+    network.setLowerBound(y_idx, -large)
+    network.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_idx)
+    output_equation.setScalar(0)
+    # output_equation.dump()
+    network.addEquation(output_equation)
+
+    # s_i f <= i <--> i - s_i f >= 0
+    invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_equation.addAddend(1, rnn_start_idx)  # i
+    invariant_equation.addAddend(-1, rnn_idx)  # s_i f
+    invariant_equation.setScalar(0)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+
+    return network, [rnn_start_idx], invariant_equation, [property_eq]
 
 
 def test_negate_equation_GE():

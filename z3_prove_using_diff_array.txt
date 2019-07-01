@@ -1,0 +1,8 @@
+(declare-const a (Array Int Real))
+(declare-const i Int)
+(assert (= (store a 0 -5) a))
+(assert (<= i 10))
+(assert (forall ((i Int)) 
+  (>= (select a i) (+ (select a 0) i))))
+(assert (< (select a 10) 0))
+(check-sat)
