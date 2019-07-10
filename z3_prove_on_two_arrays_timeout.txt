@@ -1,0 +1,90 @@
+(declare-const a (Array Int Real))
+(declare-const b (Array Int Real))
+(declare-const i Int)
+(declare-const n Int)
+(assert (= (store a 0 5) a))
+(assert (= (store b 0 0) b))
+(assert (= n 3))
+(assert (<= i n))
+(assert (forall ((i Int)) 
+  (>= (select a i) (+ (select a 0) (* i -1)))))
+(assert (forall ((i Int)) 
+  (<= (select b i) (+ (select b 0) (* i 1)))))
+(assert (< (select a n) (select b n)))
+(check-sat)
+
+------------------------------------------------------------------
+
+(declare-const n (_ BitVec 8))
+(declare-const b_max Real)
+(assert (= n #x03)) ; n == 3
+
+(declare-const a (Array (_ BitVec 8) Real))
+(declare-const b (Array (_ BitVec 8) Real))
+(assert (= (store a #x00 50) a)) ; put 5 in a[0]
+(assert (= (store b #x00 0) b)) ; put 0 in b[0]
+
+; forall i a[i] >= a[0] + i * 1
+; TODO: This is unsigned! need to be able to create signed, check in z3py
+(assert (forall ((i (_ BitVec 8))) 
+  (>= (select a i) (+ (select a #x00) (bv2int (bvmul i #b00000001)))))) 
+
+; forall i b[i] >= b[0] + i * 4
+(assert (forall ((i (_ BitVec 8))) 
+  (<= (select b i) (+ (select b #x00) (bv2int (bvmul i #b00000010))))))
+
+; is a[n] < b[n]
+(assert (< (select a n) (select b n)))
+(check-sat)
+--------------------------------------------------------------
+; show that the bitvector are unsigned
+(declare-const n (_ BitVec 8))
+(declare-const n_int Int)
+(assert (= n #b10000000))
+(assert (= n_int (bv2int n)))
+
+(check-sat)
+(get-model)
+
+------------------------------------------------------------------
+
+; unsat
+(declare-fun a () (Array (_ BitVec 8) Real))
+(declare-fun b () (Array (_ BitVec 8) Real))
+(declare-fun n () (_ BitVec 8))
+(assert (= (select a #x00) 5.0))
+(assert (= (select b #x00) 0.0))
+
+  
+(assert (= #x03 n))
+
+
+(assert (forall ((i (_ BitVec 8))) (>= (select a i) (+ (select a #x00) (to_real (bv2int (bvmul i #x01)))))))
+(assert (forall ((i (_ BitVec 8))) (<= (select b i) (+ (select b #x00) (to_real (bv2int (bvmul i #x01)))))))
+
+
+(assert (< (select a n) (select b n)))
+(check-sat)
+;(get-model)
+
+------------------------------------------------------------------
+
+; sat
+(declare-fun a () (Array (_ BitVec 8) Real))
+(declare-fun b () (Array (_ BitVec 8) Real))
+(declare-fun n () (_ BitVec 8))
+(assert (= (select a #x00) 5.0))
+(assert (= (select b #x00) 0.0))
+
+  
+(assert (= #x03 n))
+
+
+(assert (forall ((i (_ BitVec 8))) (>= (select a i) (+ (select a #x00) (to_real (bv2int (bvmul i #x01)))))))
+(assert (forall ((i (_ BitVec 8))) (<= (select b i) (+ (select b #x00) (to_real (bv2int (bvmul i #x04)))))))
+
+
+(assert (< (select a n) (select b n)))
+(check-sat)
+(get-model)
+
