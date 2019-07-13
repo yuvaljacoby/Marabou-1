@@ -1,4 +1,4 @@
-from z3 import Int, Solver, Array, IntSort, RealSort, ForAll, sat
+from z3 import Int, Solver, Array, BitVec, BitVecSort, RealSort, ForAll, sat, BV2Int, BitVecVal
 
 from maraboupy import MarabouCore
 
@@ -113,17 +113,20 @@ def create_invariant_equations(loop_indices, invariant_eq):
         :return: the induction hypothesis
         '''
         scalar_diff = 0
-        hypothesis_eq = MarabouCore.Equation(invariant_eq.getType())
-        for addend in invariant_eq.getAddends():
-            # if for example we have s_i f - 2*i <= 0 we want s_i-1 f - 2*(i-1) <= 0 <--> s_i-1 f -2i <= -2
-            if addend.getVariable() in loop_indices:
-                scalar_diff = addend.getCoefficient()
-            # here we change s_i f to s_i-1 f
-            if addend.getVariable() in rnn_output_indices:
-                hypothesis_eq.addAddend(addend.getCoefficient(), addend.getVariable() - 2)
-            else:
-                hypothesis_eq.addAddend(addend.getCoefficient(), addend.getVariable())
-        hypothesis_eq.setScalar(invariant_eq.getScalar() + scalar_diff)
+        hypothesis_eq = []
+        for eq in invariant_eq:
+            cur_temp_eq = MarabouCore.Equation(eq.getType())
+            for addend in eq.getAddends():
+                # if for example we have s_i f - 2*i <= 0 we want s_i-1 f - 2*(i-1) <= 0 <--> s_i-1 f -2i <= -2
+                if addend.getVariable() in loop_indices:
+                    scalar_diff = addend.getCoefficient()
+                # here we change s_i f to s_i-1 f
+                if addend.getVariable() in rnn_output_indices:
+                    cur_temp_eq.addAddend(addend.getCoefficient(), addend.getVariable() - 2)
+                else:
+                    cur_temp_eq.addAddend(addend.getCoefficient(), addend.getVariable())
+            cur_temp_eq.setScalar(eq.getScalar() + scalar_diff)
+            hypothesis_eq.append(cur_temp_eq)
         return hypothesis_eq
 
     rnn_input_indices = [idx + 1 for idx in loop_indices]
@@ -149,11 +152,11 @@ def create_invariant_equations(loop_indices, invariant_eq):
 
     # s_i-1 f == 0
     zero_rnn_hidden = []
-    # for idx in rnn_input_indices:
-    #     base_hypothesis = MarabouCore.Equation()
-    #     base_hypothesis.addAddend(1, idx)
-    #     base_hypothesis.setScalar(0)
-    #     zero_rnn_hidden.append(base_hypothesis)
+    for idx in rnn_input_indices:
+        base_hypothesis = MarabouCore.Equation()
+        base_hypothesis.addAddend(1, idx)
+        base_hypothesis.setScalar(0)
+        zero_rnn_hidden.append(base_hypothesis)
 
     # Make sure all the iterators are in the same iteration, we create every equation twice
     step_loop_eq = []
@@ -165,11 +168,16 @@ def create_invariant_equations(loop_indices, invariant_eq):
                 temp_eq.addAddend(-1, idx2)
                 step_loop_eq.append(temp_eq)
 
+    step_loop_eq_more_1 = MarabouCore.Equation(MarabouCore.Equation.GE)
+    step_loop_eq_more_1.addAddend(1, loop_indices[0])
+    step_loop_eq_more_1.setScalar(1)
+    step_loop_eq.append(step_loop_eq_more_1)
+
     induction_base_equations = induction_step + loop_equations + zero_rnn_hidden
 
-    # induction_hypothesis = create_induction_hypothesis_from_invariant_eq()
-    # induction_step_equations = [induction_hypothesis, induction_step]
-    induction_step_equations = induction_step + step_loop_eq
+    induction_hypothesis = create_induction_hypothesis_from_invariant_eq()
+    induction_step_equations = induction_hypothesis + induction_step + step_loop_eq
+    # induction_step_equations = induction_step + step_loop_eq
 
     return induction_base_equations, induction_step_equations
 
@@ -183,21 +191,24 @@ def prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations):
     :param ylim: max output
     :return: True if for every sk <= sklim implies that ReLu(sk * w) <= ylim
     '''
-    # TODO: Change the method to get also alpha, then we don't limit to linear decaying in the diff
-    a_invariants = Array('a_invariants', IntSort(), RealSort())
-    b_invariants = Array('b_invariants', IntSort(), RealSort())
-    i = Int('i')
+    num_bytes = 16
+    assert n_iterations <= 2 ** num_bytes # if the bit vec is 32 z3 takes to long
+    a_invariants = Array('a_invariants', BitVecSort(num_bytes), RealSort())
+    b_invariants = Array('b_invariants', BitVecSort(num_bytes), RealSort())
+    i = BitVec('i', num_bytes)
+    n = BitVec('n', num_bytes)
 
     s = Solver()
-    # s.add(a_invariants[0] == min_a)
-    # s.add(b_invariants[0] == max_b)
-    s.add(i <= n_iterations)
+    s.add(a_invariants[0] == min_a)
+    s.add(b_invariants[0] == max_b)
+    s.add(n == BitVecVal(n_iterations, num_bytes))
 
     # The invariant
-    s.add(ForAll([i], a_invariants[i] >= min_a + a_pace * i))
-    s.add(ForAll([i], b_invariants[i] <= max_b + b_pace * i))
+    s.add(ForAll(i, a_invariants[i] >= a_invariants[0] + BV2Int(i * BitVecVal(a_pace, num_bytes))))
+    s.add(ForAll(i, b_invariants[i] <= b_invariants[0] + BV2Int(i * BitVecVal(b_pace, num_bytes))))
+
     # NOT the property to prove
-    s.add(a_invariants[n_iterations] < b_invariants[n_iterations])
+    s.add(a_invariants[n] < b_invariants[n])
 
     t = s.check()
     if t == sat:
@@ -260,34 +271,40 @@ def prove_invariant(network_define_f, xlim, ylim, n_iterations):
     :param n_iterations: max number of times to run the cell
     :return: True if the invariant holds, false otherwise
     '''
-    network, rnn_start_idxs, invariant_equation, _, more_base_equations, _  = \
+    network, rnn_start_idxs, invariant_equation, _, _  = \
         network_define_f(xlim, ylim, n_iterations)
 
-    base_equations, step_equations = create_invariant_equations(rnn_start_idxs, invariant_equation)
-    # exit(1)
+    for i in range(len(invariant_equation)):
+        network, rnn_start_idxs, invariant_equation, _, _ = \
+            network_define_f(xlim, ylim, n_iterations)
 
-    for eq in base_equations:
-        eq.dump()
-        network.addEquation(eq)
-    for eq in more_base_equations:
-        eq.dump()
-        network.addEquation(eq)
+        base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equation[i]])
+        # exit(1)
 
-    print("Querying for induction base")
-    if not marabou_solve_negate_eq(network):
-        print("induction base fail")
-        return False
-    # exit(1)
-    # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
-    network, _, _, _, _, _ = network_define_f(xlim, ylim, n_iterations)
+        for eq in base_equations:
+            eq.dump()
+            network.addEquation(eq)
 
-    for eq in step_equations:
-        eq.dump()
-        network.addEquation(eq)
+        print("Querying for induction base")
+        if not marabou_solve_negate_eq(network):
+            print("induction base fail, on invariant:", i)
+            return False
+        # exit(1)
+        # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
+        network, _, _, _, _ = network_define_f(xlim, ylim, n_iterations)
+
+        for eq in step_equations:
+            eq.dump()
+            network.addEquation(eq)
 
 
-    print("Querying for induction step")
-    return marabou_solve_negate_eq(network)
+        print("Querying for induction step")
+        if not marabou_solve_negate_eq(network):
+            print("induction step fail, on invariant:", i)
+            return False
+
+    return True
+
 
 
 def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=False):
@@ -307,7 +324,7 @@ def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=Fal
         raise NotImplementedError
         # return prove_property_z3(ylim, 1, ylim)
     else:
-        network, iterators_idx, invariant_equation, output_eq, _ = network_define_f(xlim, ylim, n_iterations)
+        network, iterators_idx, invariant_equation, output_eq = network_define_f(xlim, ylim, n_iterations)
         # inv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
 
         return prove_property_marabou(network, [invariant_equation], output_eq, iterators_idx, n_iterations)
@@ -332,9 +349,5 @@ def prove_adversarial_using_invariant(xlim, n_iterations, network_define_f):
         print("invariant doesn't hold")
         return False
 
-    _, _, _, (min_a, max_b), _,  (a_pace, b_pace) = network_define_f(xlim, n_iterations)
-    # a_invariant = invariants[0]
-    # b_invariant = invariants[1]
-    # a_pace = None
-    # b_pace = None
+    _, _, _, (min_a, max_b),   (a_pace, b_pace) = network_define_f(xlim, n_iterations)
     return prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)

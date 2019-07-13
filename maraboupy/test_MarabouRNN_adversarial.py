@@ -175,36 +175,25 @@ def define_adversarial_robustness_step_fail(xlim, n_iterations):
 
     initial_diff = min_a - max_b
     # assert initial_diff >= 0
-    alpha = initial_diff / (2 * n_iterations)
-    print('min_b', min_b)
-    print('max_a', max_a)
+    alpha = initial_diff / (2 * n_iterations) + max_b
+    print('min_a', min_a)
+    print('max_b', max_b)
     print('initial_diff', initial_diff)
     print('alpha', alpha)
 
-    # s_i-1 = 0
-    a_base_equation = MarabouCore.Equation()
-    a_base_equation.addAddend(1, s_i_1_f_idx)
-    a_base_equation.setScalar(0)
 
-    # s_i-1 = 0
-    b_base_equation = MarabouCore.Equation()
-    b_base_equation.addAddend(1, s_i_1_f_idx)
-    b_base_equation.setScalar(0)
-
-    # a_i - b_i >= a_i-1 - b_i-1 + alpha <--> a_i - a_i-1 - b_i + b_i-1 >= alpha
-    # a_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
-    # a_invariant_equation.addAddend(1, a_idx)  # a_i
-    # a_invariant_equation.addAddend(alpha, s_cell_iterator)  # i
-    # a_invariant_equation.setScalar(min_a)
-    # invariant_equation.dump()
+    a_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    a_invariant_equation.addAddend(1, s_i_f_idx)  # a_i
+    a_invariant_equation.addAddend(alpha, s_cell_iterator)  # i
+    a_invariant_equation.setScalar(min_a)
 
     b_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-    b_invariant_equation.addAddend(1, b_idx)  # a_i
+    b_invariant_equation.addAddend(1, z_i_f_idx)  # a_i
     b_invariant_equation.addAddend(-alpha, z_cell_iterator)  # i
     b_invariant_equation.setScalar(max_b)
 
-    return network, [s_cell_iterator, z_cell_iterator], [b_invariant_equation],\
-           (min_a, max_b), [a_base_equation, b_base_equation], (-alpha, alpha)
+    return network, [s_cell_iterator, z_cell_iterator], [a_invariant_equation, b_invariant_equation],\
+           (min_a, max_b), (-alpha, alpha)
 
 
 def define_adversarial_robustness(xlim, n_iterations):
@@ -292,37 +281,27 @@ def define_adversarial_robustness(xlim, n_iterations):
 
     initial_diff = min_a - max_b
     # assert initial_diff >= 0
-    alpha = initial_diff / (2 * n_iterations)
-    print('min_b', min_b)
-    print('max_a', max_a)
+    alpha = initial_diff / (2 * n_iterations) + max_b
+    print('min_a', min_a)
+    print('max_b', max_b)
     print('initial_diff', initial_diff)
     print('alpha', alpha)
 
-    # s_i-1 = 0
-    a_base_equation = MarabouCore.Equation()
-    a_base_equation.addAddend(1, s_i_1_f_idx)
-    a_base_equation.setScalar(0)
-
-    # s_i-1 = 0
-    b_base_equation = MarabouCore.Equation()
-    b_base_equation.addAddend(1, s_i_1_f_idx)
-    b_base_equation.setScalar(0)
-
-    # a_i >= a_0 - alpha * i
+    # a_i >= a_0 - (alpha + max_b) * i
     a_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
-    a_invariant_equation.addAddend(1, a_idx)  # a_i
+    a_invariant_equation.addAddend(1, s_i_f_idx)  # a_i
     a_invariant_equation.addAddend(alpha, s_cell_iterator)  # i
     a_invariant_equation.setScalar(min_a)
     # invariant_equation.dump()
 
-    # b_i <= b_0 + alpha * i
+    # b_i <= b_0 + (alpha + max_b) * i
     b_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-    b_invariant_equation.addAddend(1, b_idx)  # a_i
+    b_invariant_equation.addAddend(1, z_i_f_idx)  # a_i
     b_invariant_equation.addAddend(-alpha, z_cell_iterator)  # i
     b_invariant_equation.setScalar(max_b)
 
     return network, [s_cell_iterator, z_cell_iterator], [a_invariant_equation, b_invariant_equation],\
-           (min_a, max_b), [a_base_equation, b_base_equation], (-alpha, alpha)
+           (min_a, max_b), (-alpha, alpha)
 
 
 def define_weak_adversarial_robustness(xlim, n_iterations):
@@ -400,21 +379,12 @@ def define_weak_adversarial_robustness(xlim, n_iterations):
 
     initial_diff = min_a - max_b
     # assert initial_diff >= 0
-    alpha = initial_diff / (n_iterations * 2)
+    alpha = initial_diff / (n_iterations * 2) + max_b
     print('min_a', min_a)
     print('max_b', max_b)
     print('initial_diff', initial_diff)
     print('alpha', alpha)
 
-    # s_i-1 = 0
-    a_base_equation = MarabouCore.Equation()
-    a_base_equation.addAddend(1, s_i_1_f_idx)
-    a_base_equation.setScalar(0)
-
-    # s_i-1 = 0
-    b_base_equation = MarabouCore.Equation()
-    b_base_equation.addAddend(1, s_i_1_f_idx)
-    b_base_equation.setScalar(0)
 
     # a_i - b_i >= a_i-1 - b_i-1 + alpha <--> a_i - a_i-1 - b_i + b_i-1 >= alpha
     a_invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
@@ -429,7 +399,7 @@ def define_weak_adversarial_robustness(xlim, n_iterations):
     b_invariant_equation.setScalar(max_b)
 
     return network, [s_cell_iterator, z_cell_iterator], [a_invariant_equation, b_invariant_equation],\
-           (min_a, max_b), [a_base_equation, b_base_equation], (alpha, alpha + 100)
+           (min_a, max_b), (alpha, alpha + 100)
 
 
 def define_sum_adversarial_robustness(xlim, ylim, n_iterations):
@@ -599,7 +569,6 @@ def test_bias_sum_adversarial():
 
 
 def test_adversarial_robustness():
-    # TODO: Need to separate querying for A invariant and B invariant
     num_iterations = 10
     invariant_xlim = [(0, 1), (1, 2)]
     # y_lim = 10 ** -2
@@ -623,7 +592,7 @@ def test_adversarial_robustness_base_fail():
 
 
 def test_adversarial_robustness_conclusion_fail():
-    num_iterations = 10
+    num_iterations = 100
     invariant_xlim = [(0, 1), (1, 2)]
     # y_lim = 10 ** -2
     assert not prove_adversarial_using_invariant(invariant_xlim, num_iterations, define_weak_adversarial_robustness)
@@ -632,16 +601,17 @@ def test_adversarial_robustness_conclusion_fail():
 def test_z3_adversarial_robustness():
     a_pace = -1
     b_pace = 1
-    min_a = 500
-    max_b = 0
-    n_iterations = (min_a // 2) - 1
-    assert prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)
-
-
-def test_z3_adversarial_robustness_fail():
-    a_pace = -1
-    b_pace = 1
     min_a = 5
     max_b = 0
-    n_iterations = 3
+    n_iterations = (min_a // 2) - 1
+    print("\n\n", n_iterations)
     assert prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)
+
+
+# def test_z3_adversarial_robustness_fail():
+#     a_pace = -1
+#     b_pace = 1
+#     min_a = 5
+#     max_b = 0
+#     n_iterations = 3
+#     assert prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)
