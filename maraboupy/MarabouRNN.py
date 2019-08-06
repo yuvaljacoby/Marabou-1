@@ -3,7 +3,7 @@ from z3 import Solver, Array, BitVec, BitVecSort, RealSort, ForAll, sat, BV2Int,
 from maraboupy import MarabouCore
 
 large = 500000.0
-small = 10 ** -3
+small = 10 ** -2
 TOLERANCE_VALUE = 0.01
 
 
@@ -192,8 +192,8 @@ def prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations):
     :param ylim: max output
     :return: True if for every sk <= sklim implies that ReLu(sk * w) <= ylim
     '''
-    from math import log, ceil
-    num_bytes = ceil(log(n_iterations)) + 1
+    from math import log2, ceil
+    num_bytes = ceil(log2(n_iterations)) + 1
     print('n_iterations', n_iterations, '\nnum_bytes', num_bytes)
     assert n_iterations <= 2 ** num_bytes  # if the bit vec is 32 z3 takes to long
     a_invariants = Array('a_invariants', BitVecSort(num_bytes), RealSort())
@@ -267,12 +267,16 @@ def prove_invariant(network_define_f, xlim, ylim, n_iterations):
     :param n_iterations: max number of times to run the cell
     :return: True if the invariant holds, false otherwise
     '''
-    network, rnn_start_idxs, invariant_equation, _, _ = \
-        network_define_f(xlim, ylim, n_iterations)
+    network, rnn_start_idxs, invariant_equation, *_ = network_define_f(xlim, ylim, n_iterations)
+
+    if not isinstance(invariant_equation, list):
+        invariant_equation = [invariant_equation]
 
     for i in range(len(invariant_equation)):
-        network, rnn_start_idxs, invariant_equation, _, _ = \
-            network_define_f(xlim, ylim, n_iterations)
+        network, rnn_start_idxs, invariant_equation, *_ = network_define_f(xlim, ylim, n_iterations)
+
+        if not isinstance(invariant_equation, list):
+            invariant_equation = [invariant_equation]
 
         base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equation[i]])
         # exit(1)
@@ -287,7 +291,7 @@ def prove_invariant(network_define_f, xlim, ylim, n_iterations):
             return False
         # exit(1)
         # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
-        network, _, _, _, _ = network_define_f(xlim, ylim, n_iterations)
+        network, *_ = network_define_f(xlim, ylim, n_iterations)
 
         for eq in step_equations:
             eq.dump()
@@ -311,7 +315,7 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
        :param n_iterations: max number of times to run the cell
        :return: True if the invariant holds, false otherwise
        '''
-    network, rnn_start_idxs, _, _, _ = network_define_f(xlim, None, n_iterations)
+    network, rnn_start_idxs, *_ = network_define_f(xlim, None, n_iterations)
 
     for i in range(len(invariant_equations)):
         base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equations[i]])
@@ -326,7 +330,7 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
             return False
         # exit(1)
         # TODO: Instead of creating equations again, reuse somehow (using removeEquationsByIndex, and getEquations)
-        network, _, _, _, _ = network_define_f(xlim, None, n_iterations)
+        network, *_ = network_define_f(xlim, None, n_iterations)
 
         for eq in step_equations:
             eq.dump()
@@ -447,10 +451,8 @@ def find_stronger_ge_invariant(network_define_f, max_alphas, min_alphas, i, rnn_
     return min_alphas, max_alphas, None
 
 
-
-
 def find_invariant2(network_define_f, xlim, ylim, n_iterations, min_alphas=None, max_alphas=None):
-    network, rnn_start_idxs, invariant_equation, initial_values, _ = network_define_f(xlim, ylim, n_iterations)
+    network, rnn_start_idxs, invariant_equation, initial_values, *_ = network_define_f(xlim, ylim, n_iterations)
     rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
     invariant_equation = None
     assert invariant_equation is None
@@ -552,7 +554,7 @@ def find_invariant2(network_define_f, xlim, ylim, n_iterations, min_alphas=None,
 
 
 def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, max_alphas=None):
-    network, rnn_start_idxs, invariant_equation, initial_values, _ = network_define_f(xlim, ylim, n_iterations)
+    network, rnn_start_idxs, invariant_equation, initial_values, *_ = network_define_f(xlim, ylim, n_iterations)
     rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
     invariant_equation = None
     assert invariant_equation is None
@@ -602,9 +604,9 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
         i = 0
         if still_improve[i]:
             min_alphas, max_alphas, temp_alpha = find_stronger_ge_invariant(network_define_f, max_alphas, min_alphas, i,
-                                                                           rnn_output_idxs, rnn_start_idxs,
-                                                                           initial_values,
-                                                                           xlim, n_iterations)
+                                                                            rnn_output_idxs, rnn_start_idxs,
+                                                                            initial_values,
+                                                                            xlim, n_iterations)
             if temp_alpha is not None:
                 alphas[i] = temp_alpha
             if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
@@ -613,9 +615,9 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
         i = 1
         if still_improve[i]:
             min_alphas, max_alphas, temp_alpha = find_stronger_le_invariant(network_define_f, max_alphas, min_alphas, i,
-                                                                           rnn_output_idxs, rnn_start_idxs,
-                                                                           initial_values,
-                                                                           xlim, n_iterations)
+                                                                            rnn_output_idxs, rnn_start_idxs,
+                                                                            initial_values,
+                                                                            xlim, n_iterations)
 
             if temp_alpha is not None:
                 alphas[i] = temp_alpha
@@ -642,8 +644,11 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
         # print(cur_alpha)
         # cur_alpha = temp
 
-    print("Finish trying to find sutiable invariant, the last invariants we found are\n\talpha_0: {}\n\talpha_1: {}".format(alphas[0], alphas[1]))
-    print("last search area\n\t0: {} TO {}\n\t1: {} TO {}".format(min_alphas[0], max_alphas[0], min_alphas[1], max_alphas[1]))
+    print(
+        "Finish trying to find sutiable invariant, the last invariants we found are\n\talpha_0: {}\n\talpha_1: {}".format(
+            alphas[0], alphas[1]))
+    print("last search area\n\t0: {} TO {}\n\t1: {} TO {}".format(min_alphas[0], max_alphas[0], min_alphas[1],
+                                                                  max_alphas[1]))
     return False
 
 
@@ -664,7 +669,7 @@ def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=Fal
         raise NotImplementedError
         # return prove_property_z3(ylim, 1, ylim)
     else:
-        network, iterators_idx, invariant_equation, output_eq = network_define_f(xlim, ylim, n_iterations)
+        network, iterators_idx, invariant_equation, output_eq, *_ = network_define_f(xlim, ylim, n_iterations)
         # inv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
 
         return prove_property_marabou(network, [invariant_equation], output_eq, iterators_idx, n_iterations)
@@ -690,7 +695,7 @@ def prove_adversarial_property(xlim, n_iterations, network_define_f):
         print("invariant doesn't hold")
         return False
 
-    _, _, _, (min_a, max_b), _ = network_define_f(xlim, n_iterations)
+    _, _, _, (min_a, max_b), *_ = network_define_f(xlim, n_iterations)
     return prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)
 
 
@@ -713,5 +718,5 @@ def prove_adversarial_using_invariant(xlim, n_iterations, network_define_f):
         print("invariant doesn't hold")
         return False
 
-    _, _, _, (min_a, max_b), (a_pace, b_pace) = network_define_f(xlim, n_iterations)
+    _, _, _, (min_a, max_b), (a_pace, b_pace), *_ = network_define_f(xlim, n_iterations)
     return prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)

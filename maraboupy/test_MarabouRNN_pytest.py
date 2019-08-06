@@ -30,13 +30,6 @@ def define_zero_network(xlim, ylim, n_iterations):
     network.setLowerBound(y_idx, -large)
     network.setUpperBound(y_idx, large)
 
-    # i = i, we create iterator for each cell, make sure they are the same
-    iterator_equation = MarabouCore.Equation()
-    iterator_equation.addAddend(1, s_cell_iterator)
-    iterator_equation.addAddend(-1, z_cell_iterator)
-    iterator_equation.setScalar(0)
-    network.addEquation(iterator_equation)
-
     # y = skf - zkf <--> y - skf + zkf = 0
     output_equation = MarabouCore.Equation()
     output_equation.addAddend(1, y_idx)
@@ -107,11 +100,11 @@ def define_negative_sum_network(xlim, ylim, n_iterations):
     # output_equation.dump()
     positive_sum_rnn_query.addEquation(output_equation)
 
-    # s_i f <= i <--> i - s_i f >= 0
+    # s_i f <= i + 1 <--> i - s_i f >= -1
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
     invariant_equation.addAddend(1, rnn_start_idx)  # i
     invariant_equation.addAddend(-1, rnn_idx)  # s_i f
-    invariant_equation.setScalar(0)
+    invariant_equation.setScalar(-1)
 
     # y <= ylim
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
@@ -151,7 +144,7 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     positive_sum_rnn_query.setUpperBound(0, xlim[1])
 
     rnn_start_idx = 1  # i
-    rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations)  # rnn_idx == s_i f
+    rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
     s_i_1_f_idx = rnn_idx - 2
     y_idx = rnn_idx + 1
 
@@ -166,25 +159,21 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     output_equation.addAddend(1, y_idx)
     output_equation.addAddend(-1, rnn_idx)
     output_equation.setScalar(0)
-    # output_equation.dump()
+    output_equation.dump()
     positive_sum_rnn_query.addEquation(output_equation)
 
-    base_eq = MarabouCore.Equation()
-    base_eq.addAddend(1, s_i_1_f_idx)
-    base_eq.setScalar(0)
-
-    # s_i f <= i <--> i - s_i f >= 0
+    # s_i f <= i + 1 <--> i + 1 - s_i f >= 0
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
     invariant_equation.addAddend(1, rnn_start_idx)  # i
     invariant_equation.addAddend(-1, rnn_idx)  # s_i f
-    invariant_equation.setScalar(0)
+    invariant_equation.setScalar(-1)
 
     # y <= ylim
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
     property_eq.addAddend(1, y_idx)
     property_eq.setScalar(ylim[1])
 
-    return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq], [base_eq]
+    return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq]
 
 
 def define_last_network(xlim, ylim, n_iterations):
@@ -236,7 +225,7 @@ def define_two_sum_network(xlim, ylim, n_ierations):
     '''
     The network gets a series of numbers and outputs two neurons, one sums the positive numbers and the other
     the negative
-    The propery we will
+    The property we will
     :param xlim: how to limit the input to the network
     :param ylim: how to limit the output of the network
     :param n_iterations: number of inputs / times the rnn cell will be executed
@@ -317,82 +306,7 @@ def test_negate_equation_LE():
     assert not eq.equivalent(not_eq)
 
 
-def test_create_invariant_equations_sum():
-    # i         0
-    # s_i-1 f   1
-    # s_i b     2
-    # s_i f     3
-
-    # s_i f <= i
-    invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-    invariant_equation.addAddend(1, 3)  # s_i f
-    invariant_equation.addAddend(-1, 0)  # i
-    invariant_equation.setScalar(0)
-
-    actual_base_eq, actual_step_eq = create_invariant_equations([0], invariant_equation)
-
-    # (s_0 f) = 0
-    base_hidden_limit_eq = MarabouCore.Equation()
-    base_hidden_limit_eq.addAddend(1, 1)
-    base_hidden_limit_eq.setScalar(0)
-
-    # (s_i-1 f) <= i - 1 <--> (s_i-1 f) - i  <= -1
-    hidden_limit_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
-    hidden_limit_eq.addAddend(-1, 0)  # i
-    hidden_limit_eq.addAddend(1, 1)  # s_i-1 f
-    hidden_limit_eq.setScalar(-1)
-
-    # set i == 1
-    base_limit_eq = MarabouCore.Equation()
-    base_limit_eq.addAddend(1, 0)
-    base_limit_eq.setScalar(1)
-
-    # set s_i-1 f == 0
-    hidden_limit_base_eq = MarabouCore.Equation()
-    hidden_limit_base_eq.addAddend(1, 1)
-    hidden_limit_base_eq.setScalar(0)
-
-    # negate the invariant we want to prove
-    # not(s_1 f <= 1) <--> s_1 f  > 1  <--> s_1 f >= 1 + \epsilon
-    # or we can do: i == 1 AND (not s_1 f <= i) <--> i == 1 AND s_1 f - i >= \epsilon
-    base_output_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
-    base_output_equation.addAddend(1, 3)
-    base_output_equation.addAddend(-1, 0)
-    base_output_equation.setScalar(small)
-
-    # not (s_i f >= i) <--> s_i f < i <--> s_i f -i >= \epsilon
-    output_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
-    output_equation.addAddend(1, 3)  # s_i f
-    output_equation.addAddend(-1, 0)  # i
-    output_equation.setScalar(small)
-
-    true_base = [base_hidden_limit_eq, base_output_equation, base_limit_eq, hidden_limit_base_eq]
-    true_step = [hidden_limit_eq, output_equation]
-
-    # assert False
-    assert len(actual_base_eq) == len(true_base)
-    assert len(actual_step_eq) == len(true_step)
-
-    for true_eq in true_base:
-        found = False
-        for eq in actual_base_eq:
-            if true_eq.equivalent(eq):
-                found = True
-                break
-        if not found:
-            assert False, "didn't find equation for (in base) {}".format(true_eq.dump())
-
-    for true_eq in true_step:
-        found = False
-        for eq in actual_step_eq:
-            if true_eq.equivalent(eq):
-                found = True
-                continue
-        if not found:
-            assert False, "didn't find equation for (in step) {}".format(true_eq.dump())
-
-
-def test_negative_sum_negative():
+def test_negative_sum_invariant_not_hold():
     num_iterations = 500
     invariant_xlim = (-1.1, -0.9)
     y_lim = (0, num_iterations)
@@ -403,12 +317,12 @@ def test_negative_sum_negative():
 def test_negative_sum_positive():
     num_iterations = 500
     invariant_xlim = (-1, 1)
-    y_lim = (0, num_iterations)
+    y_lim = (0, num_iterations + 1)
 
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_negative_sum_network)
 
 
-def test_positive_sum_negative():
+def test_positive_sum_base_not_hold():
     num_iterations = 500
     invariant_xlim = (1, 1.1)
     y_lim = (0, num_iterations)
@@ -416,10 +330,18 @@ def test_positive_sum_negative():
     assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
 
 
+def test_positive_sum_property_not_hold():
+    num_iterations = 500
+    invariant_xlim = (0, 1)
+    y_lim = (0, num_iterations // 2)
+
+    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
+
+
 def test_positive_sum_positive():
     num_iterations = 500
     invariant_xlim = (-1, 1)
-    y_lim = (0, num_iterations)
+    y_lim = (0, num_iterations + 1)
 
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
 
