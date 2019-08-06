@@ -346,22 +346,22 @@ def test_positive_sum_positive():
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
 
 
-def test_last_network_negative():
-    num_iterations = 500
-    invariant_xlim = (-1, 2)
-    y_lim = (-1, 0)
-    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_last_network)
-
-
-def test_last_network_positive():
-    '''
-    create wanted property and invariant that holds
-    :return:
-    '''
-    num_iterations = 500
-    invariant_xlim = (-1, 1)
-    y_lim = invariant_xlim
-    assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_last_network)
+# def test_last_network_negative():
+#     num_iterations = 500
+#     invariant_xlim = (-1, 2)
+#     y_lim = (-1, 0)
+#     assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_last_network)
+#
+#
+# def test_last_network_positive():
+#     '''
+#     create wanted property and invariant that holds
+#     :return:
+#     '''
+#     num_iterations = 500
+#     invariant_xlim = (-1, 1)
+#     y_lim = invariant_xlim
+#     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_last_network)
 
 
 def test_zero_network_positive():
