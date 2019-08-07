@@ -45,6 +45,7 @@ LOCAL_INCLUDES += \
 	. \
 	$(COMMON_DIR) \
 	$(CXXTEST_DIR) \
+	$(BOOST_INCLUDES) \
 
 CFLAGS += \
 	-MMD \
@@ -53,8 +54,6 @@ CFLAGS += \
 	-Werror \
 	-Wno-deprecated \
 	-std=c++0x \
-	\
-	-g \
 
 %.obj: %.cpp
 	@echo "CC\t" $@
@@ -72,6 +71,7 @@ CFLAGS += \
 LIBRARY_DIR += \
 
 LIBRARIES += \
+	pthread \
 
 LINK_FLAGS += \
 

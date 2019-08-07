@@ -19,7 +19,7 @@
 #include "GlobalConfiguration.h"
 #include "IEngine.h"
 #include "MStringf.h"
-#include "ReluplexError.h"
+#include "MarabouError.h"
 #include "SmtCore.h"
 
 SmtCore::SmtCore( IEngine *engine )
@@ -32,6 +32,11 @@ SmtCore::SmtCore( IEngine *engine )
 }
 
 SmtCore::~SmtCore()
+{
+    freeMemory();
+}
+
+void SmtCore::freeMemory()
 {
     for ( const auto &stackEntry : _stack )
     {
@@ -161,7 +166,7 @@ bool SmtCore::popSplit()
         {
             // Pops should not occur from a compliant stack!
             printf( "Error! Popping from a compliant stack\n" );
-            throw ReluplexError( ReluplexError::DEBUGGING_ERROR );
+            throw MarabouError( MarabouError::DEBUGGING_ERROR );
         }
 
         delete _stack.back()->_engineState;
@@ -176,7 +181,7 @@ bool SmtCore::popSplit()
     {
         // Pops should not occur from a compliant stack!
         printf( "Error! Popping from a compliant stack\n" );
-        throw ReluplexError( ReluplexError::DEBUGGING_ERROR );
+        throw MarabouError( MarabouError::DEBUGGING_ERROR );
     }
 
     StackEntry *stackEntry = _stack.back();
@@ -273,7 +278,7 @@ bool SmtCore::checkSkewFromDebuggingSolution()
         if ( !splitAllowsStoredSolution( split, error ) )
         {
             printf( "Error with one of the splits implied at root level:\n\t%s\n", error.ascii() );
-            throw ReluplexError( ReluplexError::DEBUGGING_ERROR );
+            throw MarabouError( MarabouError::DEBUGGING_ERROR );
         }
     }
 
@@ -287,7 +292,7 @@ bool SmtCore::checkSkewFromDebuggingSolution()
             {
                 printf( "Error! Have a split that is non-compliant with the stored solution, "
                         "without alternatives:\n\t%s\n", error.ascii() );
-                throw ReluplexError( ReluplexError::DEBUGGING_ERROR );
+                throw MarabouError( MarabouError::DEBUGGING_ERROR );
             }
 
             // Active split is non-compliant but this is fine, because there are alternatives. We're done.
@@ -301,7 +306,7 @@ bool SmtCore::checkSkewFromDebuggingSolution()
             {
                 printf( "Error with one of the splits implied at this stack level:\n\t%s\n",
                         error.ascii() );
-                throw ReluplexError( ReluplexError::DEBUGGING_ERROR );
+                throw MarabouError( MarabouError::DEBUGGING_ERROR );
             }
         }
     }
