@@ -1,5 +1,6 @@
 from maraboupy.MarabouRNN import *
 from maraboupy import MarabouCore
+import pytest
 
 
 def define_zero_network(xlim, ylim, n_iterations):
@@ -43,7 +44,7 @@ def define_zero_network(xlim, ylim, n_iterations):
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
     invariant_equation.addAddend(-1, z_i_f_idx)  # s_i f
     invariant_equation.addAddend(1, s_i_f_idx)  # s_i f
-    invariant_equation.setScalar(ylim / n_iterations)
+    invariant_equation.setScalar(small)
 
     # y <= n * 0.01
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
@@ -270,6 +271,60 @@ def define_two_sum_network(xlim, ylim, n_ierations):
     return network, [rnn_start_idx], invariant_equation, [property_eq]
 
 
+def define_concatenate_rnn(xlim, ylim, n_iterations):
+    '''
+
+    :param xlim:
+    :param ylim:     :param n_iterations:
+    :return:
+    '''
+    positive_sum_rnn_query = MarabouCore.InputQuery()
+    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+
+    # x
+    positive_sum_rnn_query.setLowerBound(0, xlim[0])
+    positive_sum_rnn_query.setUpperBound(0, xlim[1])
+
+    rnn_1_start_idx = 1  # i
+    rnn_1_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    rnn_2_start_idx = rnn_1_idx + 1  # i
+    rnn_2_idx = add_rnn_cell(positive_sum_rnn_query, [(rnn_1_idx, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    y_idx = rnn_2_idx + 1
+
+    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+
+    # y
+    positive_sum_rnn_query.setLowerBound(y_idx, -large)
+    positive_sum_rnn_query.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_2_idx)
+    output_equation.setScalar(0)
+    output_equation.dump()
+    positive_sum_rnn_query.addEquation(output_equation)
+
+    # s_i_f >= i + 1 <--> -1 >= - s_i_f + i
+    invariant_1_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_1_equation.addAddend(1, rnn_1_start_idx)  # i
+    invariant_1_equation.addAddend(-1, rnn_1_idx)  # s_i f
+    invariant_1_equation.setScalar(-1)
+
+    # z_i f >= n_iterations * (i + 1) <--> -n >= n * i - z_i_f
+    invariant_2_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_2_equation.addAddend(n_iterations + 1, rnn_2_start_idx)  # i
+    invariant_2_equation.addAddend(-1, rnn_2_idx)  # z_i f
+    invariant_2_equation.setScalar(-n_iterations)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+
+    return positive_sum_rnn_query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [property_eq]
+
+
 def test_negate_equation_GE():
     # x - y >= 0
     eq = MarabouCore.Equation(MarabouCore.Equation.GE)
@@ -363,9 +418,24 @@ def test_positive_sum_positive():
 #     y_lim = invariant_xlim
 #     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_last_network)
 
+# @pytest.mark.slow
 
-def test_zero_network_positive():
-    num_iterations = 500
+# def test_zero_network_positive():
+#     num_iterations = 500
+#     invariant_xlim = (-1, 1)
+#     y_lim = 10 ** -2
+#     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_zero_network)
+
+
+def test_concatenate_rnn_cells_positive():
+    num_iterations = 5
+    invariant_xlim = (0, 1)
+    y_lim = (0, 311)
+    assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
+
+
+def test_concatenate_rnn_cells_positive_output_fail():
+    num_iterations = 5
     invariant_xlim = (-1, 1)
-    y_lim = 10 ** -2
-    assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_zero_network)
+    y_lim = (0, 15)
+    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
