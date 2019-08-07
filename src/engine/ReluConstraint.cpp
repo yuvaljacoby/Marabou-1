@@ -476,14 +476,19 @@ PiecewiseLinearCaseSplit ReluConstraint::getValidCaseSplit() const
 
 void ReluConstraint::dump( String &output ) const
 {
-    output = Stringf( "ReluConstraint: x%u = ReLU( x%u ). Active? %s. PhaseStatus = %u (%s). "
-                      "b in [%lf, %lf]. f in [%lf, %lf]",
-                      _f, _b,
-                      _constraintActive ? "Yes" : "No",
-                      _phaseStatus, phaseToString( _phaseStatus ).ascii(),
-                      _lowerBounds[_b], _upperBounds[_b], _lowerBounds[_f], _upperBounds[_f]
-                      );
+    output = Stringf( "ReluConstraint: x%u = ReLU( x%u ). Active? %s. PhaseStatus = %u (%s).\n",
+                  _f, _b,
+                  _constraintActive ? "Yes" : "No",
+                  _phaseStatus, phaseToString( _phaseStatus ).ascii()
+                  );
 
+    output += Stringf(" b in [%s, %s]", 
+            _lowerBounds.exists(_b) ? std::to_string(_lowerBounds[_b]).c_str() : "-inf",
+            _upperBounds.exists(_b) ? std::to_string(_upperBounds[_b]).c_str() : "inf");
+
+    output += Stringf(" f in [%s, %s]", 
+            _lowerBounds.exists(_f) ? std::to_string(_lowerBounds[_f]).c_str() : "-inf",
+            _upperBounds.exists(_f) ? std::to_string(_upperBounds[_f]).c_str() : "inf");
     if ( _auxVarInUse )
         output += Stringf( ". Aux var: %u. Range: [%lf, %lf]\n",
                            _aux, _lowerBounds[_aux], _upperBounds[_aux] );
