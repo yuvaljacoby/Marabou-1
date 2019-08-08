@@ -117,6 +117,7 @@ public:
       Print input and output bounds
     */
     void printInputOutputBounds() const;
+    void dump() const;
 
     /*
       Adjsut the input/output variable mappings because variables have been merged
