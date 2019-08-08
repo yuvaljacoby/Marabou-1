@@ -27,7 +27,6 @@ def define_network():
     # output_equation.dump()
     network.addEquation(output_equation)
 
-
     # y <= n * 0.01
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
     property_eq.addAddend(1, 1)
@@ -37,5 +36,5 @@ def define_network():
 
 def test_dump_query():
     network = define_network()
+    MarabouCore.solve(network, "", 0)
     network.dump()
-
