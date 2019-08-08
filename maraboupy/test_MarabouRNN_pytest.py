@@ -160,7 +160,7 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     output_equation.addAddend(1, y_idx)
     output_equation.addAddend(-1, rnn_idx)
     output_equation.setScalar(0)
-    output_equation.dump()
+    # output_equation.dump()
     positive_sum_rnn_query.addEquation(output_equation)
 
     # s_i f <= i + 1 <--> i + 1 - s_i f >= 0
@@ -271,6 +271,62 @@ def define_two_sum_network(xlim, ylim, n_ierations):
     return network, [rnn_start_idx], invariant_equation, [property_eq]
 
 
+def define_concatenate_rnn_invariant_not_holding(xlim, ylim, n_iterations):
+    '''
+    defining a network with two rnn's one after the other, so the input to the second rnn is the output of the first
+    Here the invariant of the second rnn does not hold.
+    :param xlim:
+    :param ylim:
+    :param n_iterations:
+    :return:
+    '''
+    positive_sum_rnn_query = MarabouCore.InputQuery()
+    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+
+    # x
+    positive_sum_rnn_query.setLowerBound(0, xlim[0])
+    positive_sum_rnn_query.setUpperBound(0, xlim[1])
+
+    rnn_1_start_idx = 1  # i
+    rnn_1_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    rnn_2_start_idx = rnn_1_idx + 1  # i
+    rnn_2_idx = add_rnn_cell(positive_sum_rnn_query, [(rnn_1_idx, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    y_idx = rnn_2_idx + 1
+
+    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+
+    # y
+    positive_sum_rnn_query.setLowerBound(y_idx, -large)
+    positive_sum_rnn_query.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_2_idx)
+    output_equation.setScalar(0)
+    # output_equation.dump()
+    positive_sum_rnn_query.addEquation(output_equation)
+
+    # s_i_f >= i + 1 <--> -1 >= - s_i_f + i
+    invariant_1_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_1_equation.addAddend(1, rnn_1_start_idx)  # i
+    invariant_1_equation.addAddend(-1, rnn_1_idx)  # s_i f
+    invariant_1_equation.setScalar(-1)
+
+    # z_i f >= n_iterations * (i + 1) <--> -n >= n * i - z_i_f
+    invariant_2_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
+    invariant_2_equation.addAddend(n_iterations + 1, rnn_2_start_idx)  # i
+    invariant_2_equation.addAddend(-1, rnn_2_idx)  # z_i f
+    invariant_2_equation.setScalar(-1)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+
+    return positive_sum_rnn_query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [property_eq]
+
+
 def define_concatenate_rnn(xlim, ylim, n_iterations):
     '''
 
@@ -302,7 +358,7 @@ def define_concatenate_rnn(xlim, ylim, n_iterations):
     output_equation.addAddend(1, y_idx)
     output_equation.addAddend(-1, rnn_2_idx)
     output_equation.setScalar(0)
-    output_equation.dump()
+    # output_equation.dump()
     positive_sum_rnn_query.addEquation(output_equation)
 
     # s_i_f >= i + 1 <--> -1 >= - s_i_f + i
@@ -315,7 +371,7 @@ def define_concatenate_rnn(xlim, ylim, n_iterations):
     invariant_2_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
     invariant_2_equation.addAddend(n_iterations + 1, rnn_2_start_idx)  # i
     invariant_2_equation.addAddend(-1, rnn_2_idx)  # z_i f
-    invariant_2_equation.setScalar(-n_iterations)
+    invariant_2_equation.setScalar(-1)
 
     # y <= ylim
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
@@ -428,10 +484,19 @@ def test_positive_sum_positive():
 
 
 def test_concatenate_rnn_cells_positive():
+    for i in range(1, 10):
+        num_iterations = i # we use i = 0 so it's 6 iterations
+        invariant_xlim = (0, 1)
+        y_lim = (0, (num_iterations + 1) ** 2)
+        assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
+        print("prove that for {} R_2 is <= {}".format(num_iterations, (num_iterations + 1) ** 2))
+
+
+def test_concatenate_rnn_cells_positive_output_fail():
     num_iterations = 5
-    invariant_xlim = (0, 1)
-    y_lim = (0, 311)
-    assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
+    invariant_xlim = (-1, 1)
+    y_lim = (0, 10000)
+    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn_invariant_not_holding)
 
 
 def test_concatenate_rnn_cells_positive_output_fail():

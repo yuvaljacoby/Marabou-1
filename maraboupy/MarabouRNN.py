@@ -14,9 +14,9 @@ def marabou_solve_negate_eq(query, debug=False):
     :param debug: if True printing all of the query equations
     :return: True if UNSAT (no valid assignment), False otherwise
     '''
-    if debug:
-        for eq in query.getEquations():
-            eq.dump()
+    # if debug:
+    #     for eq in query.getEquations():
+    #         eq.dump()
 
     vars1, stats1 = MarabouCore.solve(query, "", 0)
     if len(vars1) > 0:
@@ -63,6 +63,7 @@ def add_rnn_cell(query, input_weights, hidden_weight, num_iterations, print_debu
     query.setNumberOfVariables(last_idx + 4)  # i, s_i-1 f, s_i b, s_i f
 
     # i
+    # TODO: when doing this we make the number of iterations to be n_iterations + 1
     query.setLowerBound(last_idx, 0)
     query.setUpperBound(last_idx, num_iterations)
 
@@ -93,8 +94,8 @@ def add_rnn_cell(query, input_weights, hidden_weight, num_iterations, print_debu
     update_eq.addAddend(hidden_weight, last_idx + 1)
     update_eq.addAddend(-1, last_idx + 2)
     update_eq.setScalar(0)
-    if print_debug:
-        update_eq.dump()
+    # if print_debug:
+    #     update_eq.dump()
     query.addEquation(update_eq)
 
     return last_idx + 3
@@ -246,12 +247,12 @@ def prove_property_marabou(network, invariant_equations, output_equations, itera
 
     print("invariant_equations")
     for eq in invariant_equations:
-        eq.dump()
+        # eq.dump()
         network.addEquation(eq)
 
     print("output_equations")
     for eq in not_output:
-        eq.dump()
+        # eq.dump()
         network.addEquation(eq)
 
     print("Querying for output")
@@ -261,6 +262,14 @@ def prove_property_marabou(network, invariant_equations, output_equations, itera
 def simplify_network_using_invariants(network_define_f, xlim, ylim, n_iterations):
     network, rnn_start_idxs, invariant_equation, *_ = network_define_f(xlim, ylim, n_iterations)
 
+    for idx in rnn_start_idxs:
+        for idx2 in rnn_start_idxs:
+            if idx != idx2:
+                temp_eq = MarabouCore.Equation()
+                temp_eq.addAddend(1, idx)
+                temp_eq.addAddend(-1, idx2)
+                network.addEquation(temp_eq)
+
     if not isinstance(invariant_equation, list):
         invariant_equation = [invariant_equation]
 
@@ -269,7 +278,7 @@ def simplify_network_using_invariants(network_define_f, xlim, ylim, n_iterations
             print("Fail on invariant: ", i)
             return False
         else:
-
+            # Add the invariant hypothesis for the next proving
             network.addEquation(invariant_equation[i])
 
     return True
@@ -290,25 +299,30 @@ def prove_invariant(network, rnn_start_idxs, invariant_equation):
     base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equation])
 
     for eq in base_equations:
-        eq.dump()
+        # eq.dump()
         network.addEquation(eq)
 
     print("Querying for induction base")
+    network.dump()
     if not marabou_solve_negate_eq(network):
-        print("induction base fail")
+        print("\n")
+        network.dump()
+        print("\ninduction base fail")
         return False
 
     for eq in base_equations:
         network.removeEquation(eq)
 
     for eq in step_equations:
-        eq.dump()
+        # eq.dump()
         network.addEquation(eq)
 
     print("Querying for induction step")
+    network.dump()
     if not marabou_solve_negate_eq(network):
-            print("induction step fail")
-            return False
+        network.dump()
+        print("induction step fail")
+        return False
 
     for eq in step_equations:
         network.removeEquation(eq)
@@ -331,7 +345,7 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
         base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equations[i]])
 
         for eq in base_equations:
-            eq.dump()
+            # eq.dump()
             network.addEquation(eq)
 
         print("Querying for induction base")
@@ -343,11 +357,12 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
             network.removeEquation(eq)
 
         for eq in step_equations:
-            eq.dump()
+            # eq.dump()
             network.addEquation(eq)
 
         print("Querying for induction step")
         if not marabou_solve_negate_eq(network):
+            network.dump()
             print("induction step fail, on invariant:", i)
             return False
 
