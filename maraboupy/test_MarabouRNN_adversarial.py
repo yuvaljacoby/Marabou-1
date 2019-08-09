@@ -90,13 +90,13 @@ def check_adversarial_robustness_z3():
         return True
 
 
-def define_adversarial_robustness_step_fail(xlim, n_iterations):
+def define_adversarial_robustness_two_input_nodes_step_fail(xlim, n_iterations):
     '''
-    Define an adversarial roustness examples
+    Define an adversarial robustness examples, where it will not be possible to find an invariant that will work
     0 <= x_0 <= 1
     1 <= x_1 <= 2
     s_i = 1 * x_0 + 5 * x_1 + 1 * s_(i-1)
-    z_i = 2 * x_0 + 1 * x_1 + 1.1 * z_(i-1)
+    z_i = 2 * x_0 + 1 * x_1 + 100 * z_(i-1)
     A = s_i
     B = z_i
     therefore:
@@ -195,13 +195,13 @@ def define_adversarial_robustness_step_fail(xlim, n_iterations):
            (min_a, max_b), (-alpha, alpha)
 
 
-def define_adversarial_robustness(xlim, n_iterations):
+def define_adversarial_robustness_two_input_nodes(xlim, n_iterations):
     '''
     Define an adversarial roustness examples
     0 <= x_0 <= 1
     1 <= x_1 <= 2
     s_i = 1 * x_0 + 5 * x_1 + 1 * s_(i-1)
-    z_i = 2 * x_0 + 1 * x_1 + 1.1 * z_(i-1)
+    z_i = 2 * x_0 + 1 * x_1 + 1 * z_(i-1)
     A = s_i
     B = z_i
     therefore:
@@ -400,18 +400,15 @@ def define_weak_adversarial_robustness(xlim, n_iterations):
            (min_a, max_b), (alpha, alpha + 100)
 
 
-def define_adversarial_robustness_no_invariant(xlim, n_iterations):
+def define_adversarial_robustness_one_input(xlim, n_iterations):
     '''
     Define an adversarial roustness examples
-    0 <= x_0 <= 1
-    1 <= x_1 <= 2
-    s_i = 1 * x_0 + 5 * x_1 + 1 * s_(i-1)
-    z_i = 2 * x_0 + 1 * x_1 + 1.1 * z_(i-1)
+    0 <= x_0 <= 1 # actually it's acording to xlim
+    s_i = 6 * x_0 + 0.5 * s_(i-1)
+    z_i = 1 * x_0 + 1 * z_(i-1)
     A = s_i
     B = z_i
-    therefore:
-        5 <= A <= 6
-        1 <= B <= 4
+        
     prove that after n_iterations A >= B
     :param xlim: array of tuples, each array cell as an input (x_0, x_1 etc..) tuple is (min_value, max_value)
     :param n_iterations: number of iterations
@@ -430,11 +427,10 @@ def define_adversarial_robustness_no_invariant(xlim, n_iterations):
     x0_s_w = 6
     x0_z_w = 1
 
-    # s_i_f = relu(2 * x1 + 1 * x2 + 1.5*s_i-1_f)
     s_cell_iterator = network.getNumberOfVariables()  # i
     s_i_f_idx = add_rnn_cell(network, [(0, x0_s_w)], s_hidden_w, n_iterations, print_debug=True)
     s_i_1_f_idx = s_i_f_idx - 2
-    # z_i_f = relu(1 * x1 + 10 * x2 + z_i-1_f)
+
     z_cell_iterator = network.getNumberOfVariables()
     z_i_f_idx = add_rnn_cell(network, [(0, x0_z_w)], z_hidden_w, n_iterations, print_debug=True)
     z_i_1_f_idx = z_i_f_idx - 2
@@ -477,10 +473,84 @@ def define_adversarial_robustness_no_invariant(xlim, n_iterations):
     min_a = relu(relu(xlim[0][0] * x0_s_w) * a_w)
     max_a = relu(relu(xlim[0][1] * x0_s_w) * a_w)
 
-    return network, [s_cell_iterator, z_cell_iterator], None, (min_a, max_b), None
+    return network, [s_cell_iterator, z_cell_iterator], None, (min_a, max_b)
 
 
-def test_adversarial_robustness_no_invariant():
+def define_adversarial_robustness_concatenate_rnn(xlim, n_iterations):
+    '''
+    xlim[0] <= x_0 <= xlim[1]
+    s1_i = 6 * x_0 + 0.5 * s1_i-1
+    s2_i = 1 * s1_i + 1 * s2_i-1
+    z1_i = 1 * x_0 + 1 * z1_i-1
+    z2_i = 1 * z1_i + 1 * z2_i-1
+    A = s2
+    B = z2
+    '''
+    query = MarabouCore.InputQuery()
+    query.setNumberOfVariables(len(xlim))  # x
+
+    # x
+    query.setLowerBound(0, xlim[0][0])
+    query.setUpperBound(0, xlim[0][1])
+
+    w_x_s1 = 6
+    w_s1_s2 = 1
+    w_s1_s1 = 0.5
+    w_s2_s2 = 1
+    w_s2_a = 1
+
+    w_x_z1 = 1
+    w_z1_z2 = 1
+    w_z1_z1 = 1
+    w_z2_z2 = 1
+    w_z2_b = 1
+
+    s1_start_idx = 1  # i
+    s1_idx = add_rnn_cell(query, [(0, w_x_s1)], w_s1_s1, n_iterations)
+    s2_start_idx = s1_idx + 1  # i
+    s2_idx = add_rnn_cell(query, [(s1_idx, w_s1_s2)], w_s2_s2, n_iterations)
+
+    z1_start_idx = 1  # i
+    z1_idx = add_rnn_cell(query, [(0, w_x_z1)], w_z1_z1, n_iterations)
+    z2_start_idx = z1_idx + 1  # i
+    z2_idx = add_rnn_cell(query, [(z1_idx, w_z1_z2)], w_z2_z2, n_iterations)
+
+    a_idx = z2_idx + 1
+    b_idx = a_idx + 1
+
+    query.setNumberOfVariables(b_idx + 1)
+
+    query.setLowerBound(a_idx, -large)
+    query.setUpperBound(a_idx, large)
+    query.setLowerBound(b_idx, -large)
+    query.setUpperBound(b_idx, large)
+
+    a_output_equation = MarabouCore.Equation()
+    a_output_equation.addAddend(1, a_idx)
+    a_output_equation.addAddend(-1, s2_idx)
+    a_output_equation.setScalar(0)
+    query.addEquation(a_output_equation)
+
+    b_output_equation = MarabouCore.Equation()
+    b_output_equation.addAddend(1, b_idx)
+    b_output_equation.addAddend(-1, z2_idx)
+    b_output_equation.setScalar(0)
+    query.addEquation(b_output_equation)
+
+    min_a = relu(relu(relu(xlim[0][0] * w_x_s1) * w_s1_s2) * w_s2_a)
+    max_a = relu(relu(relu(xlim[0][1] * w_x_s1) * w_s1_s2) * w_s2_a)
+    min_b = relu(relu(relu(xlim[0][0] * w_x_z1) * w_z1_z2) * w_z2_b)
+    max_b = relu(relu(relu(xlim[0][1] * w_x_z1) * w_z1_z2) * w_z2_b)
+
+    print('min_a', min_a)
+    print('max_a', max_a)
+    print('min_b', min_b)
+    print('max_b', max_b)
+
+    return query, [s1_idx, s2_idx, z1_idx, z2_idx], None, (min_a, max_b)
+
+
+def test_auto_adversarial_robustness_one_input():
     '''
     This exmple has only one input node and two RNN cells
     '''
@@ -488,7 +558,7 @@ def test_adversarial_robustness_no_invariant():
     invariant_xlim = [(1, 2)]
 
 
-    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_no_invariant(xlim, n_iterations)
+    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_one_input(xlim, n_iterations)
 
 
     inv_res = find_invariant(partial_define, invariant_xlim, None, num_iterations)
@@ -496,12 +566,12 @@ def test_adversarial_robustness_no_invariant():
     assert inv_res
 
 
-def test_adversarial_robustness_no_invariant_fail():
+def test_auto_adversarial_robustness_one_input_fail():
     num_iterations = 8
     invariant_xlim = [(1, 2)]
 
 
-    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_no_invariant(xlim, n_iterations)
+    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_one_input(xlim, n_iterations)
 
 
     inv_res = find_invariant(partial_define, invariant_xlim, None, num_iterations)
@@ -509,31 +579,31 @@ def test_adversarial_robustness_no_invariant_fail():
     assert not inv_res
 
 
-def test_adversarial_robustness():
+def test_auto_adversarial_robustness_two_inputs():
     '''
     This example has 2 input nodes and two RNN cells
     '''
     num_iterations = 10
     invariant_xlim = [(0, 1), (1, 2)]
     # y_lim = 10 ** -2
-    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness(xlim, n_iterations)
+    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_two_input_nodes(xlim, n_iterations)
     
     assert find_invariant(partial_define, invariant_xlim, None, num_iterations)
 
 
-def test_adversarial_robustness_step_fail():
+def test_auto_adversarial_robustness_two_inputs_fail():
     num_iterations = 10
     invariant_xlim = [(0, 1), (1, 2)]
     # y_lim = 10 ** -2
     assert not prove_adversarial_using_invariant(invariant_xlim, num_iterations,
-                                                 define_adversarial_robustness_step_fail)
+                                                 define_adversarial_robustness_two_input_nodes_step_fail)
 
 
-def test_adversarial_robustness_base_fail():
+def test_auto_adversarial_robustness_two_inputs_base_fail():
     num_iterations = 10
     invariant_xlim = [(0, 10), (1, 2)]
     # y_lim = 10 ** -2
-    assert not prove_adversarial_using_invariant(invariant_xlim, num_iterations, define_adversarial_robustness)
+    assert not prove_adversarial_using_invariant(invariant_xlim, num_iterations, define_adversarial_robustness_two_input_nodes)
 
     # assert check_adversarial_robustness_z3()
 
@@ -648,7 +718,7 @@ def test_invariant_bounds_ge():
         invariant_equation.addAddend(1, rnn_start_idxs[0] + 3)  # a_i
         invariant_equation.addAddend(alpha, rnn_start_idxs[0])  # i
         invariant_equation.setScalar(initial_values[0])
-        if prove_invariant2(partial_define, [invariant_equation], xlim, num_iterations):
+        if prove_invariant2(network, rnn_start_idxs, [invariant_equation]):
             good_weight.append(weight)
         else:
             fail_weight.append(weight)
@@ -752,7 +822,7 @@ def test_invariant_bounds_le():
         invariant_equation.addAddend(1, rnn_start_idxs[0] + 3)  # a_i
         invariant_equation.addAddend(-alpha, rnn_start_idxs[0])  # i
         invariant_equation.setScalar(initial_values[1])
-        if prove_invariant2(partial_define, [invariant_equation], xlim, num_iterations):
+        if prove_invariant2(network, rnn_start_idxs, [invariant_equation]):
             good_weight.append(weight)
         else:
             fail_weight.append(weight)
@@ -775,3 +845,20 @@ def test_invariant_bounds_le():
     #         fail_alpha.append(alpha)
 
     # print("Fail alpha:\n", fail_alpha)
+
+
+def test_auto_adversarial_robustness_one_input():
+    '''
+    This exmple has only one input node and two RNN cells
+    '''
+    return
+    num_iterations = 4
+    invariant_xlim = [(1, 2)]
+
+
+    partial_define = lambda xlim, ylim, n_iterations: define_adversarial_robustness_concatenate_rnn(xlim, n_iterations)
+
+
+    inv_res = find_invariant(partial_define, invariant_xlim, None, num_iterations)
+    print(inv_res)
+    assert inv_res

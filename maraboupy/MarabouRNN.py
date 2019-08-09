@@ -303,10 +303,10 @@ def prove_invariant(network, rnn_start_idxs, invariant_equation):
         network.addEquation(eq)
 
     print("Querying for induction base")
-    network.dump()
+    # network.dump()
     if not marabou_solve_negate_eq(network):
         print("\n")
-        network.dump()
+        # network.dump()
         print("\ninduction base fail")
         return False
 
@@ -318,9 +318,9 @@ def prove_invariant(network, rnn_start_idxs, invariant_equation):
         network.addEquation(eq)
 
     print("Querying for induction step")
-    network.dump()
+    # network.dump()
     if not marabou_solve_negate_eq(network):
-        network.dump()
+        # network.dump()
         print("induction step fail")
         return False
 
@@ -329,17 +329,15 @@ def prove_invariant(network, rnn_start_idxs, invariant_equation):
     return True
 
 
-def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
+def prove_invariant2(network, rnn_start_idxs, invariant_equations):
     '''
-       proving invariant network using induction (proving for the first iteration, and concluding that after iteration k
-           the property holds assuming k-1 holds)
-       :param network_define_f: function that returns the marabou network, invariant, output property
-       :param invariant_equations: List of Marabou equations that describe the current invariant
-       :param xlim: limits on the input
-       :param n_iterations: max number of times to run the cell
-       :return: True if the invariant holds, false otherwise
-       '''
-    network, rnn_start_idxs, *_ = network_define_f(xlim, None, n_iterations)
+    proving invariant network using induction (proving for the first iteration, and concluding that after iteration k
+       the property holds assuming k-1 holds)
+    Not changing the network, i.e. every equation we add we also remove
+    :param network: description of the NN in marabou style
+    :param invariant_equations: List of Marabou equations that describe the current invariant
+    :return: True if the invariant holds, false otherwise
+    '''
 
     for i in range(len(invariant_equations)):
         base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equations[i]])
@@ -349,7 +347,13 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
             network.addEquation(eq)
 
         print("Querying for induction base")
-        if not marabou_solve_negate_eq(network):
+        network.dump()
+
+        marabou_result = marabou_solve_negate_eq(network)
+        for eq in step_equations:
+            network.removeEquation(eq)
+
+        if not marabou_result:
             print("induction base fail, on invariant:", i)
             return False
 
@@ -361,91 +365,34 @@ def prove_invariant2(network_define_f, invariant_equations, xlim, n_iterations):
             network.addEquation(eq)
 
         print("Querying for induction step")
-        if not marabou_solve_negate_eq(network):
-            network.dump()
+        network.dump()
+
+        marabou_result = marabou_solve_negate_eq(network)
+        for eq in step_equations:
+            network.removeEquation(eq)
+
+        if not marabou_result:
+            # network.dump()
             print("induction step fail, on invariant:", i)
             return False
 
     return True
 
 
-def find_stronger_invariant(network_define_f, xlim, n_iterations, output_idx, initial_value, i_idx, cur_alpha,
-                            search_range,
-                            larger_better=True, tolerance=TOLERANCE_VALUE):
-    '''
-    Improve the invariant with a stronger one, get alpha
-    :param network_define_f: function the describes the network
-    :param output_idx: Index we want to prove on
-    :param initial_value: What is the initial value of this output idx
-    :param i_idx: index of the iterator counter
-    :param cur_alpha: current value that we try to improve
-    :param search_range: where to search alpha
-    :param larger_better: Should we try to get alpha larger or smaller
-    :param tolerance: how small changes effect alpha, i.e. if the change in the alpha is smaller then this we stop
-    :return:
-    '''
-    proved_invariant = False
-    improvement = True
-    prev_alpha = cur_alpha
-
-    while improvement:
-        if larger_better:
-            invariant_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
-            invariant_equation.addAddend(cur_alpha, i_idx)  # i
-        else:
-            invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
-            invariant_equation.addAddend(-cur_alpha, i_idx)  # i
-
-        invariant_equation.addAddend(1, output_idx)  # a_i
-        invariant_equation.setScalar(initial_value)
-
-        if prove_invariant2(network_define_f, [invariant_equation], xlim, n_iterations):
-            print('proved invariant, alpha:', cur_alpha)
-            prev_alpha = cur_alpha
-            if larger_better:
-                search_range = (cur_alpha, search_range[1])
-                cur_alpha += (search_range[1] - cur_alpha) / 2.0  # Make alpha larger
-                assert search_range[1] > cur_alpha
-                assert cur_alpha > prev_alpha
-            else:
-                search_range = (search_range[0], cur_alpha)
-                cur_alpha -= (cur_alpha - search_range[0]) / 2  # Make alpha smaller
-                assert cur_alpha < prev_alpha
-
-            improvement = True
-            proved_invariant = True  # It's enough to get here once to know we proved the invariant
-            if abs(prev_alpha - cur_alpha) < tolerance:
-                # otherwise this will go on forever
-                improvement = False
-        else:
-            # Finished going in this direction for this invariant
-            if larger_better:
-                search_range = (search_range[0], cur_alpha)
-            else:
-                search_range = (cur_alpha, search_range[1])
-            cur_alpha = prev_alpha
-            improvement = False
-
-    if not proved_invariant:
-        cur_alpha = None
-
-    return cur_alpha, search_range
+def find_stronger_le_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
+                               initial_values):
+    return find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
+                                   initial_values, MarabouCore.Equation.LE)
 
 
-def find_stronger_le_invariant(network_define_f, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
-                               initial_values, xlim, n_iterations):
-    return find_stronger_invariant(network_define_f, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
-                                   initial_values, xlim, n_iterations, MarabouCore.Equation.LE)
+def find_stronger_ge_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
+                               initial_values):
+    return find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
+                                   initial_values, MarabouCore.Equation.GE)
 
 
-def find_stronger_ge_invariant(network_define_f, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
-                               initial_values, xlim, n_iterations):
-    return find_stronger_invariant(network_define_f, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
-                                   initial_values, xlim, n_iterations, MarabouCore.Equation.GE)
-
-
-def find_stronger_invariant(network_define_f, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
-                            initial_values, xlim, n_iterations, eq_type=MarabouCore.Equation.GE):
+def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
+                            initial_values, eq_type=MarabouCore.Equation.GE):
     cur_alpha = (max_alphas[i] + min_alphas[i]) / 2
     while max_alphas[i] - min_alphas[i] > TOLERANCE_VALUE:
         invariant_equation = MarabouCore.Equation(eq_type)
@@ -456,9 +403,10 @@ def find_stronger_invariant(network_define_f, max_alphas, min_alphas, i, rnn_out
             ge_better = 1
         invariant_equation.addAddend(cur_alpha * ge_better, rnn_start_idxs[i])  # i
         invariant_equation.setScalar(initial_values[i])
-        if prove_invariant2(network_define_f, [invariant_equation], xlim, n_iterations):
+        if prove_invariant2(network, rnn_start_idxs, [invariant_equation]):
             print("For alpha_{} {} invariant holds".format(i, cur_alpha))
             max_alphas[i] = cur_alpha
+            # network.addEquation(invariant_equation)
             return min_alphas, max_alphas, cur_alpha
         else:
             print("For alpha_{} {} invariant does not hold".format(i, cur_alpha))
@@ -480,13 +428,13 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
     initial_diff = initial_values[0] - initial_values[1]
     assert initial_diff > 0
 
-    # The invariant holds for sure with zero
     # TODO: Find suitable range for the invariant to be in
     if min_alphas is None:
         min_alphas = [-large] * 2  # len(rnn_start_idxs) # min alpha that we try but invariant does not hold
         max_alphas = [large] * 2  # len(rnn_start_idxs)  # max alpha that we try but property does not hold
 
-    alphas = [min_alphas[0], max_alphas[1]]  # For A small alpha yields stronger invariant, while B is the opposite
+    # For A small alpha yields stronger invariant, while B is the opposite
+    alphas = [min_alphas[0], max_alphas[1]]
 
     still_improve = [True, True]
     # cur_alpha = max_alphas[i]
@@ -494,10 +442,9 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
 
         i = 0
         if still_improve[i]:
-            min_alphas, max_alphas, temp_alpha = find_stronger_ge_invariant(network_define_f, max_alphas, min_alphas, i,
+            min_alphas, max_alphas, temp_alpha = find_stronger_ge_invariant(network, max_alphas, min_alphas, i,
                                                                             rnn_output_idxs, rnn_start_idxs,
-                                                                            initial_values,
-                                                                            xlim, n_iterations)
+                                                                            initial_values)
             if temp_alpha is not None:
                 alphas[i] = temp_alpha
             if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
@@ -505,10 +452,9 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
 
         i = 1
         if still_improve[i]:
-            min_alphas, max_alphas, temp_alpha = find_stronger_le_invariant(network_define_f, max_alphas, min_alphas, i,
+            min_alphas, max_alphas, temp_alpha = find_stronger_le_invariant(network, max_alphas, min_alphas, i,
                                                                             rnn_output_idxs, rnn_start_idxs,
-                                                                            initial_values,
-                                                                            xlim, n_iterations)
+                                                                            initial_values)
 
             if temp_alpha is not None:
                 alphas[i] = temp_alpha

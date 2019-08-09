@@ -329,10 +329,10 @@ def define_concatenate_rnn_invariant_not_holding(xlim, ylim, n_iterations):
 
 def define_concatenate_rnn(xlim, ylim, n_iterations):
     '''
-
-    :param xlim:
-    :param ylim:     :param n_iterations:
-    :return:
+        xlim[0] <= x_0 <= xlim[1]
+        s_i = 1 * x_0 + 1 * s_i-1
+        z_i = 1 * s_i + 1 * z_i-1
+        y = z_i
     '''
     positive_sum_rnn_query = MarabouCore.InputQuery()
     positive_sum_rnn_query.setNumberOfVariables(1)  # x
