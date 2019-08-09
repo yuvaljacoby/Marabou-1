@@ -103,7 +103,8 @@ void createInputQuery(InputQuery &inputQuery, std::string networkFilePath, std::
     printf( "Property: None\n" );
 }
 
-std::pair<std::map<int, double>, Statistics> solve(InputQuery inputQuery, std::string redirect="", unsigned timeout=0){
+std::pair<std::map<int, double>, Statistics> solve(InputQuery inputQuery, std::string redirect="", unsigned timeout=0,
+unsigned verbosity = 2){
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::map<int, double> ret;
@@ -112,14 +113,15 @@ std::pair<std::map<int, double>, Statistics> solve(InputQuery inputQuery, std::s
     if(redirect.length()>0)
         output=redirectOutputToFile(redirect);
     try{
-        Engine engine;
-        if(!engine.processInputQuery(inputQuery)) return std::make_pair(ret, *(engine.getStatistics()));
+        Engine *engine = new Engine(verbosity);
+//        Engine engine = *(pEngine);
+        if(!engine->processInputQuery(inputQuery)) return std::make_pair(ret, *(engine->getStatistics()));
 
-        if(!engine.solve(timeout)) return std::make_pair(ret, *(engine.getStatistics()));
+        if(!engine->solve(timeout)) return std::make_pair(ret, *(engine->getStatistics()));
 
-        if (engine.getExitCode() == Engine::SAT)
-            engine.extractSolution(inputQuery);
-        retStats = *(engine.getStatistics());
+        if (engine->getExitCode() == Engine::SAT)
+            engine->extractSolution(inputQuery);
+        retStats = *(engine->getStatistics());
         for(unsigned int i=0; i<inputQuery.getNumberOfVariables(); i++)
             ret[i] = inputQuery.getSolutionValue(i);
     }

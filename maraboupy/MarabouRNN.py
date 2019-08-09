@@ -18,7 +18,7 @@ def marabou_solve_negate_eq(query, debug=False):
     #     for eq in query.getEquations():
     #         eq.dump()
 
-    vars1, stats1 = MarabouCore.solve(query, "", 0)
+    vars1, stats1 = MarabouCore.solve(query, "", 0, 0)
     if len(vars1) > 0:
         print("SAT")
         print(vars1)
@@ -101,7 +101,6 @@ def add_rnn_cell(query, input_weights, hidden_weight, num_iterations, print_debu
     return last_idx + 3
 
 
-# def get_all_equations
 def create_invariant_equations(loop_indices, invariant_eq):
     '''
     create the equations needed to prove using induction from the invariant_eq
@@ -350,7 +349,7 @@ def prove_invariant2(network, rnn_start_idxs, invariant_equations):
         network.dump()
 
         marabou_result = marabou_solve_negate_eq(network)
-        for eq in step_equations:
+        for eq in base_equations:
             network.removeEquation(eq)
 
         if not marabou_result:
@@ -403,11 +402,13 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
             ge_better = 1
         invariant_equation.addAddend(cur_alpha * ge_better, rnn_start_idxs[i])  # i
         invariant_equation.setScalar(initial_values[i])
-        if prove_invariant2(network, rnn_start_idxs, [invariant_equation]):
+        net_size = len(network.getEquations())
+        prove_inv_res = prove_invariant2(network, rnn_start_idxs, [invariant_equation])
+        assert len(network.getEquations()) == net_size
+        if prove_inv_res:
             print("For alpha_{} {} invariant holds".format(i, cur_alpha))
             max_alphas[i] = cur_alpha
-            # network.addEquation(invariant_equation)
-            return min_alphas, max_alphas, cur_alpha
+            return min_alphas, max_alphas, cur_alpha, invariant_equation
         else:
             print("For alpha_{} {} invariant does not hold".format(i, cur_alpha))
             # Invariant does not hold
@@ -416,52 +417,93 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
 
         print(cur_alpha)
         # cur_alpha = temp
-    return min_alphas, max_alphas, None
+    return min_alphas, max_alphas, None, None
 
 
-def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, max_alphas=None):
-    network, rnn_start_idxs, invariant_equation, initial_values, *_ = network_define_f(xlim, ylim, n_iterations)
+def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations, min_alphas=None,
+                   max_alphas=None):
+    '''
+    Function to automatically find invariants that hold and prove the property
+    The order of the rnn indices matter (!), we try to prove invariants on them sequentially,
+    i.e. if rnn_x is dependent on the output of rnn_y then index(rnn_x) > index(rnn_y)
+    :param network: Description of the network in Marabou style
+    :param rnn_start_idxs: list of indcies with the iterator variable for each rnn cell
+    :param rnn_invariant_type: List of MarabouCore.Equation.GE/LE, for each RNN cell
+    :param initial_values: (min_a, max_b)
+    :param n_iterations: for how long we will run the network (how many inputs will there be)
+    :param min_alphas:
+    :param max_alphas:
+    :return:
+    '''
+
+    assert len(rnn_start_idxs) == len(rnn_invariant_type)
+    for t in rnn_invariant_type:
+        assert t == MarabouCore.Equation.GE or t == MarabouCore.Equation.LE
+
     rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
     invariant_equation = None
     assert invariant_equation is None
 
     initial_diff = initial_values[0] - initial_values[1]
-    assert initial_diff > 0
+    assert initial_diff >= 0
 
     # TODO: Find suitable range for the invariant to be in
     if min_alphas is None:
-        min_alphas = [-large] * 2  # len(rnn_start_idxs) # min alpha that we try but invariant does not hold
-        max_alphas = [large] * 2  # len(rnn_start_idxs)  # max alpha that we try but property does not hold
+        min_alphas = [-large] * len(rnn_start_idxs)  # min alpha that we try but invariant does not hold
+    if max_alphas is None:
+        max_alphas = [large] * len(rnn_start_idxs)  # max alpha that we try but property does not hold
 
     # For A small alpha yields stronger invariant, while B is the opposite
-    alphas = [min_alphas[0], max_alphas[1]]
+    alphas = []
+    for i, inv_type in enumerate(rnn_invariant_type):
+        if inv_type == MarabouCore.Equation.GE:
+            alphas.append(min_alphas[i])
+        else:
+            alphas.append(max_alphas[i])
+    # alphas = [min_alphas[0], max_alphas[1]]
 
-    still_improve = [True, True]
-    # cur_alpha = max_alphas[i]
+    still_improve = [True] * len(rnn_start_idxs)
+
+    # Keep track on the invariants we now that hold for each cell
+    invariant_that_hold = [None] * len(rnn_start_idxs)
     while any(still_improve):
+        # i = 0
+        for i in range(len(rnn_start_idxs)):
+            if still_improve[i]:
+                if invariant_that_hold[i]:
+                    network.removeEquation(invariant_that_hold[i])
 
-        i = 0
-        if still_improve[i]:
-            min_alphas, max_alphas, temp_alpha = find_stronger_ge_invariant(network, max_alphas, min_alphas, i,
-                                                                            rnn_output_idxs, rnn_start_idxs,
-                                                                            initial_values)
-            if temp_alpha is not None:
-                alphas[i] = temp_alpha
-            if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
-                still_improve[i] = False
+                min_alphas, max_alphas, temp_alpha, cur_inv_eq = find_stronger_invariant(network, max_alphas,
+                                                                                         min_alphas,
+                                                                                         i,
+                                                                                         rnn_output_idxs,
+                                                                                         rnn_start_idxs,
+                                                                                         initial_values,
+                                                                                         rnn_invariant_type[i])
 
-        i = 1
-        if still_improve[i]:
-            min_alphas, max_alphas, temp_alpha = find_stronger_le_invariant(network, max_alphas, min_alphas, i,
-                                                                            rnn_output_idxs, rnn_start_idxs,
-                                                                            initial_values)
+                if temp_alpha is not None:
+                    alphas[i] = temp_alpha
+                    invariant_that_hold[i] = cur_inv_eq
+                    # This invariant hold, all other rnn cells can use this fact
+                    network.addEquation(invariant_that_hold[i])
+                if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
+                    still_improve[i] = False
 
-            if temp_alpha is not None:
-                alphas[i] = temp_alpha
-            if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
-                still_improve[i] = False
+        # i = 1
+        # if still_improve[i]:
+        #     min_alphas, max_alphas, temp_alpha, cur_inv_eq = find_stronger_le_invariant(network, max_alphas, min_alphas,
+        #                                                                                 i,
+        #                                                                                 rnn_output_idxs, rnn_start_idxs,
+        #                                                                                 initial_values)
+        #
+        #     if temp_alpha is not None:
+        #         alphas[i] = temp_alpha
+        #     if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
+        #         still_improve[i] = False
 
-        if prove_adversarial_property_z3(-alphas[0], alphas[1], initial_values[0], initial_values[1], n_iterations):
+        # TODO: Need to change this, no sense to take the last two alphas, probably need to prove an invariant on
+        # A and B also and not only the RNN's
+        if prove_adversarial_property_z3(-alphas[-2], alphas[-1], initial_values[-2], initial_values[-1], n_iterations):
             print("For alpha_{} {}, alpha_{} {} invariant and property holds".format(0, alphas[0], 1, alphas[1]))
             return True
         else:
@@ -480,11 +522,13 @@ def find_invariant(network_define_f, xlim, ylim, n_iterations, min_alphas=None, 
         # print(cur_alpha)
         # cur_alpha = temp
 
-    print(
-        "Finish trying to find sutiable invariant, the last invariants we found are\n\talpha_0: {}\n\talpha_1: {}".format(
-            alphas[0], alphas[1]))
-    print("last search area\n\t0: {} TO {}\n\t1: {} TO {}".format(min_alphas[0], max_alphas[0], min_alphas[1],
-                                                                  max_alphas[1]))
+    print("Finish trying to find sutiable invariant, the last invariants we found are\n\t" + "\n\t".join(
+        ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
+
+    print("last search area\n\t" + "\n\t".join(
+        ["{}: {} TO {}".format(i, min_a, max_a) for i, (min_a, max_a) in enumerate(zip(min_alphas, max_alphas))]))
+    # print("last search area\n\t0: {} TO {}\n\t1: {} TO {}".format(min_alphas[0], max_alphas[0], min_alphas[1],
+    #                                                               max_alphas[1]))
     return False
 
 
@@ -511,30 +555,6 @@ def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=Fal
         if not isinstance(invariant_equation, list):
             invariant_equation = [invariant_equation]
         return prove_property_marabou(network, invariant_equation, output_eq, iterators_idx, n_iterations)
-
-
-def prove_adversarial_property(xlim, n_iterations, network_define_f):
-    '''
-    Proving a property on a network using invariant's (with z3 or marabou)
-    :param xlim: tuple (min, max) of the input
-    :param ylim: tuple (min, max) of the output (what we want to check?)
-    :param n_iterations: number of times to "run" the rnn cell
-    :param network_define_f: function that returns the marabou network, invariant, output property
-    :param use_z3:
-    :return: True if the invariant holds and we can conclude the property from it, False otherwise
-    '''
-
-    # Use partial define because in the meantime network_define_f gets also ylim which in this case we don't need
-    # The partial allows us to use a generic prove_invariant for both cases
-    partial_define = lambda xlim, ylim, n_iterations: network_define_f(xlim, n_iterations)
-
-    a_pace, b_pace = find_invariant(partial_define, xlim, None, n_iterations)
-    if a_pace is None or b_pace is None:
-        print("invariant doesn't hold")
-        return False
-
-    _, _, _, (min_a, max_b), *_ = network_define_f(xlim, n_iterations)
-    return prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations)
 
 
 def prove_adversarial_using_invariant(xlim, n_iterations, network_define_f):
