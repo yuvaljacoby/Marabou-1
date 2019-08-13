@@ -402,9 +402,7 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
             ge_better = 1
         invariant_equation.addAddend(cur_alpha * ge_better, rnn_start_idxs[i])  # i
         invariant_equation.setScalar(initial_values[i])
-        net_size = len(network.getEquations())
         prove_inv_res = prove_invariant2(network, rnn_start_idxs, [invariant_equation])
-        assert len(network.getEquations()) == net_size
         if prove_inv_res:
             print("For alpha_{} {} invariant holds".format(i, cur_alpha))
             max_alphas[i] = cur_alpha
@@ -421,7 +419,7 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
 
 
 def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations, min_alphas=None,
-                   max_alphas=None):
+                   max_alphas=None, rnn_dependent=None):
     '''
     Function to automatically find invariants that hold and prove the property
     The order of the rnn indices matter (!), we try to prove invariants on them sequentially,
@@ -433,12 +431,17 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
     :param n_iterations: for how long we will run the network (how many inputs will there be)
     :param min_alphas:
     :param max_alphas:
+    :param rnn_dependent: list of lists (or none), for each cell which rnn are dependent on him. we need this to
+            recompute the search space after finiding a better invariant
     :return:
     '''
 
     assert len(rnn_start_idxs) == len(rnn_invariant_type)
     for t in rnn_invariant_type:
         assert t == MarabouCore.Equation.GE or t == MarabouCore.Equation.LE
+    if not rnn_dependent:
+        rnn_dependent = [None] * len(rnn_start_idxs)
+    assert len(rnn_dependent) == len(rnn_invariant_type)
 
     rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
     invariant_equation = None
@@ -460,7 +463,6 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
             alphas.append(min_alphas[i])
         else:
             alphas.append(max_alphas[i])
-    # alphas = [min_alphas[0], max_alphas[1]]
 
     still_improve = [True] * len(rnn_start_idxs)
 
@@ -484,36 +486,34 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
                 if temp_alpha is not None:
                     alphas[i] = temp_alpha
                     invariant_that_hold[i] = cur_inv_eq
-                    # This invariant hold, all other rnn cells can use this fact
-                    network.addEquation(invariant_that_hold[i])
+                    # Found a better invariant need to change the search space for all the rest
+                    if rnn_dependent[i]:
+                        for j in rnn_dependent[i]:
+                            max_alphas[j] = large
+                            min_alphas[j] = -large
+
                 if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
                     still_improve[i] = False
 
-        # i = 1
-        # if still_improve[i]:
-        #     min_alphas, max_alphas, temp_alpha, cur_inv_eq = find_stronger_le_invariant(network, max_alphas, min_alphas,
-        #                                                                                 i,
-        #                                                                                 rnn_output_idxs, rnn_start_idxs,
-        #                                                                                 initial_values)
-        #
-        #     if temp_alpha is not None:
-        #         alphas[i] = temp_alpha
-        #     if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
-        #         still_improve[i] = False
+                # This invariant hold, all other rnn cells can use this fact
+                network.addEquation(invariant_that_hold[i])
 
-        # TODO: Need to change this, no sense to take the last two alphas, probably need to prove an invariant on
-        # A and B also and not only the RNN's
+        # TODO: Need to change this, no sense to take the last two alphas, probably need to prove an invariant on A and B also and not only the RNN's
         if prove_adversarial_property_z3(-alphas[-2], alphas[-1], initial_values[-2], initial_values[-1], n_iterations):
-            print("For alpha_{} {}, alpha_{} {} invariant and property holds".format(0, alphas[0], 1, alphas[1]))
+            print("Invariant and property holds. invariants:\n\t" + "\n\t".join(
+                ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
+            # print("For alpha_{} {}, alpha_{} {} invariant and property holds".format(0, alphas[0], 1, alphas[1]))
             return True
         else:
-            print("For alpha_{} {}, alpha_{} {} property does not hold".format(0, alphas[0], 1, alphas[1]))
+            print("Property does not fold for alphas:\n\t" + "\n\t".join(
+                ["{}: {}".format(i, a) for i, a in enumerate(alphas)]))
+            # print("For alpha_{} {}, alpha_{} {} property does not hold".format(0, alphas[0], 1, alphas[1]))
             # print("For alpha_{} {} invariant holds, property does not".format(i, alphas[i]))
             # The invariant holds but the property does not
             # TODO: We should not change both, change only one if fail change the second if still fail change both
-            max_alphas[0] = alphas[0]
-            max_alphas[1] = alphas[1]
-            # cur_alpha = cur_alpha / 2
+            # max_alphas[-1] = large
+            # min_alphas[-1] = -large
+            # max_alphas[1] = alphas[1]
         # else:
         #     print("For alpha {} invariant does not hold".format(cur_alpha))
         #     # Invariant does not hold

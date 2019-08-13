@@ -493,9 +493,9 @@ def define_adversarial_robustness_concatenate_rnn(xlim, n_iterations):
     query.setLowerBound(0, xlim[0][0])
     query.setUpperBound(0, xlim[0][1])
 
-    w_x_s1 = 6
-    w_s1_s2 = 1
-    w_s1_s1 = 0.5
+    w_x_s1 = 10
+    w_s1_s2 = 0.5
+    w_s1_s1 = 1
     w_s2_s2 = 1
     w_s2_a = 1
 
@@ -513,6 +513,12 @@ def define_adversarial_robustness_concatenate_rnn(xlim, n_iterations):
 
     a_idx = z2_out_idx + 1
     b_idx = a_idx + 1
+    print("s1_out_idx:", s1_out_idx)
+    print("s2_out_idx:", s2_out_idx)
+    print("z1_out_idx:", z1_out_idx)
+    print("z2_out_idx:", z2_out_idx)
+    print("a_idx:", a_idx)
+    print("b_idx:", b_idx)
 
     query.setNumberOfVariables(b_idx + 1)
 
@@ -547,8 +553,10 @@ def define_adversarial_robustness_concatenate_rnn(xlim, n_iterations):
     # print('min_b', min_b)
     # print('max_b', max_b)
 
+    # This means that the only cell that is dependent on s1 is s2, and same for z1 and z2
+    rnn_dependent = [[2], [3], None, None]
     return query, [i - 3 for i in [s1_out_idx, z1_out_idx, s2_out_idx, z2_out_idx]], None, (
-    min_s1, max_z1, min_s2, max_z2)
+        min_s1, max_z1, min_s2, max_z2), rnn_dependent
 
 
 def test_auto_adversarial_robustness_one_input():
@@ -859,11 +867,12 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns():
     num_iterations = 4
     xlim = [(1, 2)]
 
-    network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_concatenate_rnn(xlim,
+    network, rnn_start_idxs, _, initial_values, rnn_dependent = define_adversarial_robustness_concatenate_rnn(xlim,
                                                                                                    num_iterations)
-    rnn_invariant_type = [MarabouCore.Equation.LE, MarabouCore.Equation.GE, MarabouCore.Equation.LE,
-                          MarabouCore.Equation.GE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
+    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
+                          MarabouCore.Equation.LE]
+    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                             rnn_dependent=rnn_dependent)
 
     print(inv_res)
     assert inv_res
@@ -874,13 +883,15 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fail():
     This exmple has only one input node and two RNN cells
     '''
     # return
-    num_iterations = 8
+    num_iterations = 5
     xlim = [(1, 2)]
 
-    network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_concatenate_rnn(xlim,
-                                                                                                   num_iterations)
-    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE] * 2
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
+    network, rnn_start_idxs, _, initial_values, rnn_dependent = define_adversarial_robustness_concatenate_rnn(xlim,
+                                                                                                             num_iterations)
+    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
+                          MarabouCore.Equation.LE]
+    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                             rnn_dependent=rnn_dependent)
 
     print(inv_res)
     assert not inv_res
