@@ -5,7 +5,7 @@ from maraboupy import MarabouCore
 large = 500000.0
 small = 10 ** -2
 TOLERANCE_VALUE = 0.01
-
+ALPHA_IMPROVE_EACH_ITERATION = 10
 
 def marabou_solve_negate_eq(query, debug=False):
     '''
@@ -184,6 +184,12 @@ def create_invariant_equations(loop_indices, invariant_eq):
     return induction_base_equations, induction_step_equations
 
 
+def prove_adversarial_property_marabou(a_pace, b_pace, min_a, max_b, n_iterations):
+    min_a_n = min_a + a_pace * n_iterations
+    max_b_n = max_b + b_pace * n_iterations
+    return not min_a_n < max_b_n
+
+
 def prove_adversarial_property_z3(a_pace, b_pace, min_a, max_b, n_iterations):
     '''
     Using z3 to probe the formula
@@ -295,6 +301,7 @@ def prove_invariant(network, rnn_start_idxs, invariant_equation):
     :return: True if the invariant holds, false otherwise
     '''
 
+    return prove_invariant2(network, rnn_start_idxs, [invariant_equation])
     base_equations, step_equations = create_invariant_equations(rnn_start_idxs, [invariant_equation])
 
     for eq in base_equations:
@@ -346,7 +353,7 @@ def prove_invariant2(network, rnn_start_idxs, invariant_equations):
             network.addEquation(eq)
 
         print("Querying for induction base")
-        network.dump()
+        # network.dump()
 
         marabou_result = marabou_solve_negate_eq(network)
         for eq in base_equations:
@@ -364,7 +371,7 @@ def prove_invariant2(network, rnn_start_idxs, invariant_equations):
             network.addEquation(eq)
 
         print("Querying for induction step")
-        network.dump()
+        # network.dump()
 
         marabou_result = marabou_solve_negate_eq(network)
         for eq in step_equations:
@@ -392,8 +399,10 @@ def find_stronger_ge_invariant(network, max_alphas, min_alphas, i, rnn_output_id
 
 def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs, rnn_start_idxs,
                             initial_values, eq_type=MarabouCore.Equation.GE):
+    counter = 0
     cur_alpha = (max_alphas[i] + min_alphas[i]) / 2
-    while max_alphas[i] - min_alphas[i] > TOLERANCE_VALUE:
+    proven_invariant_equation = None
+    while max_alphas[i] - min_alphas[i] > TOLERANCE_VALUE and counter < ALPHA_IMPROVE_EACH_ITERATION:
         invariant_equation = MarabouCore.Equation(eq_type)
         invariant_equation.addAddend(1, rnn_output_idxs[i])  # b_i
         if eq_type == MarabouCore.Equation.LE:
@@ -405,8 +414,10 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
         prove_inv_res = prove_invariant2(network, rnn_start_idxs, [invariant_equation])
         if prove_inv_res:
             print("For alpha_{} {} invariant holds".format(i, cur_alpha))
+            proven_invariant_equation = invariant_equation
             max_alphas[i] = cur_alpha
-            return min_alphas, max_alphas, cur_alpha, invariant_equation
+            counter += 1
+            # return min_alphas, max_alphas, cur_alpha, invariant_equation
         else:
             print("For alpha_{} {} invariant does not hold".format(i, cur_alpha))
             # Invariant does not hold
@@ -415,7 +426,8 @@ def find_stronger_invariant(network, max_alphas, min_alphas, i, rnn_output_idxs,
 
         print(cur_alpha)
         # cur_alpha = temp
-    return min_alphas, max_alphas, None, None
+    cur_alpha = None if proven_invariant_equation is None else cur_alpha
+    return min_alphas, max_alphas, cur_alpha, proven_invariant_equation
 
 
 def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations, min_alphas=None,
@@ -447,7 +459,7 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
     invariant_equation = None
     assert invariant_equation is None
 
-    initial_diff = initial_values[0] - initial_values[1]
+    initial_diff = initial_values[-2] - initial_values[-1]
     assert initial_diff >= 0
 
     # TODO: Find suitable range for the invariant to be in
@@ -469,7 +481,8 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
     # Keep track on the invariants we now that hold for each cell
     invariant_that_hold = [None] * len(rnn_start_idxs)
     while any(still_improve):
-        # i = 0
+        network.dump()
+
         for i in range(len(rnn_start_idxs)):
             if still_improve[i]:
                 if invariant_that_hold[i]:
@@ -488,9 +501,11 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
                     invariant_that_hold[i] = cur_inv_eq
                     # Found a better invariant need to change the search space for all the rest
                     if rnn_dependent[i]:
+                        print("found invariant for: {}, zeroing: {}".format(i, rnn_dependent[i]))
                         for j in rnn_dependent[i]:
                             max_alphas[j] = large
                             min_alphas[j] = -large
+                            still_improve[j] = True
 
                 if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
                     still_improve[i] = False
@@ -499,7 +514,8 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
                 network.addEquation(invariant_that_hold[i])
 
         # TODO: Need to change this, no sense to take the last two alphas, probably need to prove an invariant on A and B also and not only the RNN's
-        if prove_adversarial_property_z3(-alphas[-2], alphas[-1], initial_values[-2], initial_values[-1], n_iterations):
+        if prove_adversarial_property_marabou(-alphas[-2], alphas[-1], initial_values[-2], initial_values[-1], n_iterations):
+        # if prove_adversarial_property_z3(-alphas[-2], alphas[-1], initial_values[-2], initial_values[-1], n_iterations):
             print("Invariant and property holds. invariants:\n\t" + "\n\t".join(
                 ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
             # print("For alpha_{} {}, alpha_{} {} invariant and property holds".format(0, alphas[0], 1, alphas[1]))
@@ -522,6 +538,7 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
         # print(cur_alpha)
         # cur_alpha = temp
 
+    network.dump()
     print("Finish trying to find sutiable invariant, the last invariants we found are\n\t" + "\n\t".join(
         ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
 
