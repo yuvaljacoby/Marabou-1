@@ -1015,7 +1015,7 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fc():
     This exmple has only one input node and two RNN cells
     '''
     # return
-    num_iterations = 4
+    num_iterations = 3
     xlim = [(1, 2)]
 
     network, rnn_start_idxs, _, initial_values, rnn_dependent = define_adversarial_robustness_concatenate_rnn_fully_connect(
