@@ -991,25 +991,6 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns():
     assert inv_res
 
 
-def test_auto_adversarial_robustness_one_input_concatenate_rnns_fail():
-    '''
-    This exmple has only one input node and two RNN cells
-    '''
-    # return
-    num_iterations = 6
-    xlim = [(1, 2)]
-
-    network, rnn_start_idxs, _, initial_values, rnn_dependent = define_adversarial_robustness_concatenate_rnn(xlim,
-                                                                                                              num_iterations)
-    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
-                          MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
-                             rnn_dependent=rnn_dependent)
-
-    print(inv_res)
-    assert not inv_res
-
-
 def test_auto_adversarial_robustness_one_input_concatenate_rnns_fc():
     '''
     This exmple has only one input node and two RNN cells
@@ -1028,3 +1009,22 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fc():
 
     print(inv_res)
     assert inv_res
+
+
+def test_auto_adversarial_robustness_one_input_concatenate_rnns_fail():
+    '''
+    This exmple has only one input node and two RNN cells
+    '''
+    # return
+    num_iterations = 6
+    xlim = [(1, 2)]
+
+    network, rnn_start_idxs, _, initial_values, rnn_dependent = define_adversarial_robustness_concatenate_rnn(xlim,
+                                                                                                              num_iterations)
+    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
+                          MarabouCore.Equation.LE]
+    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                             rnn_dependent=rnn_dependent)
+
+    print(inv_res)
+    assert not inv_res
