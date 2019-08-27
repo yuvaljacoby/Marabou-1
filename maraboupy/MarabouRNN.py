@@ -18,7 +18,7 @@ def marabou_solve_negate_eq(query, debug=False):
     #     for eq in query.getEquations():
     #         eq.dump()
 
-    vars1, stats1 = MarabouCore.solve(query, "", 0, 0)
+    vars1, stats1 = MarabouCore.solve(query, "", 0)
     if len(vars1) > 0:
         print("SAT")
         print(vars1)
@@ -459,8 +459,9 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
     invariant_equation = None
     assert invariant_equation is None
 
-    initial_diff = initial_values[-2] - initial_values[-1]
-    assert initial_diff >= 0
+    if initial_values:
+        initial_diff = initial_values[-2] - initial_values[-1]
+        assert initial_diff >= 0
 
     # TODO: Find suitable range for the invariant to be in
     if min_alphas is None:
@@ -547,6 +548,7 @@ def find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, 
     # print("last search area\n\t0: {} TO {}\n\t1: {} TO {}".format(min_alphas[0], max_alphas[0], min_alphas[1],
     #                                                               max_alphas[1]))
     return False
+
 
 
 def prove_using_invariant(xlim, ylim, n_iterations, network_define_f, use_z3=False):
