@@ -47,3 +47,8 @@ network.setUpperBound(outputVars[1], 210.0)
 
 # Call to C++ Marabou solver
 vals, stats = network.solve("marabou.log")
+if len(vals) > 0:
+    print("SAT")
+    print(vals)
+else:
+    print("UNSAT")

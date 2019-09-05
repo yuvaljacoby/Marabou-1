@@ -1,6 +1,5 @@
-from maraboupy.MarabouRNN import *
 from maraboupy import MarabouCore
-import pytest
+from maraboupy.MarabouRNN import *
 
 
 def define_zero_network(xlim, ylim, n_iterations):
@@ -177,6 +176,58 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
     return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq]
 
 
+def define_positive_sum_network_no_invariant(xlim, ylim, n_iterations):
+    '''
+    Defines the positive_sum network in a marabou way
+        s_i = ReLu(1 * x_i + 1 * s_i-1)
+        y = s_k (where k == n_iterations)
+    :param xlim: how to limit the input to the network
+    :param ylim: how to limit the output of the network
+    :param n_iterations: number of inputs / times the rnn cell will be executed
+    :return: query to marabou that defines the positive_sum rnn network (without recurent)
+    '''
+    positive_sum_rnn_query = MarabouCore.InputQuery()
+    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+
+    # x
+    positive_sum_rnn_query.setLowerBound(0, xlim[0])
+    positive_sum_rnn_query.setUpperBound(0, xlim[1])
+
+    rnn_start_idx = 1  # i
+    rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    s_i_1_f_idx = rnn_idx - 2
+    y_idx = rnn_idx + 1
+
+    def relu(x):
+        return max(x, 0)
+
+    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+
+    # y
+    positive_sum_rnn_query.setLowerBound(y_idx, -large)
+    positive_sum_rnn_query.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_idx)
+    output_equation.setScalar(0)
+    # output_equation.dump()
+    positive_sum_rnn_query.addEquation(output_equation)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+
+    min_y = relu(relu(xlim[0] * 1) * 1)
+    max_y = relu(relu(xlim[1] * 1) * 1)
+
+    initial_values = [max_y]
+
+    return positive_sum_rnn_query, [rnn_start_idx], None, [property_eq], initial_values
+
+
 def define_last_network(xlim, ylim, n_iterations):
     '''
     Function that define "last_network" which is an RNN network that outputs the last input parameter
@@ -290,7 +341,8 @@ def define_concatenate_rnn_invariant_not_holding(xlim, ylim, n_iterations):
     rnn_1_start_idx = 1  # i
     rnn_1_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
     rnn_2_start_idx = rnn_1_idx + 1  # i
-    rnn_2_idx = add_rnn_cell(positive_sum_rnn_query, [(rnn_1_idx, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    rnn_2_idx = add_rnn_cell(positive_sum_rnn_query, [(rnn_1_idx, 1)], 1, n_iterations,
+                             print_debug=1)  # rnn_idx == s_i f
     y_idx = rnn_2_idx + 1
 
     positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
@@ -324,7 +376,8 @@ def define_concatenate_rnn_invariant_not_holding(xlim, ylim, n_iterations):
     property_eq.addAddend(1, y_idx)
     property_eq.setScalar(ylim[1])
 
-    return positive_sum_rnn_query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [property_eq]
+    return positive_sum_rnn_query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [
+        property_eq]
 
 
 def define_concatenate_rnn(xlim, ylim, n_iterations):
@@ -334,24 +387,30 @@ def define_concatenate_rnn(xlim, ylim, n_iterations):
         z_i = 1 * s_i + 1 * z_i-1
         y = z_i
     '''
-    positive_sum_rnn_query = MarabouCore.InputQuery()
-    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+    query = MarabouCore.InputQuery()
+    query.setNumberOfVariables(1)  # x
 
     # x
-    positive_sum_rnn_query.setLowerBound(0, xlim[0])
-    positive_sum_rnn_query.setUpperBound(0, xlim[1])
+    query.setLowerBound(0, xlim[0])
+    query.setUpperBound(0, xlim[1])
 
     rnn_1_start_idx = 1  # i
-    rnn_1_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    rnn_1_idx = add_rnn_cell(query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
     rnn_2_start_idx = rnn_1_idx + 1  # i
-    rnn_2_idx = add_rnn_cell(positive_sum_rnn_query, [(rnn_1_idx, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    rnn_2_idx = add_rnn_cell(query, [(rnn_1_idx, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
     y_idx = rnn_2_idx + 1
+    def relu(x):
+        return max(0, x)
+    min_s1 = relu(xlim[0] * 1)
+    max_s1 = relu(xlim[1] * 1)
+    min_z1 = relu(min_s1 * 1)
+    max_z1 = relu(max_s1 * 1)
 
-    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+    query.setNumberOfVariables(y_idx + 1)
 
     # y
-    positive_sum_rnn_query.setLowerBound(y_idx, -large)
-    positive_sum_rnn_query.setUpperBound(y_idx, large)
+    query.setLowerBound(y_idx, -large)
+    query.setUpperBound(y_idx, large)
 
     # y - skf  = 0
     output_equation = MarabouCore.Equation()
@@ -359,7 +418,7 @@ def define_concatenate_rnn(xlim, ylim, n_iterations):
     output_equation.addAddend(-1, rnn_2_idx)
     output_equation.setScalar(0)
     # output_equation.dump()
-    positive_sum_rnn_query.addEquation(output_equation)
+    query.addEquation(output_equation)
 
     # s_i_f >= i + 1 <--> -1 >= - s_i_f + i
     invariant_1_equation = MarabouCore.Equation(MarabouCore.Equation.GE)
@@ -378,7 +437,8 @@ def define_concatenate_rnn(xlim, ylim, n_iterations):
     property_eq.addAddend(1, y_idx)
     property_eq.setScalar(ylim[1])
 
-    return positive_sum_rnn_query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [property_eq]
+    return query, [rnn_1_start_idx, rnn_2_start_idx], [invariant_1_equation, invariant_2_equation], [
+        property_eq], [max_s1, max_z1]
 
 
 def test_negate_equation_GE():
@@ -457,6 +517,31 @@ def test_positive_sum_positive():
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
 
 
+
+def test_auto_positive_sum_negative():
+    num_iterations = 500
+    xlim = (-1, 1.1)
+    ylim = (0, num_iterations + 1)
+
+    positive_sum_rnn_query, rnn_start_idx, invariant_equation, property_eqs, initial_values = define_positive_sum_network_no_invariant(
+        xlim, ylim, num_iterations)
+
+    assert not find_invariant_marabou(positive_sum_rnn_query, rnn_start_idx, [MarabouCore.Equation.LE], initial_values,
+                           num_iterations, property_eqs)
+
+
+def test_auto_positive_sum_positive():
+    num_iterations = 500
+    xlim = (-1, 1)
+    ylim = (0, num_iterations + 1)
+
+    positive_sum_rnn_query, rnn_start_idx, invariant_equation, property_eqs, initial_values = define_positive_sum_network_no_invariant(
+        xlim, ylim, num_iterations)
+
+    assert find_invariant_marabou(positive_sum_rnn_query, rnn_start_idx, [MarabouCore.Equation.LE], initial_values,
+                           num_iterations, property_eqs)
+
+
 # def test_last_network_negative():
 #     num_iterations = 500
 #     invariant_xlim = (-1, 2)
@@ -484,19 +569,21 @@ def test_positive_sum_positive():
 
 
 def test_concatenate_rnn_cells_positive():
-    for i in range(1, 10):
-        num_iterations = i # we use i = 0 so it's 6 iterations
-        invariant_xlim = (0, 1)
-        y_lim = (0, (num_iterations + 1) ** 2)
-        assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
-        print("prove that for {} R_2 is <= {}".format(num_iterations, (num_iterations + 1) ** 2))
+    # for i in range(1, 10):
+    i = 5
+    num_iterations = i  # we use i = 0 so it's 6 iterations
+    invariant_xlim = (0, 1)
+    y_lim = (0, (num_iterations + 1) ** 2)
+    assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
+    print("prove that for {} R_2 is <= {}".format(num_iterations, (num_iterations + 1) ** 2))
 
 
 def test_concatenate_rnn_cells_positive_output_fail():
     num_iterations = 5
     invariant_xlim = (-1, 1)
     y_lim = (0, 10000)
-    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn_invariant_not_holding)
+    assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations,
+                                     define_concatenate_rnn_invariant_not_holding)
 
 
 def test_concatenate_rnn_cells_positive_output_fail():
@@ -504,3 +591,54 @@ def test_concatenate_rnn_cells_positive_output_fail():
     invariant_xlim = (-1, 1)
     y_lim = (0, 15)
     assert not prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_concatenate_rnn)
+
+
+def test_auto_positive_sum_positive():
+    '''
+    0: x0
+    1: i
+    2: s_i-1
+    3: s_i_b
+    4: s_i_f
+    5: i
+    6: z_i-1
+    7: z_i_b
+    8: z_i_f
+    9: out
+    :return:
+    '''
+    i = 5
+    num_iterations = i  # we use i = 0 so it's 6 iterations
+    invariant_xlim = (0, 1)
+    y_lim = (0, (num_iterations + 1) ** 2)
+    query, rnn_start_idx, _, property_eqs, initial_values = \
+        define_concatenate_rnn(invariant_xlim, y_lim, num_iterations)
+    rnn_dependent = [[1], None]
+    assert find_invariant_marabou(query, rnn_start_idx, [MarabouCore.Equation.LE, MarabouCore.Equation.LE],
+                                      initial_values,
+                                      num_iterations, property_eqs, rnn_dependent=rnn_dependent)
+
+
+def test_auto_positive_sum_negative():
+    '''
+    0: x0
+    1: i
+    2: s_i-1
+    3: s_i_b
+    4: s_i_f
+    5: i
+    6: z_i-1
+    7: z_i_b
+    8: z_i_f
+    9: out
+    :return:
+    '''
+    num_iterations = 5
+    invariant_xlim = (-1, 1)
+    y_lim = (0, 15)
+    query, rnn_start_idx, _, property_eqs, initial_values = \
+        define_concatenate_rnn(invariant_xlim, y_lim, num_iterations)
+    rnn_dependent = [[1], None]
+    assert not find_invariant_marabou(query, rnn_start_idx, [MarabouCore.Equation.LE, MarabouCore.Equation.LE],
+                                      initial_values,
+                                      num_iterations, property_eqs, rnn_dependent=rnn_dependent)

@@ -682,7 +682,7 @@ def test_auto_adversarial_robustness_one_input():
     network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_one_input(xlim,
                                                                                              n_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations)
     print(inv_res)
     assert inv_res
 
@@ -694,7 +694,7 @@ def test_auto_adversarial_robustness_one_input_fail():
     network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_one_input(xlim,
                                                                                              num_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
     print(inv_res)
     assert not inv_res
 
@@ -708,7 +708,7 @@ def test_auto_adversarial_robustness_two_inputs():
 
     network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_two_input_nodes(xlim, num_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
     assert inv_res
 
 
@@ -720,7 +720,7 @@ def test_auto_adversarial_robustness_two_inputs_fail():
     network, rnn_start_idxs, _, initial_values, *_ = define_adversarial_robustness_two_input_nodes_step_fail(xlim,
                                                                                                              num_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations)
     assert not inv_res
 
     # previously didn't test this with auto, just used the fixed invariant, here is how to run the previous experiment
@@ -984,8 +984,8 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns():
                                                                                                               num_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
                           MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
-                             rnn_dependent=rnn_dependent)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                                         rnn_dependent=rnn_dependent)
 
     print(inv_res)
     assert inv_res
@@ -1004,8 +1004,8 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fc():
 
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
                           MarabouCore.Equation.LE, MarabouCore.Equation.GE, MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
-                             rnn_dependent=rnn_dependent)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                                         rnn_dependent=rnn_dependent)
 
     print(inv_res)
     assert inv_res
@@ -1023,8 +1023,8 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fail():
                                                                                                               num_iterations)
     rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE, MarabouCore.Equation.GE,
                           MarabouCore.Equation.LE]
-    inv_res = find_invariant(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
-                             rnn_dependent=rnn_dependent)
+    inv_res = find_invariant_adversarial(network, rnn_start_idxs, rnn_invariant_type, initial_values, num_iterations,
+                                         rnn_dependent=rnn_dependent)
 
     print(inv_res)
     assert not inv_res
