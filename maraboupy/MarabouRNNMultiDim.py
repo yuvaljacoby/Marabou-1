@@ -19,7 +19,7 @@ def marabou_solve_negate_eq(query, debug=False):
     #     for eq in query.getEquations():
     #         eq.dump()
 
-    vars1, stats1 = MarabouCore.solve(query, "", 0)
+    vars1, stats1 = MarabouCore.solve(query, "", 0, 0)
     if len(vars1) > 0:
         print("SAT")
         print(vars1)
@@ -339,21 +339,37 @@ def get_new_invariant(start_idx, output_idx, initial_val, new_alpha, inv_type):
 
 
 def double_alphas(alphas):
+    import copy
     new_alpha = []
     for i in range(len(alphas)):
-        new_alpha += [alphas[i], alphas[i]]
+        new_alpha += [copy.deepcopy(alphas[i]), copy.deepcopy(alphas[i])]
     return new_alpha
 
 
 def prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas, property_eqs):
-    invariant_equations = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
-                                                                    initial_values, alphas)
-    print("proved alphas:", [alpha.get() for alpha in alphas])
+    assert len(alphas)  == len(initial_values)
+    initial_values_ge = [initial_values[i] for i in range(0, len(initial_values), 2)]
+    initial_values_le = [initial_values[i] for i in range(1, len(initial_values), 2)]
+    alphas_ge = [alphas[i] for i in range(0, len(alphas), 2)]
+    alphas_le = [alphas[i] for i in range(1, len(alphas), 2)]
+    # alphas_ge = double_alphas([alphas[0]])  # [alphas[i] for i in range(0, len(alphas), 2)]
+    # alphas_le = double_alphas([alphas[1]])  # [alphas[i] for i in range(1, len(alphas), 2)]
+    invariant_equations_ge = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
+                                                                       initial_values_ge, alphas_ge,
+                                                                       MarabouCore.Equation.GE)
+    invariant_equations_le = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
+                                                                       initial_values_le, alphas_le,
+                                                                       MarabouCore.Equation.LE)
+
+    invariant_equations = invariant_equations_le + invariant_equations_ge
+    print("proved alphas GE:", [alpha.get() for alpha in alphas_ge])
+    print("proved alphas LE:", [alpha.get() for alpha in alphas_le])
+
     for eq in invariant_equations + property_eqs:
         network.addEquation(eq)
     res = marabou_solve_negate_eq(network)
-    if res:
-        network.dump()
+    # if res:
+    #     network.dump()
     for eq in invariant_equations + property_eqs:
         network.removeEquation(eq)
     return res
@@ -374,18 +390,18 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_va
     min_alphas = [-10] * len(rnn_start_idxs)
     assert len(max_alphas) == len(rnn_start_idxs)
     assert len(rnn_output_idxs) == len(rnn_start_idxs)
-    assert len(initial_values) // 2 == len(max_alphas)
+    # assert len(initial_values) // 2 == len(max_alphas)
 
     add_loop_indices_equations(network, rnn_start_idxs)
     # Create 2*alpha because we create LE and GE invariant for each
     max_alphas = double_alphas(max_alphas)
     min_alphas = double_alphas(min_alphas)
-    rnn_start_idxs = double_alphas(rnn_start_idxs)
-    rnn_output_idxs = double_alphas(rnn_output_idxs)
+    # rnn_start_idxs = double_alphas(rnn_start_idxs)
+    # rnn_output_idxs = double_alphas(rnn_output_idxs)
 
     proved_property = False
     c = 0
-    alphas = [AlphaSearch() for _ in range(len(rnn_start_idxs))]
+    alphas = [AlphaSearch() for _ in range(len(rnn_start_idxs) * 2)]
     if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
                                      property_equations):
         return True
@@ -393,14 +409,13 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_va
         while c <= 10 and not proved_property:
             c += 1
             for i in range(len(alphas)):
+                # print("alphas:", )
                 if alphas[i].update_property_fail():
-                    # for j in range(len(alphas)):
-                    #     if j != i:
-                    #         alphas[j].reset_search()
+                    print("after property fail, alphas:", [a.get() for a in alphas])
                     if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
                                                      property_equations):
                         print("property proved, alphas range:",
-                              "\n\t".join(["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
+                              "\n\t".join(["alpha_{}: {}".format(i, a.get()) for i, a in enumerate(alphas)]))
                         # print("min_alphas:", "\n\t".join(["alpha_{}: {}".format(i, a) for i, a in enumerate(min_alphas)]))
                         return True
                     else:
@@ -462,10 +477,11 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_va
 
 class AlphaSearch:
     def __init__(self):
-        self.alpha = None
+        self.alpha = 0
         self.old_alpha = None
         self.large = 10
-        self.reset_search()
+        self.next_step = None
+        # self.reset_search()
 
     def proved_alpha(self):
         '''
@@ -473,9 +489,10 @@ class AlphaSearch:
         :param used_alpha:
         :return:
         '''
-        temp_alpha = self.get()
-        if self.alpha is not None and temp_alpha > self.alpha:
-            self.alpha = temp_alpha
+        pass
+        # temp_alpha = self.get()
+        # if self.alpha is not None and temp_alpha > self.alpha:
+        #     self.alpha = temp_alpha
 
     def reset_search(self):
         self.max_val = self.large
@@ -488,8 +505,12 @@ class AlphaSearch:
         :param used_alpha:
         :return:
         '''
-        self.min_val = self.get()
-        self.alpha = None
+
+        direction = 1
+        self.step(direction)
+        # print("invariant fail use larger alpha, new alpha:", self.alpha)
+        # self.min_val = self.get()
+        # self.alpha = None
 
     def update_property_fail(self):
         '''
@@ -497,18 +518,67 @@ class AlphaSearch:
         :param used_alpha:
         :return: Wheather we can still improve this alpha or not
         '''
-        self.max_val = self.get()
-        return self.max_val - self.min_val > TOLERANCE_VALUE
+        direction = -1
+        # self.max_val = self.get()
+        self.step(direction)
+        print("property fail use smaller alpha, new alpha:", self.alpha)
+        return self.alpha < self.large
+
+
+    def step(self, direction):
+        sign = lambda x: 1 if x >= 0 else -1
+        self.prev_alpha = self.alpha
+        if abs(self.alpha) > 0.2:
+            self.alpha = self.alpha + (direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.1 to the next direction
+        else:
+            self.alpha = 0.5 * direction
+        return self.alpha
 
     def get(self):
+        return self.alpha
         # if self.old_alpha is not None:
         #     old_alpha = self.old_alpha
         #     self.old_alpha = None
         #     return old_alpha
-        return (self.max_val + self.min_val) / 2
+
+        # return (self.max_val + self.min_val) / 2
 
 
-def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas):
+def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
+                                              inv_type):
+    c = 0
+    # prove_inv_res = [False, False, False, False]
+    prove_inv_res = [False, False]
+    # Running until proving all invariants once, at each iteration we make the invariants that didn't pass a bit larger
+    while c <= 20 and not all(prove_inv_res):
+        c += 1
+        invariant_equations = [None] * len(alphas)
+
+        for k in range(0, len(alphas)):
+            # for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
+            #     inv_type = MarabouCore.Equation.LE
+            i = k
+            if not invariant_equations[i]:
+                invariant_equations[i] = get_new_invariant(rnn_start_idxs[i], rnn_output_idxs[i],
+                                                           initial_values[i], alphas[i].get(), inv_type)
+
+        prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
+        for i, res in enumerate(prove_inv_res):
+            if res:
+                alphas[i].proved_alpha()
+            else:
+                # Doing a step
+                alphas[i].update_invariant_fail()
+                print("after invariant fail, new_alphas:", [a.get() for a in alphas])
+                invariant_equations[i] = None
+
+    if all(prove_inv_res):
+        return invariant_equations
+    else:
+        raise Exception
+
+
+def improve_mutlidim_invariants_binary_search_BOTH(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas):
     c = 0
     prove_inv_res = [False, False, False, False]
     # Running until proving all invariants once, at each iteration we make the invariants that didn't pass a bit larger
@@ -518,6 +588,7 @@ def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_outpu
 
         for k in range(0, len(alphas), 2):
             for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
+                inv_type = MarabouCore.Equation.LE
                 i = k + j
                 if not invariant_equations[i]:
                     invariant_equations[i] = get_new_invariant(rnn_start_idxs[i], rnn_output_idxs[i],
@@ -529,6 +600,7 @@ def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_outpu
                 alphas[i].proved_alpha()
             else:
                 alphas[i].update_invariant_fail()
+                print("after invariant fail, alphas:", [a.get() for a in alphas])
                 invariant_equations[i] = None
 
     if all(prove_inv_res):

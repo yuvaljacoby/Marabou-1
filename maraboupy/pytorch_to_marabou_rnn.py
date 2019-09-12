@@ -136,17 +136,39 @@ def build_query(img_example: list, ylim: list, model: MnistModel):
     return network
 
 
+def get_max_value(input_bounds, w_in, w_h, b_h, w_out, b_out, n):
+    '''
+    calculate the max value of a network with one input node, 2d rnn cell, and a number
+    :param input_bounds: tuple (min_val, max_val)
+    :param w_in: weights on the input to the rnn node array length 2
+    :param w_h: hidden matrix, 2x2
+    :param b_h: bias for rnn cell array length 2
+    :param w_out: weight from the rnn cell to the output array length 2
+    :param b_out: bias from the rnn cell to the output length 2
+    :param n: number of rounds
+    :return: max value of the
+    '''
+    r0 = 0
+    r1 = 1
+    for i in range(n):
+        r0_new = input_bounds[1] * w_in[0] + r0 * w_h[0,0] + r1 * w_h[0,1] + b_h[0]
+        r1_new = input_bounds[1] * w_in[1] + r0 * w_h[1, 0] + r1 * w_h[1, 1] + b_h[1]
+        r0 = r0_new
+        r1 = r1_new
+    y = r0 * w_out[0] + r1 * w_out[1] + b_out
+    return y
+
 if __name__ == "__main__":
     import numpy as np
 
-    n = 4
+    n = 10
     np.random.seed(0)
     img = np.array([1])  # img = np.array([1, 1])  # np.random.random(2)
 
     network = MarabouCore.InputQuery()
     network.setNumberOfVariables(0)
 
-    pertubation_limit = 0.1
+    pertubation_limit = 0#.1
     set_img_bounds(img, network, pertubation_limit)
     # network.setNumberOfVariables(2)
     # network.setLowerBound(0, -large)
@@ -174,23 +196,31 @@ if __name__ == "__main__":
     def ReLU(x):
         return max(x, 0)
 
-
-    R0_min = ReLU(img[0] * (1 - pertubation_limit) * w_in_0[0])  #+ img[1] * (1 - pertubation_limit) * w_in_0[1])
-    R1_min = ReLU(img[0] * (1 - pertubation_limit) * w_in_1[0])  #+ img[1] * (1 - pertubation_limit) * w_in_1[1])
-    R0_max = ReLU(img[0] * (1 + pertubation_limit) * w_in_0[0])  #+ img[1] * (1 + pertubation_limit) * w_in_0[1])
-    R1_max = ReLU(img[0] * (1 + pertubation_limit) * w_in_1[0])  #+ img[1] * (1 + pertubation_limit) * w_in_1[1])
+    x_min = img[0] * (1 - pertubation_limit)
+    x_max = img[0] * (1 + pertubation_limit)
+    R0_min = ReLU(x_min * w_in_0[0])  #+ img[1] * (1 - pertubation_limit) * w_in_0[1])
+    R1_min = ReLU(x_min * w_in_1[0])  #+ img[1] * (1 - pertubation_limit) * w_in_1[1])
+    R0_max = ReLU(x_max * w_in_0[0])  #+ img[1] * (1 + pertubation_limit) * w_in_0[1])
+    R1_max = ReLU(x_max * w_in_1[0])  #+ img[1] * (1 + pertubation_limit) * w_in_1[1])
     initial_values = [R0_min,R0_max, R1_min, R1_max]
 
     # initial_values = [4, 6]
+    w_in = np.array([w_in_0, w_in_1])
+    w_h = np.array([w_h_0, w_h_1])
 
-    rnn_output_idxs = add_rnn_cells(network, np.array([w_in_0, w_in_1]), np.array([w_h_0, w_h_1]), b_h, n)
+    rnn_output_idxs = add_rnn_cells(network, w_in, w_h, b_h, n)
     rnn_start_idxs = [i - 3 for i in rnn_output_idxs]
 
+    w_out = [1, 0]
     property_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-    property_eq.addAddend(1, rnn_output_idxs[0])
-    property_eq.setScalar(10)
+    property_eq.addAddend(w_out[0], rnn_output_idxs[0])
+    property_eq.setScalar(23)
 
-    prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, [property_eq])
+    from maraboupy.draw_rnn import draw_r_values,calc_rnn_values
+    # draw_r_values(*calc_rnn_values(x_max, w_in, w_h, n))
+    print("network max value:", get_max_value([x_min, x_max], w_in, w_h, b_h, w_out, 0, n))
+    assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, [property_eq])
+    print('property proved')
     #
     # # print("rnn_start_idxs:", rnn_start_idxs)
     # output_idx = add_output_equations(network, rnn_output_idxs, np.array([w_out_0, w_out_1]).T, np.array([0.3]))
