@@ -19,7 +19,8 @@ def marabou_solve_negate_eq(query, debug=False):
     #     for eq in query.getEquations():
     #         eq.dump()
 
-    vars1, stats1 = MarabouCore.solve(query, "", 0, 0)
+    verbose = 0
+    vars1, stats1 = MarabouCore.solve(query, "", 0, verbose)
     if len(vars1) > 0:
         print("SAT")
         print(vars1)
@@ -64,7 +65,7 @@ def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias
     assert type(hidden_weights) == np.ndarray
     assert len(hidden_weights.shape) == 2
     assert hidden_weights.shape[0] == hidden_weights.shape[1]
-    assert len(input_idx) == input_weights.shape[1]
+    assert len(input_idx) == input_weights.shape[1], "{}, {}".format(len(input_idx), input_weights.shape[1])
     assert hidden_weights.shape[0] == input_weights.shape[0]
 
     n = hidden_weights.shape[0]
@@ -107,9 +108,11 @@ def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias
         # s_i b = x_j * w_j for all j connected + s_i-1 f * hidden_weight
         update_eq = MarabouCore.Equation()
         for j in range(len(input_weights[i, :])):
-            update_eq.addAddend(input_weights[i, j], input_idx[j])
+            w = round(input_weights[i, j], 2)
+            update_eq.addAddend(w, input_idx[j])
 
         for j, w in enumerate(hidden_weights[i, :]):
+            w = round(w, 2)
             update_eq.addAddend(w, prev_iteration_idxs[j])
 
         update_eq.addAddend(-1, cell_idx + 2)
@@ -278,6 +281,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     for ls_eq in base_eq:
         for eq in ls_eq:
             network.addEquation(eq)
+        # network.dump()
         marabou_result = marabou_solve_negate_eq(network)
         print('induction base query')
         # network.dump()
@@ -385,7 +389,9 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_va
     :param property_equations: list of equations that prove the property
     :return:
     '''
-
+    if isinstance(initial_values[0], np.ndarray):
+        initial_values_ls = [[initial_values[0][i], initial_values[1][i]] for i in range(len(initial_values[0]))]
+        initial_values = [item for sublist in initial_values_ls for item in sublist]
     max_alphas = [10] * len(rnn_start_idxs)
     min_alphas = [-10] * len(rnn_start_idxs)
     assert len(max_alphas) == len(rnn_start_idxs)

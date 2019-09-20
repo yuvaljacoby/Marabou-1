@@ -14,11 +14,11 @@ LOCAL_INCLUDES += \
 	$(INPUT_PARSER_DIR) \
 	$(PYBIND11_INCLUDES) \
 
-LINK_FLAGS += \
+LINK_FLAGS += -g \
 
 LOCAL_LIBRARIES += \
 
-CFLAGS += \
+CFLAGS += -g \
 
 SUFFIX = $(shell python3-config --extension-suffix)
 API_NAME = $(addprefix MarabouCore, $(SUFFIX))

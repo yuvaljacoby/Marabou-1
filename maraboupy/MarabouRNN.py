@@ -3,7 +3,7 @@ from z3 import Solver, Array, BitVec, BitVecSort, RealSort, ForAll, sat, BV2Int,
 
 from maraboupy import MarabouCore
 
-large = 500000.0
+large = 50000.0
 small = 10 ** -2
 TOLERANCE_VALUE = 0.01
 ALPHA_IMPROVE_EACH_ITERATION = 10
