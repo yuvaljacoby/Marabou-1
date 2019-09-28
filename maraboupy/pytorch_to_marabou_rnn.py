@@ -2,11 +2,14 @@ import numpy as np
 import torch
 
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property
+from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, SGDAlphaAlgorithm,
 
 MODEL_FILE_PATH = 'maraboupy/mnist_example/rnn.pt'
-PI = 360
 large = 5000
+small = 10 ** -4
+
+MAX_SIZE = 4
+ROUND = 4
 
 
 class MnistModel():
@@ -30,23 +33,28 @@ class MnistModel():
         :return: rnn_input_weights, rnn_hidden_weights, rnn_bias_weights
         '''
         self.w_in = self.state_dict['rnn.weight_ih_l0'].numpy()
-        self.w_in = self.w_in[:8,:8]
+        self.w_in = self.w_in[:MAX_SIZE, :MAX_SIZE]
+        # self.b_in = self.state_dict['rnn.bias_ih_l0'].numpy()
+        # self.b_in = self.b_in[:MAX_SIZE, :MAX_SIZE]
         self.w_h = self.state_dict['rnn.weight_hh_l0'].numpy()
-        self.w_h = self.w_h[:8, :8]
+        self.w_h = np.round(self.w_h, ROUND)
+        self.w_h = self.w_h[:MAX_SIZE, :MAX_SIZE]
         # pytorch saves two biases but it's not more informative then having just one
         self.b_h = self.state_dict['rnn.bias_ih_l0'].numpy() + self.state_dict['rnn.bias_hh_l0'].numpy()
-        self.b_h = self.b_h[:8]
+        self.b_h = np.round(self.b_h, ROUND)
+
+        self.b_h = self.b_h[:MAX_SIZE]
 
         # return rnn_input_weights, rnn_hidden_weights, rnn_bias
 
     def extract_output_weights(self):
-        output_weights = self.state_dict['out.weight'].numpy()
-        output_bias_weights = self.state_dict['out.bias'].numpy()
-        return output_weights, output_bias_weights
+        # output_weights = self.state_dict['out.weight'].numpy()
+        # output_bias_weights = self.state_dict['out.bias'].numpy()
+        # return output_weights, output_bias_weights
         self.w_out = self.state_dict['out.weight'].numpy()
         self.b_out = self.state_dict['out.bias'].numpy()
-        self.w_out = self.w_out[:8, :8]
-        self.b_out = self.b_out[:8]
+        self.w_out = self.w_out[:MAX_SIZE, :MAX_SIZE]
+        self.b_out = self.b_out[:MAX_SIZE]
 
     def _calc_output_initial_values(self, img_patch, n):
         assert img_patch.shape[0] == self.w_in.shape[1]  # 28 * 28 / 7 (where 7 is number of patches)
@@ -54,9 +62,14 @@ class MnistModel():
         x_max = img_patch * (1 + self.perturbation_limit)
 
         r_min, r_max = calc_min_max_values(x_min, x_max, self.w_in, self.b_h)
-        print("network max value:",
-              get_max_value([x_min, x_max], self.w_in, self.w_h, self.b_h, self.w_out, self.b_out, n))
-        self.initial_values = [r_min, r_max]
+        self.rnn_initial_values = [r_min, r_max]
+
+        y_min, y_max = calc_min_max_values(r_min, r_max, self.w_out, self.b_out)
+        self.initial_values = [y_min, y_max]
+        # y, rs = get_max_value([x_min, x_max], self.w_in, self.w_h, self.b_h, self.w_out, self.b_out, n)
+        print("After 1 iteration,, network max value: {}\nrecurrent max values: {}".format(y_max, r_max))
+        # print("network max value:",
+        #       get_max_value([x_min, x_max], self.w_in, self.w_h, self.b_h, self.w_out, self.b_out, n))
         return r_min, r_max
 
     def set_network_description(self, img_patch, n):
@@ -66,15 +79,14 @@ class MnistModel():
         self.network.setNumberOfVariables(0)
 
         set_img_bounds(img_patch, self.network, self.perturbation_limit)
-        # self.get_rnn_weights()
-        # w_out, b_out = self.get_output_weights()
-
         self.rnn_output_idxs = add_rnn_cells(self.network, self.w_in, self.w_h, self.b_h, n)
 
-        # assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, [property_eq])
-        # return self.network, self.rnn_output_idxs
+        self.out_idx = add_output_equations(self.network, self.rnn_output_idxs, self.w_out, self.b_out)
+        print("output idxs are", self.out_idx)
+        # self.extract_output_weights()
 
-    def prove_rnn_property(self, img_patch, rnn_out_idx, max_value, n):
+
+    def prove_rnn_max_property(self, img_patch, rnn_out_idx, max_value, n):
         '''
         prove property on the rnn
         :param rnn_out_idx: one of rnn output idx
@@ -84,10 +96,9 @@ class MnistModel():
         '''
         if img_patch is None:
             img_patch = np.array([0.1, 0.2, 0.3, 0.4] * 28) # 112
-        img_patch = img_patch[:8]
-
-        x_min = img_patch * (1 - self.perturbation_limit)
-        x_max = img_patch * (1 + self.perturbation_limit)
+            # img_patch = np.array([0.2] * 112)
+            # img_patch = np.load('1.pt')
+        img_patch = img_patch[:MAX_SIZE]
 
         self.set_network_description(img_patch, n)
 
@@ -96,8 +107,39 @@ class MnistModel():
         property_eq.setScalar(max_value)
         rnn_start_idxs = [i - 3 for i in self.rnn_output_idxs]
 
-        return prove_multidim_property(self.network, rnn_start_idxs, self.rnn_output_idxs, self.initial_values,
-                                       [property_eq])
+        # return prove_multidim_property2(self.network, rnn_start_idxs, self.rnn_output_idxs, self.rnn_initial_values,
+        #                                [property_eq])
+        algorithm = SGDAlphaAlgorithm(self.rnn_initial_values, rnn_start_idxs, self.rnn_output_idxs)
+        return prove_multidim_property(self.network, rnn_start_idxs, self.rnn_output_idxs, [property_eq], algorithm)
+
+    def prove_adv_property(self, img_patch, out_idx_max, out_idx_compare, n):
+        '''
+        prove property on the rnn
+        :param img_path: The input img for the network
+        :param out_idx_max: which index in the output should be maximum
+        :param n: number of iterations
+        :return:
+        '''
+        if img_patch is None:
+            # img_patch = np.array([0.1, 0.2, 0.3, 0.4] * 28) # 112
+            img_patch = np.array([0.2] * 112)
+        img_patch = img_patch[:MAX_SIZE]
+
+
+        properties = []
+        self.set_network_description(img_patch, n)
+        assert len(self.out_idx) > out_idx_max
+
+
+        property_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
+        property_eq.addAddend(1, self.out_idx[out_idx_max])
+        property_eq.addAddend(-1, out_idx_compare)
+        property_eq.setScalar(small)
+        properties.append(property_eq)
+
+        rnn_start_idxs = [i - 3 for i in self.rnn_output_idxs]
+        return prove_multidim_property(self.network, rnn_start_idxs, self.rnn_output_idxs, self.rnn_initial_values,
+                                       properties)
 
     def prove_out_max_property(self, out_idx, max_value):
         '''
@@ -112,8 +154,8 @@ class MnistModel():
         property_eq.addAddend(w_out[0], out_idx)
         property_eq.setScalar(max_value)
 
-        assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, self.output_initial_values, [property_eq])
->>>>>>> Stashed changes
+        assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, self.output_initial_values,
+                                       [property_eq])
 
 
 def set_img_bounds(img, network, pertubation_limit=0.05):
@@ -257,8 +299,10 @@ def get_max_value(input_bounds, w_in, w_h, b_h, w_out, b_out, n):
     r0 = 0
     r1 = 1
     r = np.zeros(w_h.shape[0])
+    rs = []
     for i in range(n):
         r_new = ReLU(np.matmul(input_bounds[1], w_in.T) + np.matmul(r, w_h) + b_h[0])
+        rs.append(r_new)
         r = r_new
         # r0_new = input_bounds[1] * w_in[0] + r0 * w_h[0,0] + r1 * w_h[0,1] + b_h[0]
         # r1_new = input_bounds[1] * w_in[1] + r0 * w_h[1, 0] + r1 * w_h[1, 1] + b_h[1]
@@ -266,7 +310,7 @@ def get_max_value(input_bounds, w_in, w_h, b_h, w_out, b_out, n):
         # r1 = r1_new
     assert np.vectorize(lambda x: x >= 0)(r).all()
     y = np.matmul(r, w_out.T) + b_out
-    return y
+    return y, rs
 
 
 def ReLU(x):
@@ -278,12 +322,12 @@ def ReLU(x):
     if isinstance(x, int):
         return max(0, x)
     elif isinstance(x, np.ndarray):
-        return np.array(list(map(lambda v: max(0,v), x)))
+        return np.array(list(map(lambda v: max(0, v), x)))
     else:
         return None
 
 
-def calc_min_max_values(min_input, max_input, w_in, b_in):
+def calc_min_max_values(min_input, max_input, w_in, b_h):
     '''
     Calc the first min and max values, the hidden memory is zero
     assume there are n inputs
@@ -292,21 +336,77 @@ def calc_min_max_values(min_input, max_input, w_in, b_in):
     :param w_in: weight matrix, n*m, where m is the hidden layer dimension
     :return: tuple (min values, max_values), each is vector length m
     '''
-    r_min = ReLU(np.matmul(min_input, w_in.T) + b_in)
-    r_max = ReLU(np.matmul(max_input, w_in.T) + b_in)
+    r_min = np.zeros(w_in.shape[0])
+    r_max = np.zeros(w_in.shape[0])
+    for i in range(w_in.shape[0]):
+        for j in range(w_in.shape[1]):
+            w = w_in[i, j]
+            if w > 0:
+                r_min[i] += min_input[j] * w
+                r_max[i] += max_input[j] * w
+            else:
+                r_min[i] += max_input[j] * w
+                r_max[i] += min_input[j] * w
+
+    r_min = ReLU(np.array(r_min) + b_h)
+    r_max = ReLU(np.array(r_max) + b_h)
+    r_min_old = ReLU(np.matmul(min_input, w_in.T) + b_h)
+    r_max_old = ReLU(np.matmul(max_input, w_in.T) + b_h)
+    assert (r_max >= r_max_old).all() & (r_min <= r_min_old).all()
     return r_min, r_max
+
+
+def prove_rnn_max_property():
+    model = MnistModel(MODEL_FILE_PATH)
+    if model.prove_rnn_max_property(None, 1, 0.013, 6):
+        print("property proved")
+
+
+def prove_output_adv():
+    model = MnistModel(MODEL_FILE_PATH)
+    out_idx_max = 1
+    for i in range(10):
+        if i != 3:
+            if model.prove_adv_property(None, out_idx_max, i, 2):
+                print("proved that 3 and not", i)
+
+
+def boundEqConflict():
+    '''
+    Simple presecion exmaple.
+    Only two nodes that are conncted with ReLU, and an equation that asks if the ReLU output is very small negative
+    :return:
+    '''
+    network = MarabouCore.InputQuery()
+    network.setNumberOfVariables(2)
+
+    network.setLowerBound(0, -5)
+    network.setUpperBound(0, 5)
+
+    network.setLowerBound(1, 0)
+    network.setUpperBound(1, 5)
+
+    MarabouCore.addReluConstraint(network, 0, 1)
+
+    eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    eq.addAddend(1, 1)
+    eq.setScalar(-10**-4) # -10 ** -4 works
+    network.addEquation(eq)
+
+    verbose = 2
+    vars1, stats1 = MarabouCore.solve(network, "", 0, verbose)
+    if len(vars1) > 0:
+        print("SAT")
+        print(vars1)
+        return False
+    else:
+        print("UNSAT")
+        return True
 
 
 if __name__ == "__main__":
     np.random.seed(0)
-    model = MnistModel(MODEL_FILE_PATH)
-    try:
-        assert model.prove_rnn_property(None, 1, 2, 4)
-    except:
-        import sys
-        e = sys.exc_info()[0]
-        print(e)
-    print("property proved")
+    prove_rnn_max_property()
     exit(0)
 
     n = 10
@@ -351,7 +451,8 @@ if __name__ == "__main__":
     w_in = np.array([w_in_0, w_in_1])
     r_min, r_max = calc_min_max_values(x_min, x_max, w_in, np.zeros(w_in.shape))
     initial_values = [r_min, r_max]
-    print("network max value:", get_max_value([x_min, x_max], w_in, w_h, b_h, w_out, 0, n))
+    y, rs = get_max_value([x_min, x_max], w_in, w_h, b_h, w_out, 0, n)
+    print("network max value: {}\nrecurrent max values: {}".format(y, rs))
     assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, [property_eq])
     print('property proved')
     #

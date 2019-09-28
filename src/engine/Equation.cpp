@@ -164,7 +164,7 @@ void Equation::dump() const
         if ( FloatUtils::isPositive( addend._coefficient ) )
             printf( "+" );
 
-        printf( "%.2lfx%u ", addend._coefficient, addend._variable );
+        printf( "%.6lfx%u ", addend._coefficient, addend._variable );
     }
 
     switch ( _type )
@@ -182,7 +182,7 @@ void Equation::dump() const
         break;
     }
 
-    printf( "%.2lf\n", _scalar );
+    printf( "%.6lf\n", _scalar );
 }
 
 bool Equation::isVariableMergingEquation( unsigned &x1, unsigned &x2 ) const

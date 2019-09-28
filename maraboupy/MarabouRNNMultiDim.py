@@ -2,31 +2,28 @@ import numpy as np
 
 from maraboupy import MarabouCore
 
-large = 500000.0
-small = 10 ** -2
+large = 5000.0
+small = 1 ** -5
 TOLERANCE_VALUE = 0.01
-ALPHA_IMPROVE_EACH_ITERATION = 10
+ALPHA_IMPROVE_EACH_ITERATION = 5
 
 
-def marabou_solve_negate_eq(query, debug=False):
+def marabou_solve_negate_eq(query, debug=False, print_vars=False):
     '''
     Run marabou solver
     :param query: query to execute
     :param debug: if True printing all of the query equations
     :return: True if UNSAT (no valid assignment), False otherwise
     '''
-    # if debug:
-    #     for eq in query.getEquations():
-    #         eq.dump()
-
     verbose = 0
     vars1, stats1 = MarabouCore.solve(query, "", 0, verbose)
     if len(vars1) > 0:
-        print("SAT")
-        print(vars1)
+        if print_vars:
+            print("SAT")
+            print(vars1)
         return False
     else:
-        print("UNSAT")
+        # print("UNSAT")
         return True
 
 
@@ -134,14 +131,15 @@ def add_loop_indices_equations(network, loop_indices):
     '''
     # Make sure all the iterators are in the same iteration, we create every equation twice
     step_loop_eq = []
-    for idx in loop_indices:
-        for idx2 in loop_indices:
-            if idx < idx2:
-                temp_eq = MarabouCore.Equation()
-                temp_eq.addAddend(1, idx)
-                temp_eq.addAddend(-1, idx2)
-                # step_loop_eq.append(temp_eq)
-                network.addEquation(temp_eq)
+    # for idx in loop_indices:
+    idx = loop_indices[0]
+    for idx2 in loop_indices[1:]:
+        if idx < idx2:
+            temp_eq = MarabouCore.Equation()
+            temp_eq.addAddend(1, idx)
+            temp_eq.addAddend(-1, idx2)
+            # step_loop_eq.append(temp_eq)
+            network.addEquation(temp_eq)
 
 
 def create_invariant_equations(loop_indices, invariant_eq):
@@ -215,45 +213,6 @@ def create_invariant_equations(loop_indices, invariant_eq):
     return induction_base_equations, induction_step_equations, induction_hypothesis
 
 
-def prove_property_marabou(network, invariant_equations, output_equations, iterators_idx, n_iterations):
-    '''
-    Prove property using marabou (after checking that invariant holds)
-    :param network: marabou definition of the network
-    :param invariant_equations: equations that the invariant promises
-    :param output_equations: equations that we want to check if holds
-    :return: True if the property holds, False otherwise
-    '''
-    added_equations = []
-    if iterators_idx:
-        for idx in iterators_idx:
-            iterator_eq = MarabouCore.Equation()
-            iterator_eq.addAddend(1, idx)
-            iterator_eq.setScalar(n_iterations)
-            added_equations.append(iterator_eq)
-            network.addEquation(iterator_eq)
-
-    not_output = []
-    for eq in output_equations:
-        not_output.append(negate_equation(MarabouCore.Equation(eq)))
-
-    if invariant_equations:
-        for eq in invariant_equations:
-            added_equations.append(eq)
-            network.addEquation(eq)
-
-    for eq in not_output:
-        added_equations.append(eq)
-        network.addEquation(eq)
-
-    print("prove property on marabou:")
-    # network.dump()
-    ret_val = marabou_solve_negate_eq(network, True)
-
-    for eq in added_equations:
-        network.removeEquation(eq)
-    return ret_val
-
-
 def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     '''
     Prove invariants where we need to assume multiple assumptions and conclude from them.
@@ -278,13 +237,14 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
         hypothesis_eq += cur_hypothesis_eq
 
     # first prove base case for all equations
-    for ls_eq in base_eq:
+    for i, ls_eq in enumerate(base_eq):
         for eq in ls_eq:
             network.addEquation(eq)
         # network.dump()
         marabou_result = marabou_solve_negate_eq(network)
-        print('induction base query')
-        # network.dump()
+        # print('induction base query')
+        # if not marabou_result:
+        #     network.dump()
         for eq in ls_eq:
             network.removeEquation(eq)
 
@@ -294,7 +254,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     print("proved induction base for all invariants")
 
     # add all hypothesis equations
-    print("adding hypothesis_eq")
+    # print("adding hypothesis_eq")
     for eq in hypothesis_eq:
         # eq.dump()
         network.addEquation(eq)
@@ -304,7 +264,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
             # eq.dump()
             network.addEquation(eq)
 
-        print("Querying for induction step")
+        # print("Querying for induction step")
 
         marabou_result = marabou_solve_negate_eq(network)
 
@@ -316,7 +276,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
             proved_invariants[i] = False
         else:
             proved_invariants[i] = True
-            print("induction step work, on invariant:", i)
+            # print("induction step work, on invariant:", i)
 
         for eq in steq_eq_ls:
             network.removeEquation(eq)
@@ -326,7 +286,36 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     return proved_invariants
 
 
-def get_new_invariant(start_idx, output_idx, initial_val, new_alpha, inv_type):
+def alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, inv_type, alphas):
+    '''
+    Create a list of marabou equations, acording to the template: \alpha*i \le R_i OR \alpha*i \ge R_i
+    For parameter look at alpha_to_equation, this is just a syntax sugar to remove the loop from outer functions
+    :return: List of marabou equations
+    '''
+    assert len(rnn_start_idxs) == len(rnn_output_idxs)
+    assert len(rnn_start_idxs) == len(initial_values)
+    assert len(rnn_start_idxs) == len(alphas)
+    invariants = []
+    if not isinstance(inv_type, list):
+        inv_type = [inv_type] * len(rnn_start_idxs)
+
+    for i in range(len(rnn_start_idxs)):
+        invariants.append(
+            alpha_to_equation(rnn_start_idxs[i], rnn_output_idxs[i], initial_values[i], alphas[i], inv_type[i]))
+
+    return invariants
+
+
+def alpha_to_equation(start_idx, output_idx, initial_val, new_alpha, inv_type):
+    '''
+    Create an invariant equation according to the simple template \alpha*i \le R_i OR \alpha*i \ge R_i
+    :param start_idx: index of the rnn iterator (i)
+    :param output_idx: index of R_i
+    :param initial_val: If inv_type = GE the max value of R_1 if inv_type = LE the min of R_1
+    :param new_alpha: alpha to use
+    :param inv_type: Marabou.Equation.GE / Marabou.Equation.LE
+    :return: marabou equation
+    '''
     # Need the invariant from both side because they are all depndent in each other
     invariant_equation = MarabouCore.Equation(inv_type)
     invariant_equation.addAddend(1, output_idx)  # b_i
@@ -334,154 +323,63 @@ def get_new_invariant(start_idx, output_idx, initial_val, new_alpha, inv_type):
         ge_better = -1
     else:
         ge_better = 1
-    if new_alpha is None:
-        print('a')
+
     invariant_equation.addAddend(new_alpha * ge_better, start_idx)  # i
     invariant_equation.setScalar(initial_val)
 
     return invariant_equation
 
 
-def double_alphas(alphas):
+def double_list(ls):
+    '''
+    create two items from each item in the list
+    i.e. if the input is: [1,2,3] the output is: [1,1,2,2,3,3]
+    '''
     import copy
-    new_alpha = []
-    for i in range(len(alphas)):
-        new_alpha += [copy.deepcopy(alphas[i]), copy.deepcopy(alphas[i])]
-    return new_alpha
+    new_ls = []
+    for i in range(len(ls)):
+        new_ls += [copy.deepcopy(ls[i]), copy.deepcopy(ls[i])]
+    return new_ls
 
 
-def prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas, property_eqs):
-    assert len(alphas)  == len(initial_values)
-    initial_values_ge = [initial_values[i] for i in range(0, len(initial_values), 2)]
-    initial_values_le = [initial_values[i] for i in range(1, len(initial_values), 2)]
-    alphas_ge = [alphas[i] for i in range(0, len(alphas), 2)]
-    alphas_le = [alphas[i] for i in range(1, len(alphas), 2)]
-    # alphas_ge = double_alphas([alphas[0]])  # [alphas[i] for i in range(0, len(alphas), 2)]
-    # alphas_le = double_alphas([alphas[1]])  # [alphas[i] for i in range(1, len(alphas), 2)]
-    invariant_equations_ge = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
-                                                                       initial_values_ge, alphas_ge,
-                                                                       MarabouCore.Equation.GE)
-    invariant_equations_le = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
-                                                                       initial_values_le, alphas_le,
-                                                                       MarabouCore.Equation.LE)
+def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs):
+    def invariant_oracle(equations_to_verify):
+        # assert len(alphas) == len(initial_values)
+        # invariant_equations = alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, alphas)
+        return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify)
 
-    invariant_equations = invariant_equations_le + invariant_equations_ge
-    print("proved alphas GE:", [alpha.get() for alpha in alphas_ge])
-    print("proved alphas LE:", [alpha.get() for alpha in alphas_le])
-
-    for eq in invariant_equations + property_eqs:
-        network.addEquation(eq)
-    res = marabou_solve_negate_eq(network)
-    # if res:
-    #     network.dump()
-    for eq in invariant_equations + property_eqs:
-        network.removeEquation(eq)
-    return res
+    return invariant_oracle
 
 
-def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, property_equations):
-    '''
+def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations):
+    def property_oracle(invariant_equations):
+        for eq in invariant_equations + property_equations:
+            network.addEquation(eq)
+        res = marabou_solve_negate_eq(network, False, True)
+        if res:
+            network.dump()
+        for eq in invariant_equations + property_equations:
+            network.removeEquation(eq)
+        return res
 
-    :param network: marabou query
-    :param rnn_start_idxs: n indcies of the iterator index
-    :param rnn_output_idxs: n indcies of the output rnn index
-    :param initial_values: list of 2*n items order is: min_0, max_0, min_1, max_1 ... min_n, max_n
-    :param property_equations: list of equations that prove the property
-    :return:
-    '''
-    if isinstance(initial_values[0], np.ndarray):
-        initial_values_ls = [[initial_values[0][i], initial_values[1][i]] for i in range(len(initial_values[0]))]
-        initial_values = [item for sublist in initial_values_ls for item in sublist]
-    max_alphas = [10] * len(rnn_start_idxs)
-    min_alphas = [-10] * len(rnn_start_idxs)
-    assert len(max_alphas) == len(rnn_start_idxs)
-    assert len(rnn_output_idxs) == len(rnn_start_idxs)
-    # assert len(initial_values) // 2 == len(max_alphas)
+    return property_oracle
 
+
+def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_equations, algorithm):
     add_loop_indices_equations(network, rnn_start_idxs)
-    # Create 2*alpha because we create LE and GE invariant for each
-    max_alphas = double_alphas(max_alphas)
-    min_alphas = double_alphas(min_alphas)
-    # rnn_start_idxs = double_alphas(rnn_start_idxs)
-    # rnn_output_idxs = double_alphas(rnn_output_idxs)
 
-    proved_property = False
-    c = 0
-    alphas = [AlphaSearch() for _ in range(len(rnn_start_idxs) * 2)]
-    if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
-                                     property_equations):
+    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs)
+    property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
+    # Get first batch of inductive alphas
+    alphas = algorithm.getAlphasThatProveProperty(invariant_oracle, property_oracle)
+    if alphas:
+        print('property proved using alphas:', [a.get() for a in alphas])
         return True
     else:
-        while c <= 10 and not proved_property:
-            c += 1
-            for i in range(len(alphas)):
-                # print("alphas:", )
-                if alphas[i].update_property_fail():
-                    print("after property fail, alphas:", [a.get() for a in alphas])
-                    if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
-                                                     property_equations):
-                        print("property proved, alphas range:",
-                              "\n\t".join(["alpha_{}: {}".format(i, a.get()) for i, a in enumerate(alphas)]))
-                        # print("min_alphas:", "\n\t".join(["alpha_{}: {}".format(i, a) for i, a in enumerate(min_alphas)]))
-                        return True
-                    else:
-                        print("fail to prove property {}, network:".format(c))
-
-    print("failed to prove property")
-    return False
+        print('failed to prove property, last used alphas are:', [a.get() for a in algorithm.alphas])
 
 
-# def improve_mutlidim_invariants(network, rnn_start_idxs, rnn_output_idxs, initial_values, max_alpha):
-#     # initial_values = double_alphas(initial_values)
-#     c = 0
-#     new_alphas = max_alpha #[0] * len(rnn_start_idxs)
-#     proved_alphas = [None] * len(rnn_start_idxs)
-#     prove_inv_res = [False] * len(rnn_start_idxs)
-#     # new_alphas = [None] * len(prove_inv_res)
-#     while c < 20 and not all(prove_inv_res):
-#         print('c:', c)
-#         c += 1
-#         invariant_equations = [None] * len(rnn_start_idxs)
-#
-#         # for i in range(len(rnn_start_idxs)):
-#         #     if not prove_inv_res[i]:
-#         #         new_alphas[i] = (max_alphas[i] + min_alphas[i]) / 2
-#             # invariant_equations = []
-#         for k in range(0, len(rnn_start_idxs), 2):
-#             for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
-#                 i = k + j
-#                 if not invariant_equations[i]:
-#                     invariant_equations[i] = get_new_invariant(rnn_start_idxs[i], rnn_output_idxs[i],
-#                                                                initial_values[i], new_alphas[i], inv_type)
-#
-#         prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
-#         # print("results:", prove_inv_res)
-#         for i, res in enumerate(prove_inv_res):
-#             if res:
-#                 proved_alphas[i] = new_alphas[i]
-#                 # reduce alpha for the next iteration
-#                 # if abs(new_alphas[i]) <= 0.25:
-#                 #     new_alphas[i] = -1
-#                 # elif proved_alphas[i] > 0:
-#                 #     new_alphas[i] = new_alphas[i] / 2
-#                 # else:
-#                 #     new_alphas[i] = new_alphas[i] * 2
-#             else:
-#                 if abs(new_alphas[i]) <= 0.25:
-#                     new_alphas[i] = 1
-#                 elif new_alphas[i] > 0:
-#                     new_alphas[i] = new_alphas[i] * 2
-#                 else:
-#                     new_alphas[i] = new_alphas[i] / 2
-#                 # min_alphas[i] = new_alphas[i]
-#                 invariant_equations[i] = None
-#
-#     if all(prove_inv_res):
-#         return invariant_equations, proved_alphas
-#     else:
-#         return None, None, None
-
-class AlphaSearch:
+class AlphaSearchSGD:
     def __init__(self):
         self.alpha = 0
         self.old_alpha = None
@@ -514,9 +412,6 @@ class AlphaSearch:
 
         direction = 1
         self.step(direction)
-        # print("invariant fail use larger alpha, new alpha:", self.alpha)
-        # self.min_val = self.get()
-        # self.alpha = None
 
     def update_property_fail(self):
         '''
@@ -527,15 +422,15 @@ class AlphaSearch:
         direction = -1
         # self.max_val = self.get()
         self.step(direction)
-        print("property fail use smaller alpha, new alpha:", self.alpha)
+        # print("property fail use smaller alpha, new alpha:", self.alpha)
         return self.alpha < self.large
-
 
     def step(self, direction):
         sign = lambda x: 1 if x >= 0 else -1
         self.prev_alpha = self.alpha
         if abs(self.alpha) > 0.2:
-            self.alpha = self.alpha + (direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.1 to the next direction
+            self.alpha = self.alpha + (
+                    direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.1 to the next direction
         else:
             self.alpha = 0.5 * direction
         return self.alpha
@@ -550,159 +445,279 @@ class AlphaSearch:
         # return (self.max_val + self.min_val) / 2
 
 
-def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
-                                              inv_type):
-    c = 0
-    # prove_inv_res = [False, False, False, False]
-    prove_inv_res = [False, False]
-    # Running until proving all invariants once, at each iteration we make the invariants that didn't pass a bit larger
-    while c <= 20 and not all(prove_inv_res):
-        c += 1
-        invariant_equations = [None] * len(alphas)
+class SGDAlphaAlgorithm:
+    def __init__(self, initial_values, rnn_start_idxs, rnn_output_idxs):
+        '''
 
-        for k in range(0, len(alphas)):
-            # for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
-            #     inv_type = MarabouCore.Equation.LE
-            i = k
-            if not invariant_equations[i]:
-                invariant_equations[i] = get_new_invariant(rnn_start_idxs[i], rnn_output_idxs[i],
-                                                           initial_values[i], alphas[i].get(), inv_type)
+        :param initial_values: tuple of lists, [0] is list of min values, [1] for max values
+        :param rnn_start_idxs:
+        :param rnn_output_idxs:
+        '''
 
-        prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
+        self.rnn_start_idxs = double_list(rnn_start_idxs)
+        self.rnn_output_idxs = double_list(rnn_output_idxs)
+        min_values = initial_values[0]
+        max_values = initial_values[1]
+        self.initial_values = [item for i in range(len(min_values)) for item in [min_values[i], max_values[i]]]
+        # times two to have for each invariant ge and le
+        self.alphas = [AlphaSearchSGD() for _ in range(len(self.initial_values))]
+        self.inv_type = [MarabouCore.Equation.GE if i % 2 == 0 else MarabouCore.Equation.LE for i in
+                         range(len(self.alphas))]
+
+        self.inductive_steps = 40
+        self.invariant_equations = [None] * len(self.alphas)
+        for i in range(len(self.alphas)):
+            self._update_invariant_equation(i)
+
+        # the property steps are much slower, for each step we do all inductive steps at the worst case
+        self.property_steps = 10
+        # self.alphas_le = [AlphaSearchSGD() for _ in range(len(initial_values[0]))]
+        assert len(self.rnn_output_idxs) == len(self.rnn_start_idxs)
+        assert len(self.rnn_output_idxs) == len(self.alphas)
+        assert len(self.rnn_output_idxs) == len(self.initial_values)
+        assert len(self.rnn_output_idxs) == len(self.invariant_equations)
+
+    def _update_invariant_equation(self, i):
+        self.invariant_equations[i] = alpha_to_equation(self.rnn_start_idxs[i], self.rnn_output_idxs[i],
+                                                        self.initial_values[i], self.alphas[i].get(), self.inv_type[i])
+
+    def getAlphasThatProveProperty(self, invariant_oracle, property_oracle):
+        '''
+        Look for alphas that prove the property using the "SGD" algorithm.
+        i.e. we first check if basic alphas work, if not
+        for each alpha:
+            check that it's inductive (if not fix)
+            check if property holds
+        we do this loop property_steps times
+        :param invariant_oracle: function pointer, input is list of marabou equations, output is whether this is a valid invariant
+        :param property_oracle: function pointer, input is list of marabou equations, output is whether the property holds using this invariants
+        :return: list of alphas if proved, None otherwise
+        '''
+        # First check if need if the property holds
+        if property_oracle(self.invariant_equations):
+            return self.alphas
+        # Run maximum property_steps
+        counter = 0
+        while counter < self.property_steps:
+            counter += 1
+            # Do a step to improve each alpha, after that make sure they are inductive and try to prove the propety
+            for i, alpha in enumerate(self.alphas):
+                alpha.update_property_fail()
+                self._update_invariant_equation(i)
+                # Get inductive Alphas updates the equations
+                if self.getInductiveAlphas(invariant_oracle):
+                    print("proved an invariant:", [a.get() for a in self.alphas])
+                    if property_oracle(self.invariant_equations):
+                        return self.alphas
+                else:
+                    print("fail to prove inductive alphas cur alphas::", [a.get() for a in self.alphas])
+                    return None
+        return None
+
+    def _proveInductiveAlphasOnce(self, invariant_oracle, invariant_equations_idx):
+        prove_inv_res = invariant_oracle([self.invariant_equations[i] for i in invariant_equations_idx])
+        # prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
         for i, res in enumerate(prove_inv_res):
+            # i is an index in the current invariant_equations which is a subset of the entire invariants
+            idx = invariant_equations_idx[i]
             if res:
-                alphas[i].proved_alpha()
+                self.alphas[idx].proved_alpha()
             else:
                 # Doing a step
-                alphas[i].update_invariant_fail()
-                print("after invariant fail, new_alphas:", [a.get() for a in alphas])
-                invariant_equations[i] = None
+                self.alphas[idx].update_invariant_fail()
+                self._update_invariant_equation(idx)
+                print("after invariant fail, new_alphas:", [a.get() for a in self.alphas])
+        return all(prove_inv_res)
 
-    if all(prove_inv_res):
-        return invariant_equations
-    else:
-        raise Exception
+    def getInductiveAlphas(self, invariant_oracle):
+        '''
+        Do a step to get better alphas, use the oracle to verify that they are valid invariant
+        :param invariant_oracle: function pointer, input is marabou equations values output is whether this is a valid invariant
+        :return: list of alphas if found better invariant, otherwise None
+        '''
+        ge_invariant_eq_idx = range(1, len(self.invariant_equations), 2)
+        le_invariant_eq_idx = range(1, len(self.invariant_equations), 2)
+        all_ge_proved = False
+        all_le_proved = False
+        counter = 0
+        while counter <= self.inductive_steps:
+            counter += 1
+            if not all_ge_proved:
+                all_ge_proved = self._proveInductiveAlphasOnce(invariant_oracle, ge_invariant_eq_idx)
+            if not all_le_proved:
+                all_le_proved = self._proveInductiveAlphasOnce(invariant_oracle, le_invariant_eq_idx)
 
+            if all_ge_proved and all_le_proved:
+                return True
 
-def improve_mutlidim_invariants_binary_search_BOTH(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas):
-    c = 0
-    prove_inv_res = [False, False, False, False]
-    # Running until proving all invariants once, at each iteration we make the invariants that didn't pass a bit larger
-    while c <= 20 and not all(prove_inv_res):
-        c += 1
-        invariant_equations = [None] * len(alphas)
-
-        for k in range(0, len(alphas), 2):
-            for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
-                inv_type = MarabouCore.Equation.LE
-                i = k + j
-                if not invariant_equations[i]:
-                    invariant_equations[i] = get_new_invariant(rnn_start_idxs[i], rnn_output_idxs[i],
-                                                               initial_values[i], alphas[i].get(), inv_type)
-
-        prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
-        for i, res in enumerate(prove_inv_res):
-            if res:
-                alphas[i].proved_alpha()
-            else:
-                alphas[i].update_invariant_fail()
-                print("after invariant fail, alphas:", [a.get() for a in alphas])
-                invariant_equations[i] = None
-
-    if all(prove_inv_res):
-        return invariant_equations
-    else:
-        raise Exception
+        print("didn't find invariant")
+        return False
 
 
-def find_invariant_marabou_multidim(network, rnn_start_idxs, rnn_invariant_type, initial_values, n_iterations,
-                                    property_equations,
-                                    rnn_dependent=None):
-    '''
-    Function to automatically find invariants that hold and prove the property
-    The order of the rnn indices matter (!), we try to prove invariants on them sequentially,
-    i.e. if rnn_x is dependent on the output of rnn_y then index(rnn_x) > index(rnn_y)
-    :param network: Description of the network in Marabou style
-    :param rnn_start_idxs: list of lists, each list if a set of rnns we need to prove together, then each cell is index
-     with the iterator variable for each rnn cell
-    :param rnn_invariant_type: List of MarabouCore.Equation.GE/LE, for each RNN cell
-    :param n_iterations: for how long we will run the network (how many inputs will there be)
-    :param rnn_dependent: list of lists (or none), for each cell which rnn are dependent on him. we need this to
-            recompute the search space after finding a better invariant
-    :return:
-    '''
+# def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
+#                                               inv_type):
+#     c = 0
+#     # prove_inv_res = [False, False, False, False]
+#     prove_inv_res = [False, False]
+#     # Running until proving all invariants once, at each iteration we make the invariants that didn't pass a bit larger
+#     while c <= 20 and not all(prove_inv_res):
+#         c += 1
+#         invariant_equations = [None] * len(alphas)
+#
+#         for i in range(0, len(alphas)):
+#             if not invariant_equations[i]:
+#                 invariant_equations[i] = alpha_to_equation(rnn_start_idxs[i], rnn_output_idxs[i],
+#                                                            initial_values[i], alphas[i].get(), inv_type)
+#
+#         prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
+#         for i, res in enumerate(prove_inv_res):
+#             if res:
+#                 alphas[i].proved_alpha()
+#             else:
+#                 # Doing a step
+#                 alphas[i].update_invariant_fail()
+#                 print("after invariant fail, new_alphas:", [a.get() for a in alphas])
+#                 invariant_equations[i] = None
+#
+#     if all(prove_inv_res):
+#         print("proved an invariant:", [a.get() for a in alphas])
+#         return invariant_equations
+#     else:
+#         raise Exception
 
-    assert len(rnn_start_idxs) == len(rnn_invariant_type)
-    for t in rnn_invariant_type:
-        assert t == MarabouCore.Equation.GE or t == MarabouCore.Equation.LE
-    if not rnn_dependent:
-        rnn_dependent = [None] * len(rnn_start_idxs)
-    assert len(rnn_dependent) == len(rnn_invariant_type)
-
-    rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
-    invariant_equation = None
-    assert invariant_equation is None
-
-    min_alphas = [[-large] * len(rnn_start_idxs[i]) for i in
-                  range(len(rnn_start_idxs))]  # min alpha that we try but invariant does not hold
-    max_alphas = [[large] * len(rnn_start_idxs[i]) for i in
-                  range(len(rnn_start_idxs))]  # max alpha that we try but property does not hold
-
-    alphas = []
-    for i, inv_type in enumerate(rnn_invariant_type):
-        if inv_type == MarabouCore.Equation.GE:
-            alphas.append(min_alphas[i])
-        else:
-            alphas.append(max_alphas[i])
-
-    still_improve = [True] * len(rnn_start_idxs)
-
-    # Keep track on the invariants we know that hold for each cell
-    invariant_that_hold = [[None] * len(rnn_start_idxs[i]) for i in range(len(rnn_start_idxs))]
-
-    while any(still_improve):
-
-        for i in range(len(rnn_start_idxs)):
-            if still_improve[i]:
-
-                if invariant_that_hold[i]:
-                    for inv in invariant_that_hold[i]:
-                        if inv:
-                            network.removeEquation(inv)
-
-                counter = 0
-                cur_alpha = (max_alphas[i] + min_alphas[i]) / 2
-                proven_invariant_equation = None
-
-                if cur_alpha is not None:
-                    alphas[i] = cur_alpha
-                    invariant_that_hold[i] = proven_invariant_equation
-                    # Found a better invariant need to change the search space for all the rest
-                    if rnn_dependent[i]:
-                        print("found invariant for: {}, zeroing: {}".format(i, rnn_dependent[i]))
-                        for j in rnn_dependent[i]:
-                            max_alphas[j] = large
-                            min_alphas[j] = -large
-                            still_improve[i] = True
-
-                if max_alphas[i] - min_alphas[i] <= TOLERANCE_VALUE:
-                    still_improve[i] = False
-
-                # This invariant hold, all other rnn cells can use this fact
-                network.addEquation(invariant_that_hold[i])
-
-        if prove_property_marabou(network, None, property_equations, None, n_iterations):
-            print("Invariant and property holds. invariants:\n\t" + "\n\t".join(
-                ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
-            return True
-        else:
-            print("Property does not fold for alphas:\n\t" + "\n\t".join(
-                ["{}: {}".format(i, a) for i, a in enumerate(alphas)]))
-
-    # network.dump()
-    print("Finish trying to find sutiable invariant, the last invariants we found are\n\t" + "\n\t".join(
-        ["alpha_{}: {}".format(i, a) for i, a in enumerate(alphas)]))
-
-    print("last search area\n\t" + "\n\t".join(
-        ["{}: {} TO {}".format(i, min_a, max_a) for i, (min_a, max_a) in enumerate(zip(min_alphas, max_alphas))]))
-    return False
+# def prove_multidim_property2(network, rnn_start_idxs, rnn_output_idxs, initial_values, property_equations):
+#     '''
+#
+#     :param network: marabou query
+#     :param rnn_start_idxs: n indcies of the iterator index
+#     :param rnn_output_idxs: n indcies of the output rnn index
+#     :param initial_values: list of 2*n items order is: min_0, max_0, min_1, max_1 ... min_n, max_n
+#     :param property_equations: list of equations that prove the property
+#     :return:
+#     '''
+#     if isinstance(initial_values[0], np.ndarray):
+#         initial_values_ls = [[initial_values[0][i], initial_values[1][i]] for i in range(len(initial_values[0]))]
+#         initial_values = [item for sublist in initial_values_ls for item in sublist]
+#     # max_alphas = [10] * len(rnn_start_idxs)
+#     # min_alphas = [-10] * len(rnn_start_idxs)
+#     assert len(rnn_start_idxs) == len(rnn_start_idxs)
+#     assert len(rnn_output_idxs) == len(rnn_start_idxs)
+#     # assert len(initial_values) // 2 == len(max_alphas)
+#
+#     add_loop_indices_equations(network, rnn_start_idxs)
+#     # Create 2*alpha because we create LE and GE invariant for each
+#
+#     # max_alphas = double_alphas(max_alphas)
+#     # min_alphas = double_alphas(min_alphas)
+#     # rnn_start_idxs = double_alphas(rnn_start_idxs)
+#     # rnn_output_idxs = double_alphas(rnn_output_idxs)
+#
+#     proved_property = False
+#     c = 0
+#     alphas = [AlphaSearchSGD() for _ in range(len(rnn_start_idxs) * 2)]
+#     if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
+#                                      property_equations):
+#         return True
+#     else:
+#         while c <= 10 and not proved_property:
+#             c += 1
+#             for i in range(len(alphas)):
+#                 # print("alphas:", )
+#                 if alphas[i].update_property_fail():
+#                     print("after property fail, alphas:", [a.get() for a in alphas])
+#                     if prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
+#                                                      property_equations):
+#                         print("property proved, alphas range:",
+#                               "\n\t".join(["alpha_{}: {}".format(i, a.get()) for i, a in enumerate(alphas)]))
+#                         # print("min_alphas:", "\n\t".join(["alpha_{}: {}".format(i, a) for i, a in enumerate(min_alphas)]))
+#                         return True
+#                     else:
+#                         print("fail to prove property, for the {} time, network:".format(c))
+#                         # network.dump()
+#
+#     print("failed to prove property")
+#     return False
+# def improve_mutlidim_invariants(network, rnn_start_idxs, rnn_output_idxs, initial_values, max_alpha):
+#     # initial_values = double_alphas(initial_values)
+#     c = 0
+#     new_alphas = max_alpha #[0] * len(rnn_start_idxs)
+#     proved_alphas = [None] * len(rnn_start_idxs)
+#     prove_inv_res = [False] * len(rnn_start_idxs)
+#     # new_alphas = [None] * len(prove_inv_res)
+#     while c < 20 and not all(prove_inv_res):
+#         print('c:', c)
+#         c += 1
+#         invariant_equations = [None] * len(rnn_start_idxs)
+#
+#         # for i in range(len(rnn_start_idxs)):
+#         #     if not prove_inv_res[i]:
+#         #         new_alphas[i] = (max_alphas[i] + min_alphas[i]) / 2
+#             # invariant_equations = []
+#         for k in range(0, len(rnn_start_idxs), 2):
+#             for j, inv_type in enumerate([MarabouCore.Equation.GE, MarabouCore.Equation.LE]):
+#                 i = k + j
+#                 if not invariant_equations[i]:
+#                     invariant_equations[i] = alpha_to_equation(rnn_start_idxs[i], rnn_output_idxs[i],
+#                                                                initial_values[i], new_alphas[i], inv_type)
+#
+#         prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
+#         # print("results:", prove_inv_res)
+#         for i, res in enumerate(prove_inv_res):
+#             if res:
+#                 proved_alphas[i] = new_alphas[i]
+#                 # reduce alpha for the next iteration
+#                 # if abs(new_alphas[i]) <= 0.25:
+#                 #     new_alphas[i] = -1
+#                 # elif proved_alphas[i] > 0:
+#                 #     new_alphas[i] = new_alphas[i] / 2
+#                 # else:
+#                 #     new_alphas[i] = new_alphas[i] * 2
+#             else:
+#                 if abs(new_alphas[i]) <= 0.25:
+#                     new_alphas[i] = 1
+#                 elif new_alphas[i] > 0:
+#                     new_alphas[i] = new_alphas[i] * 2
+#                 else:
+#                     new_alphas[i] = new_alphas[i] / 2
+#                 # min_alphas[i] = new_alphas[i]
+#                 invariant_equations[i] = None
+#
+#     if all(prove_inv_res):
+#         return invariant_equations, proved_alphas
+#     else:
+#         return None, None, None
+# def prove_invatiants_and_property(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas, property_eqs):
+#     assert len(alphas) == len(initial_values)
+#     initial_values_ge = [initial_values[i] for i in range(0, len(initial_values), 2)]
+#     initial_values_le = [initial_values[i] for i in range(1, len(initial_values), 2)]
+#     alphas_ge = [alphas[i] for i in range(0, len(alphas), 2)]
+#     alphas_le = [alphas[i] for i in range(1, len(alphas), 2)]
+#     # alphas_ge = double_alphas([alphas[0]])  # [alphas[i] for i in range(0, len(alphas), 2)]
+#     # alphas_le = double_alphas([alphas[1]])  # [alphas[i] for i in range(1, len(alphas), 2)]
+#     # print("starting GE constraints")
+#     invariant_equations_ge = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
+#                                                                        initial_values_ge, alphas_ge,
+#                                                                        MarabouCore.Equation.GE)
+#
+#     # print("starting LE constraints")
+#     invariant_equations_le = improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs,
+#                                                                        initial_values_le, alphas_le,
+#                                                                        MarabouCore.Equation.LE)
+#
+#     invariant_equations = invariant_equations_le + invariant_equations_ge
+#     # print("proved alphas GE:", [alpha.get() for alpha in alphas_ge])
+#     # print("proved alphas LE:", [alpha.get() for alpha in alphas_le])
+#
+#     if 0:
+#         print("property_eqs:")
+#         for eq in property_eqs:
+#             eq.dump()
+#         print("\n")
+#     for eq in invariant_equations + property_eqs:
+#         network.addEquation(eq)
+#     res = marabou_solve_negate_eq(network, False, True)
+#     if res:
+#         network.dump()
+#     for eq in invariant_equations + property_eqs:
+#         network.removeEquation(eq)
+#     return res
