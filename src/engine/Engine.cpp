@@ -81,11 +81,6 @@ Engine::~Engine()
     }
 }
 
-void Engine::setVerbosity( unsigned verbosity )
-{
-    _verbosity = verbosity;
-}
-
 void Engine::adjustWorkMemorySize()
 {
     if ( _work )
@@ -97,6 +92,58 @@ void Engine::adjustWorkMemorySize()
     _work = new double[_tableau->getM()];
     if ( !_work )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Engine::work" );
+}
+
+bool Engine::solveAdversarial( unsigned max_idx, unsigned *output_idx, unsigned output_length, unsigned timeoutInSeconds)
+{
+    if ( solve( timeoutInSeconds ) )
+    {
+        _tableau->dump();
+        // Solve the network with no constraints got SAT
+        // Now add new equation to the tableau
+        for( unsigned i = 0; i < output_length; ++i )
+        {
+            Equation eq ( Equation::LE );
+            eq.addAddend( 1, max_idx );
+            eq.addAddend( -1, output_idx[i] );
+            // TODO: Scalar should be epsilon? we negate GE
+            eq.setScalar( 0 );
+
+            /* eq.dump(); */
+            unsigned int auxVar = _tableau->addEquation( eq );
+
+            /* _tableau->dump(); */
+
+            // LE equation, aux has to be positive
+            _tableau->setLowerBound( auxVar, 0 );
+
+            // We violated the valid assignment that we had, notify that
+            _tableau->setBasicAssignmentStatus( ITableau::BASIC_ASSIGNMENT_INVALID );
+            _activeEntryStrategy->resizeHook( _tableau );
+
+
+            // TODO: Store in _degradationChecker ?
+            /* _rowBoundTightener->resetBounds(); */
+            /* _constraintBoundTightener->resetBounds(); */
+            
+            // Look for a new assignment
+            _tableau->computeAssignment();
+            DEBUG( _tableau->verifyInvariants() );
+            if ( solve ( timeoutInSeconds ) )
+            {
+                printf("found assignment for %u > %u\n", output_idx[i], max_idx);
+                return true;
+            }
+
+            // TODO: Instead of removing the row we change the aux variable to
+            // be not bounded... fix this hack :)
+            /* _tableau->setUpperBound( auxVar, FloatUtils::infinity() ); */
+            _tableau->setLowerBound( auxVar, FloatUtils::negativeInfinity() );
+
+        }
+        return false;
+    }
+    return false;
 }
 
 bool Engine::solve( unsigned timeoutInSeconds )
@@ -149,6 +196,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
         try
         {
+            printf("%s::%d\n", __FILE__, __LINE__);
             DEBUG( _tableau->verifyInvariants() );
 
             if ( _verbosity > 1 )
@@ -232,6 +280,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                     {
                         printf( "\nEngine::solve: SAT assignment found\n" );
                         _statistics.print();
+                        
                     }
                     _exitCode = Engine::SAT;
                     return true;
@@ -401,10 +450,12 @@ void Engine::performSimplexStep()
             }
         });
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     // Obtain all eligible entering varaibles
     List<unsigned> enteringVariableCandidates;
     _tableau->getEntryCandidates( enteringVariableCandidates );
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     unsigned bestLeaving = 0;
     double bestChangeRatio = 0.0;
     Set<unsigned> excludedEnteringVariables;
@@ -415,6 +466,7 @@ void Engine::performSimplexStep()
 
     while ( tries > 0 )
     {
+        printf("%s::%d\n", __FILE__, __LINE__);
         --tries;
 
         // Attempt to pick the best entering variable from the available candidates
@@ -466,23 +518,30 @@ void Engine::performSimplexStep()
         else
             _statistics.incNumSimplexPivotSelectionsIgnoredForStability();
     }
+    printf("%s::%d\n", __FILE__, __LINE__);
 
     // If we don't have any candidates, this simplex step has failed.
     if ( !haveCandidate )
     {
+        printf("%s::%d\n", __FILE__, __LINE__);
         if ( _tableau->getBasicAssignmentStatus() != ITableau::BASIC_ASSIGNMENT_JUST_COMPUTED )
         {
+            printf("%s::%d\n", __FILE__, __LINE__);
             // This failure might have resulted from a corrupt basic assignment.
             _tableau->computeAssignment();
+            printf("%s::%d\n", __FILE__, __LINE__);
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
+            printf("%s::%d\n", __FILE__, __LINE__);
             return;
         }
         else if ( !_costFunctionManager->costFunctionJustComputed() )
         {
+            printf("%s::%d\n", __FILE__, __LINE__);
             // This failure might have resulted from a corrupt cost function.
             ASSERT( _costFunctionManager->getCostFunctionStatus() ==
                     ICostFunctionManager::COST_FUNCTION_UPDATED );
+            printf("%s::%d\n", __FILE__, __LINE__);
             _costFunctionManager->invalidateCostFunction();
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -490,6 +549,7 @@ void Engine::performSimplexStep()
         }
         else
         {
+            printf("%s::%d\n", __FILE__, __LINE__);
             // Cost function is fresh --- failure is real.
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -497,17 +557,20 @@ void Engine::performSimplexStep()
         }
     }
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     // Set the best choice in the tableau
     _tableau->setEnteringVariableIndex( bestEntering );
     _tableau->setLeavingVariableIndex( bestLeaving );
     _tableau->setChangeColumn( _work );
     _tableau->setChangeRatio( bestChangeRatio );
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     bool fakePivot = _tableau->performingFakePivot();
 
     if ( !fakePivot &&
          bestPivotEntry < GlobalConfiguration::ACCEPTABLE_SIMPLEX_PIVOT_THRESHOLD )
     {
+        printf("%s::%d\n", __FILE__, __LINE__);
         /*
           Despite our efforts, we are stuck with a small pivot. If basis factorization
           isn't fresh, refresh it and terminate this step - perhaps in the next iteration
@@ -522,8 +585,10 @@ void Engine::performSimplexStep()
         _statistics.incNumSimplexUnstablePivots();
     }
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     if ( !fakePivot )
     {
+        printf("%s::%d\n", __FILE__, __LINE__);
         _tableau->computePivotRow();
         _rowBoundTightener->examinePivotRow();
     }
@@ -725,6 +790,13 @@ void Engine::storeEquationsInDegradationChecker()
 {
     _degradationChecker.storeEquations( _preprocessedQuery );
 }
+
+/* double *Engine::addToConstraintMatrix(const List<Equation> &newEquations) */
+/* { */
+/*     unsigned m = equations.size() + newEquations.size(); */
+/*     unsigned n = _preprocessedQuery.getNumberOfVariables(); */
+
+/* } */
 
 double *Engine::createConstraintMatrix()
 {
@@ -1316,6 +1388,7 @@ bool Engine::attemptToMergeVariables( unsigned x1, unsigned x2 )
 
     // Both variables are now non-basic, so we can merge their columns
     _tableau->mergeColumns( x1, x2 );
+    printf("%s::%d\n", __FILE__, __LINE__);
     DEBUG( _tableau->verifyInvariants() );
 
     // Reset the entry strategy
@@ -1329,6 +1402,7 @@ void Engine::applySplit( const PiecewiseLinearCaseSplit &split )
     log( "" );
     log( "Applying a split. " );
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     DEBUG( _tableau->verifyInvariants() );
 
     List<Tightening> bounds = split.getBoundTightenings();
@@ -1441,6 +1515,7 @@ void Engine::applySplit( const PiecewiseLinearCaseSplit &split )
         }
     }
 
+    printf("%s::%d\n", __FILE__, __LINE__);
     DEBUG( _tableau->verifyInvariants() );
     log( "Done with split\n" );
 }

@@ -62,6 +62,8 @@ public:
     */
     bool solve( unsigned timeoutInSeconds = 0 );
 
+    bool solveAdversarial(  unsigned max_idx, unsigned *output_idx, unsigned output_length, unsigned timeoutInSeconds = 0);
+
     /*
       Process the input query and pass the needed information to the
       underlying tableau. Return false if query is found to be infeasible,
@@ -123,16 +125,13 @@ public:
     void clearViolatedPLConstraints();
 
     /*
-      Set the Engine's level of verbosity
-    */
-    void setVerbosity( unsigned verbosity );
-
-    /*
       PSA: The following two methods are for DnC only and should be used very
       cauciously.
      */
     void resetSmtCore();
+
     void resetExitCode();
+
     void resetBoundTighteners();
 
 private:

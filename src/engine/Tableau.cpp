@@ -2041,6 +2041,7 @@ void Tableau::addRow()
     _workN = newWorkN;
 
     _m = newM;
+    printf("\n\n_n: %u, newN: %u\n\n", _n, newN);
     _n = newN;
     _costFunctionManager->initialize();
 
