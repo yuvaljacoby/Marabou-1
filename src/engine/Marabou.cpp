@@ -42,6 +42,7 @@ void Marabou::run()
     struct timespec start = TimeUtils::sampleMicro();
 
     prepareInputQuery();
+    /* solveAdversarialQuery(); */
     solveQuery();
 
     struct timespec end = TimeUtils::sampleMicro();
@@ -55,6 +56,7 @@ void Marabou::prepareInputQuery()
     /*
       Step 1: extract the network
     */
+    
     String networkFilePath = Options::get()->getString( Options::INPUT_FILE_PATH );
     if ( !File::exists( networkFilePath ) )
     {
@@ -65,8 +67,10 @@ void Marabou::prepareInputQuery()
 
     // For now, assume the network is given in ACAS format
     _acasParser = new AcasParser( networkFilePath );
+    
     _acasParser->generateQuery( _inputQuery );
 
+    
     /*
       Step 2: extract the property in question
     */
@@ -91,6 +95,21 @@ void Marabou::solveQuery()
         _engine.extractSolution( _inputQuery );
 }
 
+void Marabou::solveAdversarialQuery()
+{
+    //TODO: solve generic case and not only MNIST
+    unsigned outVars[9];
+    for (int i = 0; i <= 8; ++i) {
+            outVars[i] = _inputQuery.outputVariableByIndex( i );
+    }
+    unsigned max_idx = _inputQuery.outputVariableByIndex( 9 );
+
+    if ( _engine.processInputQuery( _inputQuery ) )
+        _engine.solveAdversarial( max_idx, outVars, 9, Options::get()->getInt( Options::TIMEOUT ) );
+
+    if ( _engine.getExitCode() == Engine::SAT )
+        _engine.extractSolution( _inputQuery );
+}
 void Marabou::displayResults( unsigned long long microSecondsElapsed ) const
 {
     Engine::ExitCode result = _engine.getExitCode();

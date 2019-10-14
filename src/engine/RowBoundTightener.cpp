@@ -172,6 +172,7 @@ void RowBoundTightener::freeMemoryIfNeeded()
 
 void RowBoundTightener::examineImplicitInvertedBasisMatrix( bool untilSaturation )
 {
+    
     /*
       Roughly (the dimensions don't add up):
 
@@ -221,6 +222,7 @@ void RowBoundTightener::examineImplicitInvertedBasisMatrix( bool untilSaturation
 
 void RowBoundTightener::examineInvertedBasisMatrix( bool untilSaturation )
 {
+    
     /*
       Roughly (the dimensions don't add up):
 

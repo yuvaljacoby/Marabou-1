@@ -44,6 +44,7 @@ private:
       Invoke the engine to solve the input query
     */
     void solveQuery();
+    void solveAdversarialQuery();
 
     /*
       Display the results

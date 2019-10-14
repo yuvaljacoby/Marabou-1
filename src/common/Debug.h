@@ -18,7 +18,9 @@
 
 #include <cstdlib>
 
-// #define DEBUG_ON
+#ifndef DEBUG_ON
+#define DEBUG_ON
+#endif
 
 #ifdef DEBUG_ON
 #  define DEBUG(x) x

@@ -96,20 +96,24 @@ void Engine::adjustWorkMemorySize()
 
 bool Engine::solveAdversarial( unsigned max_idx, unsigned *output_idx, unsigned output_length, unsigned timeoutInSeconds)
 {
+    unsigned merged_max = _preprocessor.getNewIndex( max_idx );
+    unsigned variable;
     if ( solve( timeoutInSeconds ) )
     {
-        _tableau->dump();
+        /* _tableau->dump(); */
         // Solve the network with no constraints got SAT
         // Now add new equation to the tableau
         for( unsigned i = 0; i < output_length; ++i )
         {
+            variable = _preprocessor.getNewIndex( output_idx[i] );
             Equation eq ( Equation::LE );
-            eq.addAddend( 1, max_idx );
-            eq.addAddend( -1, output_idx[i] );
+            eq.addAddend( 1, merged_max );
+            eq.addAddend( -1, variable );
             // TODO: Scalar should be epsilon? we negate GE
             eq.setScalar( 0 );
 
-            /* eq.dump(); */
+            printf("Adding new equation: ");
+            eq.dump();
             unsigned int auxVar = _tableau->addEquation( eq );
 
             /* _tableau->dump(); */
@@ -137,8 +141,7 @@ bool Engine::solveAdversarial( unsigned max_idx, unsigned *output_idx, unsigned 
 
             // TODO: Instead of removing the row we change the aux variable to
             // be not bounded... fix this hack :)
-            /* _tableau->setUpperBound( auxVar, FloatUtils::infinity() ); */
-            _tableau->setLowerBound( auxVar, FloatUtils::negativeInfinity() );
+            _tableau->setUpperBound( auxVar, FloatUtils::infinity() );
 
         }
         return false;
@@ -196,7 +199,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
         try
         {
-            printf("%s::%d\n", __FILE__, __LINE__);
+            /*  */
             DEBUG( _tableau->verifyInvariants() );
 
             if ( _verbosity > 1 )
@@ -221,8 +224,10 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
                 _numVisitedStatesAtPreviousRestoration = _statistics.getNumVisitedTreeStates();
                 _basisRestorationRequired = Engine::RESTORATION_NOT_NEEDED;
+                
                 continue;
             }
+            
 
             // Restoration is not required
             _basisRestorationPerformed = Engine::NO_RESTORATION_PERFORMED;
@@ -231,12 +236,17 @@ bool Engine::solve( unsigned timeoutInSeconds )
             if ( shouldCheckDegradation() && highDegradation() )
             {
                 performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
+                
                 continue;
             }
 
-            if ( _tableau->basisMatrixAvailable() )
+            
+            if ( _tableau->basisMatrixAvailable() ) {
+                
                 explicitBasisBoundTightening();
+            }
 
+            
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
@@ -249,15 +259,19 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 while ( applyAllValidConstraintCaseSplits() );
                 continue;
             }
+            
 
             if ( !_tableau->allBoundsValid() )
             {
+                
                 // Some variable bounds are invalid, so the query is unsat
                 throw InfeasibleQueryException();
             }
+            
 
             if ( allVarsWithinBounds() )
             {
+                
                 // The linear portion of the problem has been solved.
                 // Check the status of the PL constraints
                 collectViolatedPlConstraints();
@@ -286,6 +300,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                     return true;
                 }
 
+                
                 // We have violated piecewise-linear constraints.
                 performConstraintFixingStep();
 
@@ -302,6 +317,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 continue;
             }
 
+            
             // We have out-of-bounds variables.
             performSimplexStep();
             continue;
@@ -450,12 +466,10 @@ void Engine::performSimplexStep()
             }
         });
 
-    printf("%s::%d\n", __FILE__, __LINE__);
     // Obtain all eligible entering varaibles
     List<unsigned> enteringVariableCandidates;
     _tableau->getEntryCandidates( enteringVariableCandidates );
 
-    printf("%s::%d\n", __FILE__, __LINE__);
     unsigned bestLeaving = 0;
     double bestChangeRatio = 0.0;
     Set<unsigned> excludedEnteringVariables;
@@ -466,7 +480,6 @@ void Engine::performSimplexStep()
 
     while ( tries > 0 )
     {
-        printf("%s::%d\n", __FILE__, __LINE__);
         --tries;
 
         // Attempt to pick the best entering variable from the available candidates
@@ -518,30 +531,29 @@ void Engine::performSimplexStep()
         else
             _statistics.incNumSimplexPivotSelectionsIgnoredForStability();
     }
-    printf("%s::%d\n", __FILE__, __LINE__);
 
     // If we don't have any candidates, this simplex step has failed.
     if ( !haveCandidate )
     {
-        printf("%s::%d\n", __FILE__, __LINE__);
+        
         if ( _tableau->getBasicAssignmentStatus() != ITableau::BASIC_ASSIGNMENT_JUST_COMPUTED )
         {
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             // This failure might have resulted from a corrupt basic assignment.
             _tableau->computeAssignment();
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             return;
         }
         else if ( !_costFunctionManager->costFunctionJustComputed() )
         {
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             // This failure might have resulted from a corrupt cost function.
             ASSERT( _costFunctionManager->getCostFunctionStatus() ==
                     ICostFunctionManager::COST_FUNCTION_UPDATED );
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             _costFunctionManager->invalidateCostFunction();
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -549,7 +561,7 @@ void Engine::performSimplexStep()
         }
         else
         {
-            printf("%s::%d\n", __FILE__, __LINE__);
+            
             // Cost function is fresh --- failure is real.
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -557,20 +569,20 @@ void Engine::performSimplexStep()
         }
     }
 
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     // Set the best choice in the tableau
     _tableau->setEnteringVariableIndex( bestEntering );
     _tableau->setLeavingVariableIndex( bestLeaving );
     _tableau->setChangeColumn( _work );
     _tableau->setChangeRatio( bestChangeRatio );
 
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     bool fakePivot = _tableau->performingFakePivot();
 
     if ( !fakePivot &&
          bestPivotEntry < GlobalConfiguration::ACCEPTABLE_SIMPLEX_PIVOT_THRESHOLD )
     {
-        printf("%s::%d\n", __FILE__, __LINE__);
+        
         /*
           Despite our efforts, we are stuck with a small pivot. If basis factorization
           isn't fresh, refresh it and terminate this step - perhaps in the next iteration
@@ -585,10 +597,10 @@ void Engine::performSimplexStep()
         _statistics.incNumSimplexUnstablePivots();
     }
 
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     if ( !fakePivot )
     {
-        printf("%s::%d\n", __FILE__, __LINE__);
+        
         _tableau->computePivotRow();
         _rowBoundTightener->examinePivotRow();
     }
@@ -1388,7 +1400,7 @@ bool Engine::attemptToMergeVariables( unsigned x1, unsigned x2 )
 
     // Both variables are now non-basic, so we can merge their columns
     _tableau->mergeColumns( x1, x2 );
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     DEBUG( _tableau->verifyInvariants() );
 
     // Reset the entry strategy
@@ -1402,7 +1414,7 @@ void Engine::applySplit( const PiecewiseLinearCaseSplit &split )
     log( "" );
     log( "Applying a split. " );
 
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     DEBUG( _tableau->verifyInvariants() );
 
     List<Tightening> bounds = split.getBoundTightenings();
@@ -1515,7 +1527,7 @@ void Engine::applySplit( const PiecewiseLinearCaseSplit &split )
         }
     }
 
-    printf("%s::%d\n", __FILE__, __LINE__);
+    
     DEBUG( _tableau->verifyInvariants() );
     log( "Done with split\n" );
 }
@@ -1641,11 +1653,15 @@ void Engine::tightenBoundsOnConstraintMatrix()
 
 void Engine::explicitBasisBoundTightening()
 {
+    
     struct timespec start = TimeUtils::sampleMicro();
 
+    
     bool saturation = GlobalConfiguration::EXPLICIT_BOUND_TIGHTENING_UNTIL_SATURATION;
 
+    
     _statistics.incNumBoundTighteningsOnExplicitBasis();
+    
 
     switch ( GlobalConfiguration::EXPLICIT_BASIS_BOUND_TIGHTENING_TYPE )
     {
@@ -1660,6 +1676,7 @@ void Engine::explicitBasisBoundTightening()
 
     struct timespec end = TimeUtils::sampleMicro();
     _statistics.addTimeForExplicitBasisBoundTightening( TimeUtils::timePassed( start, end ) );
+    
 }
 
 void Engine::performPrecisionRestoration( PrecisionRestorer::RestoreBasics restoreBasics )
