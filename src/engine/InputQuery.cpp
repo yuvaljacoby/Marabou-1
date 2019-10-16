@@ -21,7 +21,8 @@
 #include "MarabouError.h"
 
 InputQuery::InputQuery()
-    : _networkLevelReasoner( NULL )
+    : _advarsarialMaxIndex( -1 )
+    , _networkLevelReasoner( NULL )
     , _sbt( NULL )
 {
 }
@@ -248,11 +249,13 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
         }
     }
 
+    _advarsarialMaxIndex = other._advarsarialMaxIndex;
     return *this;
 }
 
 InputQuery::InputQuery( const InputQuery &other )
-    : _networkLevelReasoner( NULL )
+    : _advarsarialMaxIndex ( other._advarsarialMaxIndex )
+    , _networkLevelReasoner( NULL )
     , _sbt( NULL )
 {
     *this = other;
@@ -381,6 +384,15 @@ List<unsigned> InputQuery::getInputVariables() const
     return result;
 }
 
+List<unsigned> InputQuery::getOutputVariables() const
+{
+    List<unsigned> result;
+    for ( const auto &pair : _variableToOutputIndex )
+        result.append( pair.first );
+
+    return result;
+}
+
 void InputQuery::printInputOutputBounds() const
 {
     printf( "Dumping bounds of the input and output variables:\n" );
@@ -491,6 +503,22 @@ void InputQuery::setNetworkLevelReasoner( NetworkLevelReasoner *nlr )
 NetworkLevelReasoner *InputQuery::getNetworkLevelReasoner() const
 {
     return _networkLevelReasoner;
+}
+
+bool InputQuery::isAdvarsarialQuery()
+{
+    return _advarsarialMaxIndex != -1;
+}
+
+void InputQuery::setMaxAdvarsarial( unsigned outputIndex ) 
+{
+    _advarsarialMaxIndex = _outputIndexToVariable[ outputIndex ];
+}
+
+unsigned InputQuery::getMaxAdvarsarial() 
+{
+    ASSERT ( _advarsarialMaxIndex >= 0);
+    return (unsigned) _advarsarialMaxIndex;
 }
 
 //

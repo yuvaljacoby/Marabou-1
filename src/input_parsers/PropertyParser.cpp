@@ -20,6 +20,7 @@
 #include "PropertyParser.h"
 #include <regex>
 
+
 static bool isScalar( const String &token )
 {
     const std::regex floatRegex( "[-+]?[0-9]*\\.?[0-9]+" );
@@ -58,12 +59,29 @@ void PropertyParser::parse( const String &propertyFilePath, InputQuery &inputQue
     }
 }
 
+bool PropertyParser::parseAdvarsarialLine( const String &line, InputQuery &inputQuery )
+{
+    // Support only this exact format: OutputMaxIndex = int
+    if ( line.contains( "OutputMaxIndex = " ) )
+    {
+        unsigned justIndex = atoi( line.tokenize( " " ).rbegin()->ascii() );
+
+        ASSERT( justIndex < inputQuery.getNumOutputVariables() );
+        inputQuery.setMaxAdvarsarial( justIndex );
+
+        return true;
+    }
+    return false;
+}
+
 void PropertyParser::processSingleLine( const String &line, InputQuery &inputQuery )
 {
     List<String> tokens = line.tokenize( " " );
-
     if ( tokens.size() < 3 )
         throw InputParserError( InputParserError::UNEXPECTED_INPUT, line.ascii() );
+
+    if ( parseAdvarsarialLine( line, inputQuery ) )
+        return;
 
     auto it = tokens.rbegin();
     if ( !isScalar( *it ) )

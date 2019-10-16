@@ -14,6 +14,7 @@
  ** [[ Add lengthier description here ]]
  **/
 
+#include "Debug.h"
 #include "AcasParser.h"
 #include "File.h"
 #include "MStringf.h"
@@ -42,8 +43,18 @@ void Marabou::run()
     struct timespec start = TimeUtils::sampleMicro();
 
     prepareInputQuery();
-    /* solveAdversarialQuery(); */
-    solveQuery();
+    if ( _inputQuery.isAdvarsarialQuery() ) {
+        // We can't add constraints on eliminated variables, so make sure we
+        // don't eliminate...
+        // TODO: Ignore the config and just use it as false?
+        ASSERT ( !GlobalConfiguration::PREPROCESSOR_ELIMINATE_VARIABLES  );
+        solveAdversarialQuery();
+    }
+    else
+    {
+        solveQuery();
+    }
+
 
     struct timespec end = TimeUtils::sampleMicro();
 
@@ -97,15 +108,12 @@ void Marabou::solveQuery()
 
 void Marabou::solveAdversarialQuery()
 {
-    //TODO: solve generic case and not only MNIST
-    unsigned outVars[9];
-    for (int i = 0; i <= 8; ++i) {
-            outVars[i] = _inputQuery.outputVariableByIndex( i );
-    }
-    unsigned max_idx = _inputQuery.outputVariableByIndex( 9 );
+    unsigned max_idx = _inputQuery.getMaxAdvarsarial();
+    List<unsigned> outVars = _inputQuery.getOutputVariables();
+    outVars.erase( max_idx );
 
     if ( _engine.processInputQuery( _inputQuery ) )
-        _engine.solveAdversarial( max_idx, outVars, 9, Options::get()->getInt( Options::TIMEOUT ) );
+        _engine.solveAdversarial( max_idx, outVars, Options::get()->getInt( Options::TIMEOUT ) );
 
     if ( _engine.getExitCode() == Engine::SAT )
         _engine.extractSolution( _inputQuery );

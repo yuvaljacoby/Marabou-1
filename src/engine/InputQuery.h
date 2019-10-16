@@ -63,6 +63,7 @@ public:
     unsigned getNumInputVariables() const;
     unsigned getNumOutputVariables() const;
     List<unsigned> getInputVariables() const;
+    List<unsigned> getOutputVariables() const;
 
     /*
       Methods for setting and getting the solution.
@@ -131,7 +132,9 @@ public:
     void setNetworkLevelReasoner( NetworkLevelReasoner *nlr );
     NetworkLevelReasoner *getNetworkLevelReasoner() const;
 
+
 private:
+    int _advarsarialMaxIndex;
     unsigned _numberOfVariables;
     List<Equation> _equations;
     Map<unsigned, double> _lowerBounds;
@@ -166,6 +169,10 @@ public:
       Symbolic bound tightener.
     */
     SymbolicBoundTightener *_sbt;
+
+    bool isAdvarsarialQuery();
+    void setMaxAdvarsarial( unsigned outputIndex );
+    unsigned getMaxAdvarsarial();
 };
 
 #endif // __InputQuery_h__

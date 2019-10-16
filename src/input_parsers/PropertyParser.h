@@ -34,6 +34,7 @@ public:
 private:
     void processSingleLine( const String &line, InputQuery &inputQuery );
     Equation::EquationType extractRelationSymbol( const String &token );
+    bool parseAdvarsarialLine( const String &line, InputQuery &inputQuery );
 };
 
 #endif // __PropertyParser_h__

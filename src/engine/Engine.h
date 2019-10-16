@@ -62,7 +62,7 @@ public:
     */
     bool solve( unsigned timeoutInSeconds = 0 );
 
-    bool solveAdversarial(  unsigned max_idx, unsigned *output_idx, unsigned output_length, unsigned timeoutInSeconds = 0);
+    bool solveAdversarial(  unsigned max_idx, List<unsigned> &output_idx, unsigned timeoutInSeconds = 0);
 
     /*
       Process the input query and pass the needed information to the

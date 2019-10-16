@@ -94,35 +94,37 @@ void Engine::adjustWorkMemorySize()
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Engine::work" );
 }
 
-bool Engine::solveAdversarial( unsigned max_idx, unsigned *output_idx, unsigned output_length, unsigned timeoutInSeconds)
+bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, unsigned timeoutInSeconds)
 {
-    unsigned merged_max = _preprocessor.getNewIndex( max_idx );
-    unsigned variable;
+    DEBUG({
+        unsigned merged_max = _preprocessor.getNewIndex( max_idx );
+        // eliminate variables should be off
+        ASSERT (merged_max == max_idx );
+        });
+    List<unsigned>::iterator outputVars;
     if ( solve( timeoutInSeconds ) )
     {
-        /* _tableau->dump(); */
         // Solve the network with no constraints got SAT
         // Now add new equation to the tableau
-        for( unsigned i = 0; i < output_length; ++i )
+        for ( auto outputVar = output_idx.begin(); outputVar != output_idx.end(); ++outputVar )
         {
-            variable = _preprocessor.getNewIndex( output_idx[i] );
+            DEBUG ({
+                    unsigned variable = _preprocessor.getNewIndex( *outputVar );
+                    ASSERT( variable == *outputVar );
+                    });
             Equation eq ( Equation::LE );
-            eq.addAddend( 1, merged_max );
-            eq.addAddend( -1, variable );
+            eq.addAddend( 1, max_idx );
+            eq.addAddend( -1, *outputVar );
             // TODO: Scalar should be epsilon? we negate GE
             eq.setScalar( 0 );
 
-            printf("Adding new equation: ");
-            eq.dump();
             unsigned int auxVar = _tableau->addEquation( eq );
-
-            /* _tableau->dump(); */
 
             // LE equation, aux has to be positive
             _tableau->setLowerBound( auxVar, 0 );
 
-            // We violated the valid assignment that we had, notify that
-            _tableau->setBasicAssignmentStatus( ITableau::BASIC_ASSIGNMENT_INVALID );
+            // We violated the valid assignment that we had, fix it 
+            _tableau->computeAssignment();
             _activeEntryStrategy->resizeHook( _tableau );
 
 
@@ -131,16 +133,15 @@ bool Engine::solveAdversarial( unsigned max_idx, unsigned *output_idx, unsigned 
             /* _constraintBoundTightener->resetBounds(); */
             
             // Look for a new assignment
-            _tableau->computeAssignment();
             DEBUG( _tableau->verifyInvariants() );
             if ( solve ( timeoutInSeconds ) )
             {
-                printf("found assignment for %u > %u\n", output_idx[i], max_idx);
+                DEBUG ( printf("found assignment for %u > %u\n", *outputVar, max_idx) );
                 return true;
             }
 
-            // TODO: Instead of removing the row we change the aux variable to
-            // be not bounded... fix this hack :)
+            // Instead of removing the equation we can just change the aux value
+            // to be free...
             _tableau->setUpperBound( auxVar, FloatUtils::infinity() );
 
         }

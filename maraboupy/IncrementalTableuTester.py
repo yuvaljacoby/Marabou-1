@@ -6,8 +6,8 @@ import tempfile
 
 from maraboupy import MarabouCore
 
-BUILD_SOLVE = "build_solve"
-BUILD_ADVERSARIAL = "build"
+BUILD_SOLVE = "build"
+BUILD_ADVERSARIAL = "build_adv"
 DEFAULT_TIMEOUT = 600
 
 
@@ -63,8 +63,7 @@ def define_simple_network():
 
 
 def solve_adversarial(query, max_idx, out_idx):
-    vars1, stats1 = MarabouCore.solveAdversarial(query, max_idx, out_idx, len(out_idx),
-                                                 "", 0)
+    vars1, stats1 = MarabouCore.solveAdversarial(query, max_idx, out_idx, "", 0)
     if len(vars1) > 0:
         print("SAT")
         print(vars1)
@@ -107,30 +106,47 @@ def run_process(args, cwd, timeout, s_input=None):
         err = err.decode()
     return (out.strip(), err.strip(), exit_status)
 
+def remove_out_constraints(all_constraints : str):
+    lines = all_constraints.splitlines()
+    while 'y' in lines[-1]:
+        lines = lines[:-1]
+    return "\n".join(lines) + "\n"
 
-def timing_executables(network_path, property_path):
+def timing_executables(network_path, property_path, debug=False):
     print(property_path)
+    # The format of the property is origNUM_blabla we extract NUM
+    max_output =property_path[property_path.find("orig") + 4][:1]
     if not os.path.exists(network_path) or not os.path.exists(property_path):
         print("One of the files does not exists")
         exit(1)
+    with open(property_path, "r") as f:
+        all_constraints = f.read()
+    input_constraints = remove_out_constraints(all_constraints)
+
 
     start_adv = timer()
-    adv_args = [os.path.join(BUILD_ADVERSARIAL, "Marabou"), network_path, property_path]
-    out, err, exit_status = run_process(adv_args, os.curdir, DEFAULT_TIMEOUT)
-    end_adv = timer()
-    print(out)
-    adv_result = 'UNSAT' if 'UNSAT' in out else 'SAT'
-    print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
+    with tempfile.NamedTemporaryFile(mode='w') as adv_property:
+        adv_args = [os.path.join(BUILD_ADVERSARIAL, "Marabou"), network_path, adv_property.name]
+        adv_property.write(input_constraints)
+        adv_property.write("OutputMaxIndex = {}".format(max_output))
+        adv_property.flush()
+        out, err, exit_status = run_process(adv_args, os.curdir, DEFAULT_TIMEOUT)
+        end_adv = timer()
+        if debug:
+            print(out)
+        adv_result = 'UNSAT' if 'UNSAT' in out else 'SAT'
+        print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
 
     total_solve = 0
     results_solve = []
-    with open(property_path, "r") as f:
-        input_constraints = f.read()
 
-    for i in range(0, 9):
+
+    for i in range(0, 10):
+        if i == max_output:
+            continue
         with tempfile.NamedTemporaryFile(mode='w') as cur_property:
             cur_property.write(input_constraints)
-            cur_property.write("+y9 -y{} <= 0".format(i))
+            cur_property.write("+y{} -y{} <= 0".format(max_output, i))
             cur_property.flush()
 
             solve_args = [os.path.join(BUILD_ADVERSARIAL, "Marabou"), network_path, cur_property.name]
@@ -138,13 +154,33 @@ def timing_executables(network_path, property_path):
             out, err, exit_status = run_process(solve_args, os.curdir, DEFAULT_TIMEOUT)
             end_solve = timer()
             total_solve += end_solve - start_solve
-            print(out)
+            if debug:
+                print(out)
             results_solve.append('UNSAT' if 'UNSAT' in out else 'SAT')
+            if results_solve[-1] == 'SAT':
+                # Found SAT no need to continue running...
+                break
+    if adv_result == 'SAT':
+        assert 'SAT' in results_solve
+    else:
+        assert 'SAT' not in results_solve
     print("finished solve, time: {} seconds, result: {}".format(total_solve, results_solve))
-    print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
+    if debug:
+        print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
+
+
+def run_multiple_compare(target, orig=9):
+    eps = ["1e-05", "0.0001", "0.001", "0.01", "0.1"]
+    for ep in eps:
+        timing_executables("mnist_10_layer.nnet",
+                           "500VaryingEpsilon/orig{}_tar{}_ind0_ep{}.txt".format(orig, target, ep)
+                           , False)
 
 if __name__ == "__main__":
-    timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig9_tar1_ind0_ep0.1.txt")
+    # run_multiple_compare(7)
+    # run_multiple_compare(1)
+    timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar1_ind0_ep0.0001.txt", True)
     # q, max_idx, out_idx = define_simple_network()
     # assert solve_adversarial(q, max_idx, out_idx)
     # assert not solve_adversarial(q, out_idx[0], out_idx[1:] + [max_idx])
+

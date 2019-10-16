@@ -384,6 +384,7 @@ public:
     {
         return nextAuxVar;
     }
+    void refreshBasis( const Equation & /* equation */ ){}
 
     unsigned getM() const
     {

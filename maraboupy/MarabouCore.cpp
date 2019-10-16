@@ -103,8 +103,9 @@ void createInputQuery(InputQuery &inputQuery, std::string networkFilePath, std::
     printf( "Property: None\n" );
 }
 
-std::pair<std::map<int, double>, Statistics> solveAdversarial(InputQuery inputQuery, unsigned max_idx, py::list out_idx, unsigned out_length, std::string redirect="", unsigned timeout=0){
-    // Arguments: InputQuery object, filename to redirect output
+std::pair<std::map<int, double>, Statistics> solveAdversarial(InputQuery inputQuery, unsigned max_idx, py::list out_idx, std::string redirect="", unsigned timeout=0){
+    // Arguments: InputQuery object, Index for max value, list of indices to
+    // compare to max, filename to redirect output
     // Returns: map from variable number to value
     std::map<int, double> ret;
     Statistics retStats;
@@ -115,11 +116,12 @@ std::pair<std::map<int, double>, Statistics> solveAdversarial(InputQuery inputQu
         Engine engine;
         if(!engine.processInputQuery(inputQuery)) return std::make_pair(ret, *(engine.getStatistics()));
 
-        unsigned c_out_idx[out_length];
-        for (unsigned i = 0; i < out_length; ++i ) {
-            c_out_idx[i] = out_idx[i].cast<unsigned>();
+        List<unsigned> c_out_idx; //[out_length];
+        for (auto item : out_idx) {
+        /* for (unsigned i = 0; i < out_length; ++i ) { */
+            c_out_idx.append( item.cast<unsigned>() );
         }
-        if(!engine.solveAdversarial(max_idx, c_out_idx, out_length, timeout)) return std::make_pair(ret, *(engine.getStatistics()));
+        if(!engine.solveAdversarial(max_idx, c_out_idx, timeout)) return std::make_pair(ret, *(engine.getStatistics()));
 
         if (engine.getExitCode() == Engine::SAT)
             engine.extractSolution(inputQuery);
