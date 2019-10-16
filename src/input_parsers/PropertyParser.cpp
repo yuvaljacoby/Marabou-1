@@ -68,6 +68,7 @@ bool PropertyParser::parseAdvarsarialLine( const String &line, InputQuery &input
 
         ASSERT( justIndex < inputQuery.getNumOutputVariables() );
         inputQuery.setMaxAdvarsarial( justIndex );
+        printf("## setMaxAdvarsarial is: %u\n", justIndex );
 
         return true;
     }

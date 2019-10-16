@@ -105,6 +105,7 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         ASSERT (merged_max == max_idx );
         });
     std::shared_ptr<EngineState> stateNoConstraint = std::make_shared<EngineState>();
+    std::shared_ptr<SmtState> smtStateNoConstraint = std::make_shared<SmtState>();
     List<unsigned>::iterator outputVars;
     if ( solve( timeoutInSeconds ) )
     {
@@ -112,15 +113,18 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         // (as expected). Now we will add the constraints one after the other,
         // each time restore the engine state back to the current state
         storeState( *stateNoConstraint, true );
+        _smtCore.storeSmtState( *smtStateNoConstraint );
         for ( auto outputVar = output_idx.begin(); outputVar != output_idx.end(); ++outputVar )
         {
             if ( outputVar != output_idx.begin() )
             {
                 printf(" restoring state\n");
                 restoreState( *stateNoConstraint) ;
+                _smtCore.restoreSmtState( *smtStateNoConstraint );
             }
 
             DEBUG ({
+                    printf("DEBUG ON\n");
                     unsigned variable = _preprocessor.getNewIndex( *outputVar );
                     ASSERT( variable == *outputVar );
                     });
@@ -130,25 +134,37 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
             // TODO: Scalar should be epsilon? we negate GE
             eq.setScalar( 0 );
 
-            unsigned int auxVar = _tableau->addEquation( eq );
+            printf("## outvar: %u (basic? %d) max: %u (basic? %d) \n", *outputVar,  _tableau->isBasic(*outputVar), max_idx, _tableau->isBasic(max_idx) );
 
+            unsigned int auxVar = _tableau->addEquation( eq );
+            ASSERT ( _tableau->isBasic( auxVar ) );
+
+            /* TableauRow row2( _tableau->getN() - _tableau->getM() ); */
+            /* _tableau->getTableauRow(_tableau->getM() - 1, &row2); */
+            /* row2.dump(); */
             // LE equation, aux has to be positive
             _tableau->setLowerBound( auxVar, 0 );
 
-            // We violated the valid assignment that we had, fix it 
+            // We violated the valid assignment that we had, fix it (otherwise
+            // assert fail in solve)
             _tableau->computeAssignment();
+            printf("## allPlConstraintsHold: %d ##\n", allPlConstraintsHold() );
             _activeEntryStrategy->resizeHook( _tableau );
 
 
             // TODO: Store in _degradationChecker ?
-            /* _rowBoundTightener->resetBounds(); */
-            /* _constraintBoundTightener->resetBounds(); */
+            _rowBoundTightener->resetBounds();
+            _constraintBoundTightener->resetBounds();
             
             // Look for a new assignment
             DEBUG( _tableau->verifyInvariants() );
             if ( solve ( timeoutInSeconds ) )
             {
-                DEBUG ( printf("found assignment for %u > %u\n", *outputVar, max_idx) );
+                DEBUG ({
+                        printf("found assignment for %u (%f) > %u (%f)\n", *outputVar, _tableau->getValue(*outputVar), max_idx, _tableau->getValue(max_idx) );
+                        
+                        printf("aux value: %f (%u)\n", _tableau->getValue( auxVar ), auxVar );
+                        });
                 return true;
             }
 
@@ -276,6 +292,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
             if ( !_tableau->allBoundsValid() )
             {
+                printf("unsat because tableau bounds are invalid\n");
                 
                 // Some variable bounds are invalid, so the query is unsat
                 throw InfeasibleQueryException();
@@ -574,7 +591,7 @@ void Engine::performSimplexStep()
         }
         else
         {
-            
+            printf("unsat basic assignment is invalid\n");
             // Cost function is fresh --- failure is real.
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -816,12 +833,6 @@ void Engine::storeEquationsInDegradationChecker()
     _degradationChecker.storeEquations( _preprocessedQuery );
 }
 
-/* double *Engine::addToConstraintMatrix(const List<Equation> &newEquations) */
-/* { */
-/*     unsigned m = equations.size() + newEquations.size(); */
-/*     unsigned n = _preprocessedQuery.getNumberOfVariables(); */
-
-/* } */
 
 double *Engine::createConstraintMatrix()
 {
@@ -1157,8 +1168,8 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
     {
         informConstraintsOfInitialBounds( inputQuery );
         invokePreprocessor( inputQuery, preprocess );
-        if ( _verbosity > 0 )
-            printInputBounds( inputQuery );
+        /* if ( _verbosity > 0 ) */
+        /*     printInputBounds( inputQuery ); */
 
         double *constraintMatrix = createConstraintMatrix();
         removeRedundantEquations( constraintMatrix );
@@ -2032,6 +2043,7 @@ void Engine::checkOverallProgress()
         }
     }
 }
+
 
 //
 // Local Variables:

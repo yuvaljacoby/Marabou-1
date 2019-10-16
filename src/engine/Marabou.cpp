@@ -111,12 +111,31 @@ void Marabou::solveAdversarialQuery()
     unsigned max_idx = _inputQuery.getMaxAdvarsarial();
     List<unsigned> outVars = _inputQuery.getOutputVariables();
     outVars.erase( max_idx );
+    printf("outVars are: ");
+    for (unsigned v : outVars)
+    {
+        printf("%u, ", v);
+    }
+    printf("\nmax var is: %u\n", max_idx);
 
     if ( _engine.processInputQuery( _inputQuery ) )
         _engine.solveAdversarial( max_idx, outVars, Options::get()->getInt( Options::TIMEOUT ) );
 
     if ( _engine.getExitCode() == Engine::SAT )
+    {
         _engine.extractSolution( _inputQuery );
+        /* printf("found assignment for y%d (%u) > y%d (%u)\n", 0, _inputQuery.outputVariableByIndex(0), 9, _inputQuery.outputVariableByIndex(9)); */
+        /* printf( "\ty%u = %lf\n", 0, _inputQuery.getSolutionValue( _inputQuery.outputVariableByIndex( 0 ) ) ); */
+        /* printf( "\ty%u = %lf\n", 9 , _inputQuery.getSolutionValue( _inputQuery.outputVariableByIndex( 9 ) ) ); */
+
+    }
+    else if (_engine.getExitCode() == Engine::UNSAT )
+    {
+        printf("##finished and got UNSAT##\n");
+    }
+    else{
+        printf("## finished and exit_code is different: %d\n", _engine.getExitCode());
+    }
 }
 void Marabou::displayResults( unsigned long long microSecondsElapsed ) const
 {

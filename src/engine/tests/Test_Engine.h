@@ -80,6 +80,91 @@ public:
         TS_ASSERT( costFunctionManager->wasDiscarded );
     }
 
+    void test_solve_adversarial_infeasible()
+    {
+    /*     // 0 <= x0 <= 2 */
+    /*     // -1 <= x1 <= 1 */
+    /*     // y0 = ReLU( 2x0 + x1 ) --> 0 <= y0 <= 5 */
+    /*     // y1 = ReLU(  x0 + x1 ) --> 0 <= y1 <= 3 */
+    /*     // y2 = ReLU( x0 + 2x1 ) --> 0 <= y2 <= 4 */
+        
+    /*     int large = 100; */
+    /*     InputQuery inputQuery; */
+    /*     inputQuery.setNumberOfVariables( 8 ); */
+
+    /*     // x0 */
+    /*     inputQuery.setLowerBound( 0, 0 ); */
+    /*     inputQuery.setUpperBound( 0, 2 ); */
+
+    /*     // x1 */
+    /*     inputQuery.setLowerBound( 1, -1 ); */
+    /*     inputQuery.setUpperBound( 1, 1 ); */
+
+    /*     // y0_b (before relu) */
+    /*     inputQuery.setLowerBound( 2,  -large ); */
+    /*     inputQuery.setUpperBound( 2,  large ); */
+
+    /*     // y1_b (before relu) */
+    /*     inputQuery.setLowerBound( 3,  -large ); */
+    /*     inputQuery.setUpperBound( 3,  large ); */
+        
+    /*     // y2_b (before relu) */
+    /*     inputQuery.setLowerBound( 4,  -large ); */
+    /*     inputQuery.setUpperBound( 4,  large ); */
+
+    /*     // y0_f */
+    /*     inputQuery.setLowerBound( 5,  0 ); */
+    /*     inputQuery.setUpperBound( 5,  large ); */
+
+    /*     // y1_f */
+    /*     inputQuery.setLowerBound( 6,  0 ); */
+    /*     inputQuery.setUpperBound( 6,  large ); */
+        
+    /*     // y2_f */ 
+    /*     inputQuery.setLowerBound( 7,  0 ); */
+    /*     inputQuery.setUpperBound( 7,  large ); */
+
+    /*     // y0_b = 2*x0 + x1 */
+    /*     Equation equation1; */
+    /*     equation1.addAddend( 2, 0 ); */
+    /*     equation1.addAddend( 1, 1 ); */
+    /*     equation1.addAddend( -1, 2 ); */
+    /*     equation1.setScalar( 0 ); */
+    /*     inputQuery.addEquation( equation1 ); */
+
+    /*     // y1_b = x0 + x1 */
+    /*     Equation equation2; */
+    /*     equation2.addAddend( 1, 0 ); */
+    /*     equation2.addAddend( 1, 1 ); */
+    /*     equation2.addAddend( -1, 3 ); */
+    /*     equation2.setScalar( 0 ); */
+    /*     inputQuery.addEquation( equation2 ); */
+
+    /*     // y2_b = x0 + 2x1 */
+    /*     Equation equation3; */
+    /*     equation3.addAddend( 1, 0 ); */
+    /*     equation3.addAddend( 2, 1 ); */
+    /*     equation3.addAddend( -1, 4 ); */
+    /*     equation3.setScalar( 0 ); */
+    /*     inputQuery.addEquation( equation3 ); */
+
+    /*     ReluConstraint *relu1 = new ReluConstraint( 2, 5 ); */
+    /*     ReluConstraint *relu2 = new ReluConstraint( 3, 6 ); */
+    /*     ReluConstraint *relu3 = new ReluConstraint( 4, 7 ); */
+
+    /*     inputQuery.addPiecewiseLinearConstraint( relu1 ); */
+    /*     inputQuery.addPiecewiseLinearConstraint( relu2 ); */
+    /*     inputQuery.addPiecewiseLinearConstraint( relu3 ); */
+        
+    /*     Engine engine; */
+    /*     TS_ASSERT_THROWS_NOTHING( engine.processInputQuery( inputQuery, false ) ); */
+
+    /*     unsigned max_output = 5; */
+    /*     List<unsigned> output_idx = { 6, 7 }; */
+    /*     bool result = engine.solveAdversarial( max_output, output_idx, 60 ); */
+    /*     TS_ASSERT( ! result ); */
+    }
+
     void test_process_input_query()
     {
         //   0  <= x0 <= 2

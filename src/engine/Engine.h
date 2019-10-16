@@ -31,6 +31,7 @@
 #include "Preprocessor.h"
 #include "SignalHandler.h"
 #include "SmtCore.h"
+#include "SmtState.h"
 #include "Statistics.h"
 
 #include <atomic>

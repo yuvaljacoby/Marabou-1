@@ -377,7 +377,10 @@ unsigned RowBoundTightener::tightenOnSingleInvertedBasisRow( const TableauRow &r
     }
 
     if ( FloatUtils::gt( _lowerBounds[y], _upperBounds[y] ) )
+    {
+        printf("%s::%d, %d _lower >= _upper\n", __FILE__, __LINE__, y);
         throw InfeasibleQueryException();
+    }
 
     // Next, do a pass for each of the rhs variables.
     // For this, we wish to logically transform the equation into:
@@ -463,7 +466,10 @@ unsigned RowBoundTightener::tightenOnSingleInvertedBasisRow( const TableauRow &r
         }
 
         if ( FloatUtils::gt( _lowerBounds[xi], _upperBounds[xi] ) )
+        {
+            printf("%s::%d, %d _lower >= _upper\n", __FILE__, __LINE__, xi);
             throw InfeasibleQueryException();
+        }
     }
 
     return result;
@@ -633,7 +639,10 @@ unsigned RowBoundTightener::tightenOnSingleConstraintRow( unsigned row )
         }
 
         if ( FloatUtils::gt( _lowerBounds[index], _upperBounds[index] ) )
+        {
+        printf("%s::%d, %d _lower >= _upper\n", __FILE__, __LINE__, index);
             throw InfeasibleQueryException();
+        }
     }
 
     return result;

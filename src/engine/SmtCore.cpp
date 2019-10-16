@@ -389,6 +389,28 @@ PiecewiseLinearConstraint *SmtCore::chooseViolatedConstraintForFixing( List<Piec
     return candidate;
 }
 
+void SmtCore::restoreSmtState( SmtState &smtState ){
+    // override the current SmtCore
+    freeMemory();
+    
+    _impliedValidSplitsAtRoot = smtState._impliedValidSplitsAtRoot;
+    for ( auto &stackEntry : smtState._stack ) {
+        _stack.append( stackEntry );
+    }
+}
+void SmtCore::storeSmtState( SmtState &smtState ){
+        smtState._impliedValidSplitsAtRoot = _impliedValidSplitsAtRoot;
+
+    for ( auto &stackEntry : _stack ) {
+        StackEntry *copy = new StackEntry();
+        copy->_activeSplit = stackEntry->_activeSplit;
+        copy->_impliedValidSplits = stackEntry->_impliedValidSplits;
+        copy->_alternativeSplits = stackEntry->_alternativeSplits;
+        copy->_engineState = stackEntry->_engineState;
+
+        smtState._stack.append( copy );
+    }
+}
 //
 // Local Variables:
 // compile-command: "make -C ../.. "
