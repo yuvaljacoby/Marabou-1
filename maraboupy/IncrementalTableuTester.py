@@ -6,8 +6,8 @@ import tempfile
 
 from maraboupy import MarabouCore
 
-BUILD_SOLVE = "build"
-BUILD_ADVERSARIAL = "build_adv"
+
+BUILD_DIR = "build_adv"
 DEFAULT_TIMEOUT = 600
 
 
@@ -126,7 +126,7 @@ def timing_executables(network_path, property_path, debug=False):
 
     start_adv = timer()
     with tempfile.NamedTemporaryFile(mode='w') as adv_property:
-        adv_args = [os.path.join(BUILD_ADVERSARIAL, "Marabou"), network_path, adv_property.name]
+        adv_args = [os.path.join(BUILD_DIR, "Marabou"), network_path, adv_property.name]
         adv_property.write(input_constraints)
         adv_property.write("OutputMaxIndex = {}".format(max_output))
         adv_property.flush()
@@ -149,7 +149,7 @@ def timing_executables(network_path, property_path, debug=False):
             cur_property.write("+y{} -y{} <= 0".format(max_output, i))
             cur_property.flush()
 
-            solve_args = [os.path.join(BUILD_ADVERSARIAL, "Marabou"), network_path, cur_property.name]
+            solve_args = [os.path.join(BUILD_DIR, "Marabou"), network_path, cur_property.name]
             start_solve = timer()
             out, err, exit_status = run_process(solve_args, os.curdir, DEFAULT_TIMEOUT)
             end_solve = timer()
@@ -177,7 +177,7 @@ def run_multiple_compare(target, orig=9):
                            , False)
 
 if __name__ == "__main__":
-    # run_multiple_compare(7)
+    # run_multiple_compare(5, 1)
     # run_multiple_compare(1)
     timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar1_ind0_ep0.0001.txt", True)
     # q, max_idx, out_idx = define_simple_network()

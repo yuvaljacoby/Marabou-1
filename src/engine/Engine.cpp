@@ -28,6 +28,9 @@
 #include "TableauRow.h"
 #include "TimeUtils.h"
 
+#include <atomic>
+#include <memory>
+
 Engine::Engine( unsigned verbosity )
     : _rowBoundTightener( *_tableau )
     , _symbolicBoundTightener( NULL )
@@ -101,13 +104,22 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         // eliminate variables should be off
         ASSERT (merged_max == max_idx );
         });
+    std::shared_ptr<EngineState> stateNoConstraint = std::make_shared<EngineState>();
     List<unsigned>::iterator outputVars;
     if ( solve( timeoutInSeconds ) )
     {
-        // Solve the network with no constraints got SAT
-        // Now add new equation to the tableau
+        // Solved the network without the adversarial constraints and got SAT
+        // (as expected). Now we will add the constraints one after the other,
+        // each time restore the engine state back to the current state
+        storeState( *stateNoConstraint, true );
         for ( auto outputVar = output_idx.begin(); outputVar != output_idx.end(); ++outputVar )
         {
+            if ( outputVar != output_idx.begin() )
+            {
+                printf(" restoring state\n");
+                restoreState( *stateNoConstraint) ;
+            }
+
             DEBUG ({
                     unsigned variable = _preprocessor.getNewIndex( *outputVar );
                     ASSERT( variable == *outputVar );
