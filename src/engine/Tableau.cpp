@@ -1835,7 +1835,6 @@ unsigned Tableau::addEquation( const Equation &equation )
     {
         factorizationSuccessful = false;
     }
-    printf("factorizationSuccessful: %d\n", factorizationSuccessful );
 
     if ( factorizationSuccessful )
     {

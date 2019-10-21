@@ -222,6 +222,38 @@ void SmtCore::resetReportedViolations()
     _needToSplit = false;
 }
 
+void SmtCore::replayStackEntry( StackEntry *stackEntry )
+{
+    struct timespec start = TimeUtils::sampleMicro();
+
+    if ( _statistics )
+    {
+        _statistics->incNumSplits();
+        _statistics->incNumVisitedTreeStates();
+    }
+
+    // Obtain the current state of the engine
+    EngineState *stateBeforeSplits = new EngineState;
+    stateBeforeSplits->_stateId = _stateId;
+    ++_stateId;
+    _engine->storeState( *stateBeforeSplits, true );
+    stackEntry->_engineState = stateBeforeSplits;
+
+    // Apply all the splits
+    _engine->applySplit( stackEntry->_activeSplit );
+    for ( const auto &impliedSplit : stackEntry->_impliedValidSplits )
+        _engine->applySplit( impliedSplit );
+
+    _stack.append( stackEntry );
+
+    if ( _statistics )
+    {
+        _statistics->setCurrentStackDepth( getStackDepth() );
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics->addTimeSmtCore( TimeUtils::timePassed( start, end ) );
+    }
+}
+
 void SmtCore::recordImpliedValidSplit( PiecewiseLinearCaseSplit &validSplit )
 {
     if ( _stack.empty() )
@@ -398,6 +430,7 @@ void SmtCore::restoreSmtState( SmtState &smtState ){
         _stack.append( stackEntry );
     }
 }
+
 void SmtCore::storeSmtState( SmtState &smtState ){
         smtState._impliedValidSplitsAtRoot = _impliedValidSplitsAtRoot;
 

@@ -107,6 +107,7 @@ public:
 
     void restoreSmtState( SmtState &smtState );
     void storeSmtState( SmtState &smtState );
+    void replayStackEntry( StackEntry *stackEntry );
 
 private:
     /*

@@ -130,6 +130,7 @@ public:
       cauciously.
      */
     void resetSmtCore();
+    void restoreSmtCore();
 
     void resetExitCode();
 

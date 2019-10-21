@@ -115,38 +115,24 @@ def remove_out_constraints(all_constraints: str):
     return "\n".join(lines) + "\n"
 
 
-def timing_executables(network_path, property_path, debug=False):
-    network_path = os.path.join(RESOURCES_DIR, 'nnet', network_path)
-    property_path = os.path.join(RESOURCES_DIR, 'properties', property_path)
-    if debug:
-        print(property_path)
-    # The format of the property is origNUM_blabla we extract NUM
-    max_output = property_path[property_path.find("orig") + 4][:1]
-    if not os.path.exists(network_path) or not os.path.exists(property_path):
-        print("One of the files does not exists")
-        exit(1)
-    with open(property_path, "r") as f:
-        all_constraints = f.read()
-    input_constraints = remove_out_constraints(all_constraints)
-
-    start_adv = timer()
+def run_marabou_adversarial(network_path, input_constraints, max_output, debug):
     with tempfile.NamedTemporaryFile(mode='w') as adv_property:
         adv_args = [os.path.join(BUILD_DIR, "Marabou"), network_path, adv_property.name]
         adv_property.write(input_constraints)
         adv_property.write("OutputMaxIndex = {}".format(max_output))
         adv_property.flush()
+        start_adv = timer()
         out, err, exit_status = run_process(adv_args, os.curdir, DEFAULT_TIMEOUT)
         end_adv = timer()
         if debug:
             print(out)
         adv_result = 'UNSAT' if 'UNSAT' in out else 'SAT'
         print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
+    return (end_adv - start_adv), adv_result
 
-    # adversarial doesn't work
-    return
+def run_marabou_multiple_queries(network_path, input_constraints, max_output, debug):
     total_solve = 0
     results_solve = []
-
     for i in range(0, 10):
         if i == max_output:
             continue
@@ -166,14 +152,35 @@ def timing_executables(network_path, property_path, debug=False):
             if results_solve[-1] == 'SAT':
                 # Found SAT no need to continue running...
                 break
+    return total_solve, results_solve
+
+def timing_executables(network_path, property_path, debug=False):
+    network_path = os.path.join(RESOURCES_DIR, 'nnet', network_path)
+    property_path = os.path.join(RESOURCES_DIR, 'properties', property_path)
+    if debug:
+        print(property_path)
+    # The format of the property is origNUM_blabla we extract NUM
+    max_output = property_path[property_path.find("orig") + 4][:1]
+    if not os.path.exists(network_path) or not os.path.exists(property_path):
+        print("One of the files does not exists")
+        exit(1)
+    with open(property_path, "r") as f:
+        all_constraints = f.read()
+    input_constraints = remove_out_constraints(all_constraints)
+
+    # adv_time, adv_result = 0, 0
+    adv_time, adv_result = run_marabou_adversarial(network_path, input_constraints, max_output, debug)
+    
+    total_solve, results_solve = run_marabou_multiple_queries(network_path, input_constraints, max_output, debug)
+
     if adv_result == 'SAT':
         assert 'SAT' in results_solve, "net: {}, prop: {}".format(network_path, property_path)
     else:
         assert 'SAT' not in results_solve, "net: {}, prop: {}".format(network_path, property_path)
     print("finished solve, time: {} seconds, result: {}".format(total_solve, results_solve))
     if debug:
-        print("finished adv, time: {} seconds, result: {}".format(end_adv - start_adv, adv_result))
-    return total_solve, end_adv - start_adv
+        print("finished adv, time: {} seconds, result: {}".format(adv_time, adv_result))
+    return total_solve, adv_time
 
 
 def run_multiple_compare(target, orig=9):
@@ -201,7 +208,7 @@ def run_all_mnist():
 
 if __name__ == "__main__":
 
-    timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.0001.txt", True)
+    # timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.0001.txt", True)
     timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.01.txt", True)
 
     # run_all_mnist()

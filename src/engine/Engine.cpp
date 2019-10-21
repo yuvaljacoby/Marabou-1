@@ -97,6 +97,56 @@ void Engine::adjustWorkMemorySize()
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Engine::work" );
 }
 
+bool Engine::restoreSmtState( SmtState &smtState )
+{
+    try
+    {
+        // Step 1: all implied valid splits at root
+        for ( auto &validSplit : smtState._impliedValidSplitsAtRoot )
+        {
+            applySplit( validSplit );
+            _smtCore.recordImpliedValidSplit( validSplit );
+        }
+
+        tightenBoundsOnConstraintMatrix();
+        applyAllBoundTightenings();
+        // For debugging purposes
+        checkBoundCompliancyWithDebugSolution();
+        do
+            performSymbolicBoundTightening();
+        while ( applyAllValidConstraintCaseSplits() );
+
+        // Step 2: replay the stack
+        for ( auto &stackEntry : smtState._stack )
+        {
+            _smtCore.replayStackEntry( stackEntry );
+            // Do all the bound propagation, and set ReLU constraints to inactive (at
+            // least the one corresponding to the _activeSplit applied above.
+            if ( _tableau->basisMatrixAvailable() )
+                explicitBasisBoundTightening();
+            tightenBoundsOnConstraintMatrix();
+            applyAllBoundTightenings();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        // The current query is unsat, and we need to pop.
+        // If we're at level 0, the whole query is unsat.
+        if ( !_smtCore.popSplit() )
+        {
+            if ( _verbosity > 0 )
+            {
+                printf( "\nEngine::solve: UNSAT query\n" );
+                _statistics.print();
+            }
+            _exitCode = Engine::UNSAT;
+            return false;
+        }
+    }
+    return true;
+}
+
+
 bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, unsigned timeoutInSeconds)
 {
     DEBUG({
@@ -106,6 +156,8 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         });
     std::shared_ptr<EngineState> stateNoConstraint = std::make_shared<EngineState>();
     std::shared_ptr<SmtState> smtStateNoConstraint = std::make_shared<SmtState>();
+    (void)stateNoConstraint;
+    (void) smtStateNoConstraint;
     List<unsigned>::iterator outputVars;
     if ( solve( timeoutInSeconds ) )
     {
@@ -116,12 +168,9 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         _smtCore.storeSmtState( *smtStateNoConstraint );
         for ( auto outputVar = output_idx.begin(); outputVar != output_idx.end(); ++outputVar )
         {
-            if ( outputVar != output_idx.begin() )
-            {
-                printf(" restoring state\n");
-                restoreState( *stateNoConstraint) ;
-                _smtCore.restoreSmtState( *smtStateNoConstraint );
-            }
+            restoreState( *stateNoConstraint) ;
+            _smtCore.restoreSmtState( *smtStateNoConstraint );
+
 
             DEBUG ({
                     printf("DEBUG ON\n");
@@ -129,8 +178,8 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
                     ASSERT( variable == *outputVar );
                     });
             Equation eq ( Equation::LE );
-            eq.addAddend( 1, max_idx );
-            eq.addAddend( -1, *outputVar );
+            eq.addAddend( 1, max_idx ); // index of y3
+            eq.addAddend( -1, *outputVar ); // index of y0
             // TODO: Scalar should be epsilon? we negate GE
             eq.setScalar( 0 );
 
@@ -167,6 +216,7 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
                         });
                 return true;
             }
+            printf("got false from solve for outputVar: %u", *outputVar);
 
             // Instead of removing the equation we can just change the aux value
             // to be free...
