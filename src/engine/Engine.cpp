@@ -97,8 +97,11 @@ void Engine::adjustWorkMemorySize()
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Engine::work" );
 }
 
-bool Engine::restoreSmtState( SmtState &smtState )
+bool Engine::restoreSmtState( SmtState &smtState, bool cleanSmtState )
 {
+    if ( cleanSmtState )
+        resetSmtCore();
+
     try
     {
         // Step 1: all implied valid splits at root
@@ -169,8 +172,7 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
         for ( auto outputVar = output_idx.begin(); outputVar != output_idx.end(); ++outputVar )
         {
             restoreState( *stateNoConstraint) ;
-            _smtCore.restoreSmtState( *smtStateNoConstraint );
-
+            /* resetSmtCore(); */
 
             DEBUG ({
                     printf("DEBUG ON\n");
@@ -193,12 +195,14 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
             /* row2.dump(); */
             // LE equation, aux has to be positive
             _tableau->setLowerBound( auxVar, 0 );
+            _activeEntryStrategy->resizeHook( _tableau );
 
             // We violated the valid assignment that we had, fix it (otherwise
             // assert fail in solve)
             _tableau->computeAssignment();
+
+            restoreSmtState( *smtStateNoConstraint, true );
             printf("## allPlConstraintsHold: %d ##\n", allPlConstraintsHold() );
-            _activeEntryStrategy->resizeHook( _tableau );
 
 
             // TODO: Store in _degradationChecker ?
@@ -220,7 +224,9 @@ bool Engine::solveAdversarial( unsigned max_idx, List<unsigned> &output_idx, uns
 
             // Instead of removing the equation we can just change the aux value
             // to be free...
-            _tableau->setUpperBound( auxVar, FloatUtils::infinity() );
+            // TODO: Do we need to remove the equation? we restore the tableau
+            // anyway...
+            /* _tableau->setUpperBound( auxVar, FloatUtils::infinity() ); */
 
         }
         return false;
@@ -641,7 +647,6 @@ void Engine::performSimplexStep()
         }
         else
         {
-            printf("unsat basic assignment is invalid\n");
             // Cost function is fresh --- failure is real.
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
@@ -2101,4 +2106,4 @@ void Engine::checkOverallProgress()
 // tags-file-name: "../../TAGS"
 // c-basic-offset: 4
 // End:
-//
+

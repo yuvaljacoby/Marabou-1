@@ -421,15 +421,15 @@ PiecewiseLinearConstraint *SmtCore::chooseViolatedConstraintForFixing( List<Piec
     return candidate;
 }
 
-void SmtCore::restoreSmtState( SmtState &smtState ){
-    // override the current SmtCore
-    freeMemory();
+/* void SmtCore::restoreSmtState( SmtState &smtState ){ */
+/*     // override the current SmtCore */
+/*     freeMemory(); */
     
-    _impliedValidSplitsAtRoot = smtState._impliedValidSplitsAtRoot;
-    for ( auto &stackEntry : smtState._stack ) {
-        _stack.append( stackEntry );
-    }
-}
+/*     _impliedValidSplitsAtRoot = smtState._impliedValidSplitsAtRoot; */
+/*     for ( auto &stackEntry : smtState._stack ) { */
+/*         _stack.append( stackEntry ); */
+/*     } */
+/* } */
 
 void SmtCore::storeSmtState( SmtState &smtState ){
         smtState._impliedValidSplitsAtRoot = _impliedValidSplitsAtRoot;
@@ -439,7 +439,7 @@ void SmtCore::storeSmtState( SmtState &smtState ){
         copy->_activeSplit = stackEntry->_activeSplit;
         copy->_impliedValidSplits = stackEntry->_impliedValidSplits;
         copy->_alternativeSplits = stackEntry->_alternativeSplits;
-        copy->_engineState = stackEntry->_engineState;
+        copy->_engineState = NULL // stackEntry->_engineState;
 
         smtState._stack.append( copy );
     }

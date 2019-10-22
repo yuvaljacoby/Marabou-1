@@ -170,7 +170,8 @@ def timing_executables(network_path, property_path, debug=False):
 
     # adv_time, adv_result = 0, 0
     adv_time, adv_result = run_marabou_adversarial(network_path, input_constraints, max_output, debug)
-    
+
+    return adv_result
     total_solve, results_solve = run_marabou_multiple_queries(network_path, input_constraints, max_output, debug)
 
     if adv_result == 'SAT':
@@ -199,7 +200,8 @@ def run_all_mnist():
     results = {}
     for target in range(3,10):
         orig_results = {}
-        for orig in range(10):
+        for orig in range(1,10):
+            print('target: {}, orig: {}'.format(target, orig))
             orig_results[orig] = run_multiple_compare(target, orig)
         results[target] = orig_results
         print("finish target: {}".format(target))
@@ -207,9 +209,10 @@ def run_all_mnist():
 
 
 if __name__ == "__main__":
+    # run_all_mnist()
+    assert timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.01.txt", True) == 'UNSAT'
+    assert timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar0_ind0_ep0.1.txt", True) == 'SAT'
 
-    # timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.0001.txt", True)
-    timing_executables("mnist_10_layer.nnet", "500VaryingEpsilon/orig3_tar3_ind0_ep0.01.txt", True)
 
     # run_all_mnist()
     # run_multiple_compare(5, 1)

@@ -131,7 +131,7 @@ public:
      */
     void resetSmtCore();
     void restoreSmtCore();
-
+    bool restoreSmtState( SmtState &smtState, bool cleanSmtState );
     void resetExitCode();
 
     void resetBoundTighteners();
