@@ -432,14 +432,14 @@ PiecewiseLinearConstraint *SmtCore::chooseViolatedConstraintForFixing( List<Piec
 /* } */
 
 void SmtCore::storeSmtState( SmtState &smtState ){
-        smtState._impliedValidSplitsAtRoot = _impliedValidSplitsAtRoot;
+    smtState._impliedValidSplitsAtRoot = _impliedValidSplitsAtRoot;
 
     for ( auto &stackEntry : _stack ) {
         StackEntry *copy = new StackEntry();
         copy->_activeSplit = stackEntry->_activeSplit;
         copy->_impliedValidSplits = stackEntry->_impliedValidSplits;
         copy->_alternativeSplits = stackEntry->_alternativeSplits;
-        copy->_engineState = NULL // stackEntry->_engineState;
+        copy->_engineState = stackEntry->_engineState;
 
         smtState._stack.append( copy );
     }
