@@ -64,6 +64,7 @@ public:
     unsigned getNumInputVariables() const;
     unsigned getNumOutputVariables() const;
     List<unsigned> getInputVariables() const;
+    List<unsigned> getOutputVariables() const;
 
     /*
       Methods for setting and getting the solution.

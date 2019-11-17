@@ -21,7 +21,6 @@
 #include <set>
 #include <string>
 #include <utility>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -34,8 +33,15 @@
 #include "MaxConstraint.h"
 #include "PiecewiseLinearConstraint.h"
 #include "PropertyParser.h"
+#include "QueryLoader.h"
 #include "ReluConstraint.h"
 #include "Set.h"
+
+#ifdef _WIN32
+#define STDOUT_FILENO 1
+#else
+#include <unistd.h>
+#endif
 
 namespace py = pybind11;
 
@@ -116,6 +122,7 @@ std::pair<std::map<int, double>, Statistics> solve(InputQuery &inputQuery, std::
     try{
         Engine engine;
         engine.setVerbosity(verbosity);
+
         if(!engine.processInputQuery(inputQuery)) return std::make_pair(ret, *(engine.getStatistics()));
 
         if(!engine.solve(timeout)) return std::make_pair(ret, *(engine.getStatistics()));
@@ -139,6 +146,10 @@ void saveQuery(InputQuery& inputQuery, std::string filename){
     inputQuery.saveQuery(String(filename));
 }
 
+InputQuery loadQuery(std::string filename){
+    return QueryLoader::loadQuery(String(filename));
+}
+
 // Code necessary to generate Python library
 // Describes which classes and functions are exposed to API
 PYBIND11_MODULE(MarabouCore, m) {
@@ -146,6 +157,7 @@ PYBIND11_MODULE(MarabouCore, m) {
     m.def("createInputQuery", &createInputQuery, "Create input query from network and property file");
     m.def("solve", &solve, "Takes in a description of the InputQuery and returns the solution", py::arg("inputQuery"), py::arg("redirect") = "", py::arg("timeout") = 0, py::arg("verbosity") = 2);
     m.def("saveQuery", &saveQuery, "Serializes the inputQuery in the given filename");
+    m.def("loadQuery", &loadQuery, "Loads and returns a serialized inputQuery from the given filename");
     m.def("addReluConstraint", &addReluConstraint, "Add a Relu constraint to the InputQuery");
     m.def("addMaxConstraint", &addMaxConstraint, "Add a Max constraint to the InputQuery");
     py::class_<InputQuery>(m, "InputQuery")
@@ -161,8 +173,11 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def("removeEquation", &InputQuery::removeEquation)
         .def("getEquations", &InputQuery::getEquationsVector)
         .def("getSolutionValue", &InputQuery::getSolutionValue)
+        .def("getNumberOfVariables", &InputQuery::getNumberOfVariables)
         .def("getNumInputVariables", &InputQuery::getNumInputVariables)
         .def("getNumOutputVariables", &InputQuery::getNumOutputVariables)
+        .def("markInputVariable", &InputQuery::markInputVariable)
+        .def("markOutputVariable", &InputQuery::markOutputVariable)
         .def("inputVariableByIndex", &InputQuery::inputVariableByIndex)
         .def("outputVariableByIndex", &InputQuery::outputVariableByIndex)
         .def("setSymbolicBoundTightener", &InputQuery::setSymbolicBoundTightener);

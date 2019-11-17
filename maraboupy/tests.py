@@ -38,7 +38,15 @@ def test_solve_partial_arguments():
     network = define_network()
     MarabouCore.solve(network)
 
+def test_solve_partial_arguments():
+    network = define_network()
+    MarabouCore.solve(network)
+
 def test_dump_query():
     network = define_network()
     MarabouCore.solve(network, "", 0, 0)
     network.dump()
+
+
+if __name__ == "__main__":
+    test_dump_query()
