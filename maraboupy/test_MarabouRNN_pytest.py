@@ -175,6 +175,68 @@ def define_positive_sum_network(xlim, ylim, n_iterations):
 
     return positive_sum_rnn_query, [rnn_start_idx], invariant_equation, [property_eq]
 
+def define_positive_sum_linear_input_constraint(x_addition, x_time_multiply, ylim, n_iterations):
+    '''
+    Defines the positive_sum network in a marabou way
+        s_i = ReLu(1 * x_i + 1 * s_i-1)
+        y = s_k (where k == n_iterations)
+    We bound x to be c*i+b (where i is the time stamp)
+    :param x_addition: tuple with two entries (min, max), of the b value in x bounds
+    :param x_time_multiply: tuple with two entries (min, max), of the c value in x bounds
+    :param ylim: how to limit the output of the network
+    :param n_iterations: number of inputs / times the rnn cell will be executed
+    :return: query to marabou that defines the positive_sum rnn network (without recurent)
+    '''
+    positive_sum_rnn_query = MarabouCore.InputQuery()
+    positive_sum_rnn_query.setNumberOfVariables(1)  # x
+
+    rnn_start_idx = 1  # i
+    rnn_idx = add_rnn_cell(positive_sum_rnn_query, [(0, 1)], 1, n_iterations, print_debug=1)  # rnn_idx == s_i f
+    s_i_1_f_idx = rnn_idx - 2
+    y_idx = rnn_idx + 1
+
+
+    # x bounds
+    x_bound_min_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
+    x_bound_min_eq.addAddend(1, 0) # x
+    x_bound_min_eq.addAddend(-x_time_multiply[0], rnn_start_idx) # c * i
+    x_bound_min_eq.setScalar(x_addition[0])
+    positive_sum_rnn_query.addEquation(x_bound_min_eq)
+
+    x_bound_max_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    x_bound_max_eq.addAddend(1, 0)  # x
+    x_bound_max_eq.addAddend(-x_time_multiply[1], rnn_start_idx)  # c * i
+    x_bound_max_eq.setScalar(x_addition[1])
+    positive_sum_rnn_query.addEquation(x_bound_max_eq)
+
+    def relu(x):
+        return max(x, 0)
+
+    positive_sum_rnn_query.setNumberOfVariables(y_idx + 1)
+
+    # y
+    positive_sum_rnn_query.setLowerBound(y_idx, -large)
+    positive_sum_rnn_query.setUpperBound(y_idx, large)
+
+    # y - skf  = 0
+    output_equation = MarabouCore.Equation()
+    output_equation.addAddend(1, y_idx)
+    output_equation.addAddend(-1, rnn_idx)
+    output_equation.setScalar(0)
+    # output_equation.dump()
+    positive_sum_rnn_query.addEquation(output_equation)
+
+    # y <= ylim
+    property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    property_eq.addAddend(1, y_idx)
+    property_eq.setScalar(ylim[1])
+
+    min_y_0 = relu(relu(x_addition[0] + x_time_multiply[0] * 1) * 1)
+    max_y_0 = relu(relu(x_addition[1] + x_time_multiply[1] * 1) * 1)
+
+    initial_values = [max_y_0]
+
+    return positive_sum_rnn_query, [rnn_start_idx], None, [property_eq], initial_values
 
 def define_positive_sum_network_no_invariant(xlim, ylim, n_iterations):
     '''
@@ -517,6 +579,20 @@ def test_positive_sum_positive():
     assert prove_using_invariant(invariant_xlim, y_lim, num_iterations, define_positive_sum_network)
 
 
+def test_auto_positive_sum_linear_input_constraint_positive():
+    num_iterations = 4
+    x_addition = (0, 0)
+    x_multiply = (0.5, 1)
+    max_y = 0
+    for i in range(num_iterations):
+        max_y += x_multiply[1] * i + x_addition[1]
+    ylim = (0, 16)
+
+    positive_sum_rnn_query, rnn_start_idx, invariant_equation, property_eqs, initial_values = define_positive_sum_linear_input_constraint(
+        x_addition, x_multiply, ylim, num_iterations)
+
+    assert find_invariant_marabou(positive_sum_rnn_query, rnn_start_idx, [MarabouCore.Equation.LE], initial_values,
+                           num_iterations, property_eqs)
 
 def test_auto_positive_sum_negative():
     num_iterations = 500
