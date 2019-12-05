@@ -454,7 +454,7 @@ class AlphaSearchSGD:
         self.prev_alpha = self.alpha
         if abs(self.alpha) > 0.2:
             self.alpha = self.alpha + (
-                    direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.1 to the next direction
+                    direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.3 to the next direction
         else:
             self.alpha = 0.5 * direction
         return self.alpha
@@ -488,7 +488,7 @@ class SGDAlphaAlgorithm:
         self.inv_type = [MarabouCore.Equation.GE if i % 2 == 0 else MarabouCore.Equation.LE for i in
                          range(len(self.alphas))]
 
-        self.inductive_steps = 40
+        self.inductive_steps = 50
         self.invariant_equations = [None] * len(self.alphas)
         for i in range(len(self.alphas)):
             self._update_invariant_equation(i)

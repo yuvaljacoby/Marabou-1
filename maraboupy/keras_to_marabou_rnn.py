@@ -101,12 +101,92 @@ class RnnMarabouModel():
                                 max_val += w * xlim[j][0]
                                 min_val += w * xlim[j][1]
                         # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
-                        initial_values.append((relu(min_val) - SMALL, relu(max_val) + SMALL))
+                        # min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
+                        initial_values.append((relu(min_val), relu(max_val)))
+                    # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
+                    self.query_marabou_to_improve_values(initial_values)
                 else:
                     # Need to query gurobi here...
                     raise NotImplementedError()
             print('initial_values:', initial_values)
             return initial_values
+
+    def query_marabou_to_improve_values(self, initial_values):
+        def create_initial_run_equations(loop_indices, rnn_prev_iteration_idx):
+            '''
+            Zero the loop indcies and the rnn hidden values (the previous iteration output)
+            :return: list of equations to add to marabou
+            '''
+            loop_equations = []
+            for i in loop_indices:
+                loop_eq = MarabouCore.Equation()
+                loop_eq.addAddend(1, i)
+                loop_eq.setScalar(0)
+                loop_equations.append(loop_eq)
+
+            # s_i-1 f == 0
+            zero_rnn_hidden = []
+            for idx in rnn_prev_iteration_idx:
+                base_hypothesis = MarabouCore.Equation()
+                base_hypothesis.addAddend(1, idx)
+                base_hypothesis.setScalar(0)
+                zero_rnn_hidden.append(base_hypothesis)
+            return loop_equations + zero_rnn_hidden
+
+        def improve_beta(eq, more_is_better):
+            '''
+            Run the equation on marabou until it is satisfied.
+            If not satisfied taking the value from the index and using it as a s scalar
+            using self.network to verify
+            :param eq: Marabou equation of the form: +-1.000xINDEX >= SCALAR
+            :param more_is_better: If true then adding epsilon on every fail, otherwise substracting
+            :return: a scalar that satisfies the equation
+            '''
+            proved = False
+            assert len(eq.getAddends()) == 1
+            idx = eq.getAddends()[0].getVariable()
+            beta = eq.getScalar()
+            while not proved:
+                eq.setScalar(beta)
+                self.network.addEquation(eq)
+                vars1, stats1 = MarabouCore.solve(self.network, "", 0, 0)
+                if len(vars1) > 0:
+                    proved = False
+                    if more_is_better:
+                        beta = vars1[idx] + SMALL
+                    else:
+                        beta = vars1[idx] - SMALL
+                    print("proof fail, trying with beta: {}".format(beta))
+                else:
+                    # print("UNSAT")
+                    proved = True
+                    print("proof worked, with beta: {}".format(beta))
+                    # self.network.dump()
+                    # eq.dump()
+                    # beta = beta
+                self.network.removeEquation(eq)
+            return beta
+
+        initial_run_eq = create_initial_run_equations(self._rnn_loop_idx, self._rnn_prev_iteration_idx)
+        for init_eq in initial_run_eq:
+            self.network.addEquation(init_eq)
+
+        # not(R_i_f >= beta) <-> R_i_f <>= beta - epsilon
+        for i in range(len(initial_values)):
+            beta_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+            beta_eq.addAddend(1, self.rnn_out_idx[i])
+            beta_eq.setScalar(initial_values[i][0] - SMALL)
+            min_val = improve_beta(beta_eq, False)
+
+            beta_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
+            beta_eq.addAddend(1, self.rnn_out_idx[i])
+            beta_eq.setScalar(initial_values[i][1] + SMALL)
+            max_val = improve_beta(beta_eq, True)
+
+            initial_values[i] = (min_val, max_val)
+
+        for init_eq in initial_run_eq:
+            self.network.removeEquation(init_eq)
 
     def get_rnn_min_max_value_one_iteration_marabou(self, xlim):
         xlim_min = [x[0] for x in xlim]
@@ -123,79 +203,6 @@ class RnnMarabouModel():
                 initial_values.append((min_values[i], max_values[i]))
             else:
                 initial_values.append((max_values[i], min_values[i]))
-
-        # def create_initial_run_equations(loop_indices, rnn_prev_iteration_idx):
-        #     '''
-        #     Zero the loop indcies and the rnn hidden values (the previous iteration output)
-        #     :return: list of equations to add to marabou
-        #     '''
-        #     loop_equations = []
-        #     for i in loop_indices:
-        #         loop_eq = MarabouCore.Equation()
-        #         loop_eq.addAddend(1, i)
-        #         loop_eq.setScalar(0)
-        #         loop_equations.append(loop_eq)
-        #
-        #     # s_i-1 f == 0
-        #     zero_rnn_hidden = []
-        #     for idx in rnn_prev_iteration_idx:
-        #         base_hypothesis = MarabouCore.Equation()
-        #         base_hypothesis.addAddend(1, idx)
-        #         base_hypothesis.setScalar(0)
-        #         zero_rnn_hidden.append(base_hypothesis)
-        #     return loop_equations + zero_rnn_hidden
-        #
-        # def improve_beta(eq):
-        #     '''
-        #     Run the equation on marabou until it is satisfied.
-        #     If not satisfied taking the value from the index and using it as a s scalar
-        #     using self.network to verify
-        #     :param eq: Marabou equation of the form: +-1.000xINDEX >= SCALAR
-        #     :return: a scalar that satisfies the equation
-        #     '''
-        #     proved = False
-        #     assert len(eq.getAddends()) == 1
-        #     idx = eq.getAddends()[0].getVariable()
-        #     beta = eq.getScalar()
-        #     while not proved:
-        #         eq.setScalar(beta)
-        #         self.network.addEquation(eq)
-        #         vars1, stats1 = MarabouCore.solve(self.network, "", 0, 0)
-        #         if len(vars1) > 0:
-        #             proved = False
-        #             beta = vars1[idx] + SMALL
-        #             print("proof fail, trying with beta: {}".format(beta))
-        #         else:
-        #             # print("UNSAT")
-        #             proved = True
-        #             print("proof worked, with beta: {}".format(beta))
-        #             self.network.dump()
-        #             eq.dump()
-        #             beta = beta + (10 * SMALL)
-        #         self.network.removeEquation(eq)
-        #     return beta
-        #
-        # def query_marabou_to_improve_values():
-        #     initial_run_eq = create_initial_run_equations(self._rnn_loop_idx, self._rnn_prev_iteration_idx)
-        #     for init_eq in initial_run_eq:
-        #         self.network.addEquation(init_eq)
-        #
-        #     # not(R_i_f >= beta) <-> -R_i_f >= beta - epsilon
-        #     for i in range(len(max_values)):
-        #         beta_eq2 = MarabouCore.Equation(MarabouCore.Equation.GE)
-        #         beta_eq2.addAddend(1, self.rnn_out_idx[i])
-        #         beta_eq2.setScalar(min_values[i] + SMALL)
-        #         min_val = improve_beta(beta_eq2)
-        #
-        #         beta_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-        #         beta_eq.addAddend(1, self.rnn_out_idx[i])
-        #         beta_eq.setScalar(max_values[i] - SMALL)
-        #         max_val = improve_beta(beta_eq)
-        #
-        #         initial_values[i] = (min_val, max_val)
-        #
-        #     for init_eq in initial_run_eq:
-        #         self.network.removeEquation(init_eq)
 
         # query_marabou_to_improve_values()
         return initial_values
@@ -665,44 +672,43 @@ def test_20classes_1rnn2_0fc_fail():
 def test_20classes_1rnn3_0fc_pass():
     n_inputs = 40
     # output[0] < output[1] so this should fail to prove
-    y_idx_max = 8
-    other_idx = 5
-    assert adversarial_query([1] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5")
-    # return
-    results = []
-    for i in range(20):
-        if i != y_idx_max:
-            other_idx = i
-            results.append(adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                                             "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5"))
-    print(results)
-    assert sum(results) == 19, 'managed to prove on: {}%'.format((19 - sum(results)) / 19)
+    y_idx_max = 10
+    other_idx = 19
+    assert adversarial_query([10] * n_inputs, 0.001, y_idx_max, other_idx,
+                             "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5",
+                             n_iterations=5)
+    return
 
 
 def test_20classes_1rnn3_0fc_fail():
     n_inputs = 40
-    y_idx_max = 13
-    other_idx = 8
+    y_idx_max = 19
+    other_idx = 10
     # 6.199209
     assert not adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5", is_fail_test=True)
+                                 "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5", is_fail_test=True,
+                                 n_iterations=5)
 
 
 def test_20classes_1rnn4_0fc_pass():
     n_inputs = 40
-    # output[0] < output[1] so this should fail to prove
-    y_idx_max = 19
-    other_idx = 1
-    assert adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn4_0_64_4.h5")
-
+    y_idx_max = 13  # 8
+    other_idx = 15  # 12
+    in_tensor = np.array([6.3, 9.4, 9.6, 3.1, 8.5, 9.4, 7.2, 8.6, 3.8, 1.4, 0.7, 7.8, 1.9, 8.2, 6.2, 3.6, 8.7, 1.7
+                             , 2.8, 4.8, 4.3, 5.1, 3.8, 0.8, 2.4, 7.6, 7.3, 0., 3.3, 7.4, 0., 2.1, 0.5, 8., 7.1, 3.9
+                             , 3., 8.3, 5.6, 1.8])
+    assert in_tensor.shape[0] == n_inputs
+    assert adversarial_query(in_tensor, 0.01, y_idx_max, other_idx,
+                         "/home/yuval/projects/Marabou/model_classes20_1rnn4_0_2_4.h5", n_iterations=5)
 
 def test_20classes_1rnn4_0fc_fail():
     n_inputs = 40
-    y_idx_max = 1
-    other_idx = 19
-    assert not adversarial_query([39] * n_inputs, 0, y_idx_max, other_idx,
+    y_idx_max = 15
+    other_idx = 13
+    in_tensor = np.array([6.3, 9.4, 9.6, 3.1, 8.5, 9.4, 7.2, 8.6, 3.8, 1.4, 0.7, 7.8, 1.9, 8.2, 6.2, 3.6, 8.7, 1.7
+                             , 2.8, 4.8, 4.3, 5.1, 3.8, 0.8, 2.4, 7.6, 7.3, 0., 3.3, 7.4, 0., 2.1, 0.5, 8., 7.1, 3.9
+                             , 3., 8.3, 5.6, 1.8])
+    assert not adversarial_query(in_tensor, 0, y_idx_max, other_idx,
                                  "/home/yuval/projects/Marabou/model_classes20_1rnn4_0_64_4.h5", is_fail_test=True)
 
 
@@ -726,17 +732,17 @@ def test_20classes_1rnn8_0fc_fail():
 if __name__ == "__main__":
     # test_20classes_1rnn3_0fc_pass()
     # test_20classes_1rnn3_0fc_fail()
-    test_20classes_1rnn2_0fc_template_input_pass()
-    test_20classes_1rnn2_0fc_template_input_fail()
+    # test_20classes_1rnn2_0fc_template_input_pass()
+    # test_20classes_1rnn2_0fc_template_input_fail()
     # test_20classes_1rnn2_0fc_pass()
     # test_20classes_1rnn2_0fc_fail()
     # test_20classes_1rnn2_1fc32_pass()
     # test_20classes_1rnn2_1fc32_fail()
 
-    # test_20classes_1rnn4_0fc_pass()
+    test_20classes_1rnn4_0fc_pass()
+    test_20classes_1rnn4_0fc_fail()
 
     # test_20classes_1rnn8_0fc_pass()
-    # test_20classes_1rnn4_0fc_fail()
     # test_5classes_1rnn2_0fc_pass()
     # test_5classes_1rnn2_0fc_fail()
     # n_inputs = 40
