@@ -133,7 +133,7 @@ def define_adversarial_robustness_two_input_nodes_step_fail(xlim, n_iterations):
     # z_i_f = relu(1 * x1 + 10 * x2 + z_i-1_f)
     z_cell_iterator = network.getNumberOfVariables()
     z_i_f_idx = add_rnn_cell(network, [(0, x0_z_w), (1, x1_z_w)], z_hidden_w, n_iterations, print_debug=True)
-    z_i_1_f_idx = z_i_f_idx - 2
+    z_i_1_f_idx = z_i_f_idx -
 
     a_idx = z_i_f_idx + 1
     b_idx = a_idx + 1
@@ -1028,3 +1028,21 @@ def test_auto_adversarial_robustness_one_input_concatenate_rnns_fail():
 
     print(inv_res)
     assert not inv_res
+
+
+def test_auto_adversarial_robustness_two_inputs_SGDAlgorithm():
+    '''
+    This example has 2 input nodes and two RNN cells
+    '''
+    from maraboupy.MarabouRNNMultiDim import SGDAlphaAlgorithm, prove_multidim_property
+    num_iterations = 10
+    xlim = [(0, 1), (1, 2)]
+
+    network, rnn_start_idxs, property_eq, initial_values, *_ = define_adversarial_robustness_two_input_nodes(xlim, num_iterations)
+    rnn_invariant_type = [MarabouCore.Equation.GE, MarabouCore.Equation.LE]
+
+
+    # network.dump()
+    rnn_output_idxs = [i + 3 for i in rnn_start_idxs]
+    algorithm = SGDAlphaAlgorithm(initial_values, rnn_start_idxs, rnn_output_idxs)
+    assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_eq, algorithm)

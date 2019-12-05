@@ -3,7 +3,7 @@ import numpy as np
 from maraboupy import MarabouCore
 
 large = 5000.0
-small = 1 ** -5
+small = 10 ** -4
 TOLERANCE_VALUE = 0.01
 ALPHA_IMPROVE_EACH_ITERATION = 5
 
@@ -16,6 +16,8 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False):
     :return: True if UNSAT (no valid assignment), False otherwise
     '''
     verbose = 0
+    if debug:
+        query.dump()
     vars1, stats1 = MarabouCore.solve(query, "", 0, verbose)
     if len(vars1) > 0:
         if print_vars:
@@ -105,11 +107,11 @@ def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias
         # s_i b = x_j * w_j for all j connected + s_i-1 f * hidden_weight
         update_eq = MarabouCore.Equation()
         for j in range(len(input_weights[i, :])):
-            w = round(input_weights[i, j], 2)
+            w = input_weights[i, j] #round(input_weights[i, j], 2)
             update_eq.addAddend(w, input_idx[j])
 
         for j, w in enumerate(hidden_weights[i, :]):
-            w = round(w, 2)
+            # w = round(w, 2)
             update_eq.addAddend(w, prev_iteration_idxs[j])
 
         update_eq.addAddend(-1, cell_idx + 2)
@@ -241,7 +243,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
         for eq in ls_eq:
             network.addEquation(eq)
         # network.dump()
-        marabou_result = marabou_solve_negate_eq(network)
+        marabou_result = marabou_solve_negate_eq(network, print_vars=True)
         # print('induction base query')
         # if not marabou_result:
         #     network.dump()
@@ -249,7 +251,9 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
             network.removeEquation(eq)
 
         if not marabou_result:
-            print("induction base fail, on invariant:", i)
+            print("induction base fail, on invariant {} which is:".format(i))
+            for eq in ls_eq:
+                eq.dump()
             return False
     print("proved induction base for all invariants")
 
@@ -326,7 +330,7 @@ def alpha_to_equation(start_idx, output_idx, initial_val, new_alpha, inv_type):
 
     invariant_equation.addAddend(new_alpha * ge_better, start_idx)  # i
     invariant_equation.setScalar(initial_val)
-
+    invariant_equation.dump()
     return invariant_equation
 
 
@@ -343,6 +347,13 @@ def double_list(ls):
 
 
 def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs):
+    '''
+    Creates a function that can verify invariants accodring to the network and rnn indcies
+    :param network: Marabou format of a network
+    :param rnn_start_idxs: Indcies of the network where RNN cells start
+    :param rnn_output_idxs: Output indcies of RNN cells in the network
+    :return: A pointer to a function that given a list of equations checks if they stand or not
+    '''
     def invariant_oracle(equations_to_verify):
         # assert len(alphas) == len(initial_values)
         # invariant_equations = alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, alphas)
@@ -353,13 +364,25 @@ def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs):
 
 def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations):
     def property_oracle(invariant_equations):
-        for eq in invariant_equations + property_equations:
-            network.addEquation(eq)
+
+        for eq in invariant_equations:
+            if eq is not None:
+                network.addEquation(eq)
+
+        # TODO: This is only for debug
+        # before we prove the property, make sure the invariants does not contradict each other, expect SAT from marabou
+        assert not marabou_solve_negate_eq(network, False, False)
+
+        for eq in property_equations:
+            if eq is not None:
+                network.addEquation(eq)
         res = marabou_solve_negate_eq(network, False, True)
         if res:
-            network.dump()
+            # network.dump()
+            pass
         for eq in invariant_equations + property_equations:
-            network.removeEquation(eq)
+            if eq is not None:
+                network.removeEquation(eq)
         return res
 
     return property_oracle
@@ -377,6 +400,7 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_e
         return True
     else:
         print('failed to prove property, last used alphas are:', [a.get() for a in algorithm.alphas])
+        return False
 
 
 class AlphaSearchSGD:
@@ -481,6 +505,7 @@ class SGDAlphaAlgorithm:
         self.invariant_equations[i] = alpha_to_equation(self.rnn_start_idxs[i], self.rnn_output_idxs[i],
                                                         self.initial_values[i], self.alphas[i].get(), self.inv_type[i])
 
+
     def getAlphasThatProveProperty(self, invariant_oracle, property_oracle):
         '''
         Look for alphas that prove the property using the "SGD" algorithm.
@@ -493,9 +518,10 @@ class SGDAlphaAlgorithm:
         :param property_oracle: function pointer, input is list of marabou equations, output is whether the property holds using this invariants
         :return: list of alphas if proved, None otherwise
         '''
+        # TODO: How can I do this I did not prove the invariant holds...
         # First check if need if the property holds
-        if property_oracle(self.invariant_equations):
-            return self.alphas
+        # if property_oracle(self.invariant_equations):
+        #     return self.alphas
         # Run maximum property_steps
         counter = 0
         while counter < self.property_steps:
@@ -516,7 +542,7 @@ class SGDAlphaAlgorithm:
 
     def _proveInductiveAlphasOnce(self, invariant_oracle, invariant_equations_idx):
         prove_inv_res = invariant_oracle([self.invariant_equations[i] for i in invariant_equations_idx])
-        # prove_inv_res = prove_invariant_multi(network, rnn_start_idxs, invariant_equations)
+
         for i, res in enumerate(prove_inv_res):
             # i is an index in the current invariant_equations which is a subset of the entire invariants
             idx = invariant_equations_idx[i]
@@ -535,8 +561,9 @@ class SGDAlphaAlgorithm:
         :param invariant_oracle: function pointer, input is marabou equations values output is whether this is a valid invariant
         :return: list of alphas if found better invariant, otherwise None
         '''
-        ge_invariant_eq_idx = range(1, len(self.invariant_equations), 2)
-        le_invariant_eq_idx = range(1, len(self.invariant_equations), 2)
+        ge_invariant_eq_idx = [i for i in range(len(self.inv_type)) if self.inv_type[i] == MarabouCore.Equation.GE]
+        le_invariant_eq_idx = [i for i in range(len(self.inv_type)) if self.inv_type[i] == MarabouCore.Equation.LE]
+        assert sorted(ge_invariant_eq_idx + le_invariant_eq_idx) == list(range(len(self.inv_type)))
         all_ge_proved = False
         all_le_proved = False
         counter = 0
@@ -548,11 +575,16 @@ class SGDAlphaAlgorithm:
                 all_le_proved = self._proveInductiveAlphasOnce(invariant_oracle, le_invariant_eq_idx)
 
             if all_ge_proved and all_le_proved:
+                # Make sure the invariants do not contrdicte each other (we have a lower bound and an upper bound on each cell)
+                for i in range(0, len(self.alphas), 2):
+                    # The invariant order is GE, LE, GE, LE ....
+                    # But when we create an LE equation we multiply alpha by -1
+                    assert self.alphas[i].alpha >= -1 * self.alphas[i + 1].alpha, [a.alpha for a in self.alphas]
+
                 return True
 
         print("didn't find invariant")
         return False
-
 
 # def improve_mutlidim_invariants_binary_search(network, rnn_start_idxs, rnn_output_idxs, initial_values, alphas,
 #                                               inv_type):
