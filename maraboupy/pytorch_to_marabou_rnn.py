@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, SGDAlphaAlgorithm,
+from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, IterateAlphasSGD,
 
 MODEL_FILE_PATH = 'maraboupy/mnist_example/rnn.pt'
 large = 5000
@@ -109,7 +109,7 @@ class MnistModel():
 
         # return prove_multidim_property2(self.network, rnn_start_idxs, self.rnn_output_idxs, self.rnn_initial_values,
         #                                [property_eq])
-        algorithm = SGDAlphaAlgorithm(self.rnn_initial_values, rnn_start_idxs, self.rnn_output_idxs)
+        algorithm = IterateAlphasSGD(self.rnn_initial_values, rnn_start_idxs, self.rnn_output_idxs)
         return prove_multidim_property(self.network, rnn_start_idxs, self.rnn_output_idxs, [property_eq], algorithm)
 
     def prove_adv_property(self, img_patch, out_idx_max, out_idx_compare, n):

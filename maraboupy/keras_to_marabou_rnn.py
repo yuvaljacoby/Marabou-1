@@ -1,12 +1,14 @@
 from maraboupy import MarabouCore
 import tensorflow as tf
 import numpy as np
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property, add_rnn_multidim_cells, SGDAlphaAlgorithm, \
-    negate_equation
+import pickle
+from maraboupy.MarabouRNNMultiDim import prove_multidim_property, add_rnn_multidim_cells, negate_equation
+from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 
-H5_FILE_PATH = './model_classes20_1rnn8_0_64_100.h5'
 SMALL = 10 ** -2
 LARGE = 5000
+MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
+WORKING_EXAMPLES_FOLDER = "/home/yuval/projects/Marabou/working_arrays"
 
 
 def relu(x):
@@ -108,7 +110,7 @@ class RnnMarabouModel():
                 else:
                     # Need to query gurobi here...
                     raise NotImplementedError()
-            print('initial_values:', initial_values)
+            # print('initial_values:', initial_values)
             return initial_values
 
     def query_marabou_to_improve_values(self, initial_values):
@@ -156,11 +158,11 @@ class RnnMarabouModel():
                         beta = vars1[idx] + SMALL
                     else:
                         beta = vars1[idx] - SMALL
-                    print("proof fail, trying with beta: {}".format(beta))
+                    # print("proof fail, trying with beta: {}".format(beta))
                 else:
                     # print("UNSAT")
                     proved = True
-                    print("proof worked, with beta: {}".format(beta))
+                    # print("proof worked, with beta: {}".format(beta))
                     # self.network.dump()
                     # eq.dump()
                     # beta = beta
@@ -492,7 +494,7 @@ def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx
     rnn_min_values = [val[0] for val in initial_values]
 
     assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-    algorithm = SGDAlphaAlgorithm((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
+    algorithm = IterateAlphasSGD((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
     # rnn_model.network.dump()
     return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
                                    algorithm)
@@ -541,7 +543,7 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     rnn_min_values = [val[0] for val in initial_values]
 
     assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-    algorithm = SGDAlphaAlgorithm((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
+    algorithm = IterateAlphasSGD((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
     # rnn_model.network.dump()
     return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
                                    algorithm)
@@ -601,32 +603,13 @@ def test_20classes_1rnn2_1fc32_pass():
                              is_fail_test=False)
 
 
-# def test_5classes_1rnn2_0fc_pass():
-#     n_inputs = 40
-#     y_idx_max = 4  # 2
-#     other_idx = 0
-#     # assert adversarial_query([1] * n_inputs, 0, y_idx_max, "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
-#     assert adversarial_query([10] * n_inputs, 0, y_idx_max, other_idx,
-#                              "/home/yuval/projects/Marabou/model_classes5_1rnn2_0_64_4.h5")
-
-
-def test_5classes_1rnn2_0fc_fail():
-    n_inputs = 40
-    # output[0] < output[1] so this should fail to prove
-    y_idx_max = 0
-    other_idx = 4
-    # assert adversarial_query([1] * n_inputs, 0, y_idx_max, "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
-    assert not adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes5_1rnn2_0_64_4.h5", is_fail_test=True)
-
-
 def test_20classes_1rnn2_0fc_template_input_pass():
     n_iterations = 5
     n_inputs = 40
 
     template = [(i, 0) for i in range(n_inputs)]
     assert adversarial_query_template(template, 0.1, None, None,
-                                      "/home/yuval/projects/Marabou/model_classes20_1rnn2_0_64_4.h5",
+                                      "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
                                       n_iterations=n_iterations)
 
 
@@ -636,7 +619,7 @@ def test_20classes_1rnn2_0fc_template_input_fail():
 
     template = [(i, 0) for i in range(n_inputs)]
     assert not adversarial_query_template(template, 0.1, 8, 9,
-                                          "/home/yuval/projects/Marabou/model_classes20_1rnn2_0_64_4.h5",
+                                          "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
                                           n_iterations=n_iterations, is_fail_test=True)
 
 
@@ -644,10 +627,10 @@ def test_20classes_1rnn2_0fc_pass():
     n_iterations = 1000
     n_inputs = 40
     # output[0] < output[1] so this should fail to prove
-    y_idx_max = None
-    other_idx = None
+    y_idx_max = 9
+    other_idx = 2
     assert adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_0_64_4.h5",
+                             "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
                              n_iterations=n_iterations)
     return
     # results = []
@@ -655,7 +638,7 @@ def test_20classes_1rnn2_0fc_pass():
     #     if i != y_idx_max:
     #         other_idx = i
     #         results.append(adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-    #                                          "/home/yuval/projects/Marabou/model_classes20_1rnn2_0_64_4.h5"))
+    #                                          "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER)))
     # print(results)
     # assert sum(results) == 19, 'managed to prove on: {}%'.format((19 - sum(results)) / 19)
 
@@ -666,7 +649,7 @@ def test_20classes_1rnn2_0fc_fail():
     other_idx = 9
     # 6.199209
     assert not adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn2_0_64_4.h5", is_fail_test=True)
+                                 "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
 def test_20classes_1rnn3_0fc_pass():
@@ -675,7 +658,7 @@ def test_20classes_1rnn3_0fc_pass():
     y_idx_max = 10
     other_idx = 19
     assert adversarial_query([10] * n_inputs, 0.001, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5",
+                             "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER),
                              n_iterations=5)
     return
 
@@ -686,7 +669,7 @@ def test_20classes_1rnn3_0fc_fail():
     other_idx = 10
     # 6.199209
     assert not adversarial_query([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn3_0_2_4.h5", is_fail_test=True,
+                                 "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER), is_fail_test=True,
                                  n_iterations=5)
 
 
@@ -699,7 +682,8 @@ def test_20classes_1rnn4_0fc_pass():
                              , 3., 8.3, 5.6, 1.8])
     assert in_tensor.shape[0] == n_inputs
     assert adversarial_query(in_tensor, 0.01, y_idx_max, other_idx,
-                         "/home/yuval/projects/Marabou/model_classes20_1rnn4_0_2_4.h5", n_iterations=5)
+                             "{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER), n_iterations=5)
+
 
 def test_20classes_1rnn4_0fc_fail():
     n_inputs = 40
@@ -709,42 +693,146 @@ def test_20classes_1rnn4_0fc_fail():
                              , 2.8, 4.8, 4.3, 5.1, 3.8, 0.8, 2.4, 7.6, 7.3, 0., 3.3, 7.4, 0., 2.1, 0.5, 8., 7.1, 3.9
                              , 3., 8.3, 5.6, 1.8])
     assert not adversarial_query(in_tensor, 0, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn4_0_64_4.h5", is_fail_test=True)
+                                 "{}/model_classes20_1rnn4_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
-def test_20classes_1rnn8_0fc_pass():
+def test_20classes_1rnn8_0fc():
     n_inputs = 40
     y_idx_max = 1
     other_idx = 0
-    assert adversarial_query([5] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
+    in_tensor = [0.19005403, 0.51136299, 0.67302099, 0.59573087, 0.78725824,
+                 0.47257432, 0.65504724, 0.69202802, 0.16531246, 0.84543712,
+                 0.73715671, 0.03674481, 0.39459927, 0.0107714, 0.15337461,
+                 0.44855902, 0.894079, 0.48551109, 0.08504609, 0.74320624,
+                 0.52363974, 0.80471539, 0.06424345, 0.65279486, 0.15554268,
+                 0.63541206, 0.15977761, 0.70137553, 0.34406331, 0.59930546,
+                 0.8740703, 0.89584981, 0.67799938, 0.78253788, 0.33091662,
+                 0.74464927, 0.69366703, 0.96878231, 0.58014617, 0.41094702]
+    n_iterations = 5
+    assert adversarial_query(in_tensor, 0, y_idx_max, other_idx,
+                             "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER), n_iterations=n_iterations)
+
+    assert not adversarial_query(in_tensor, 0, other_idx, y_idx_max,
+                                 "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER),
+                                 n_iterations=n_iterations)
 
 
-def test_20classes_1rnn8_0fc_fail():
+def test_20classes_1rnn4_1fc32():
     n_inputs = 40
-    # output[0] < output[1] so this should fail to prove
-    y_idx_max = 0
-    other_idx = 1
-    assert not adversarial_query([5] * n_inputs, 0, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5", is_fail_test=True)
+    y_idx_max = 9
+    other_idx = 14
+    in_tensor = np.array([0.43679032, 0.51105192, 0.01603254, 0.45879329, 0.64639347,
+                          0.39209051, 0.98618169, 0.49293316, 0.70440262, 0.08594672,
+                          0.17252591, 0.4940284, 0.83947774, 0.55545332, 0.8971317,
+                          0.72996308, 0.23706766, 0.66869303, 0.74949942, 0.57524252,
+                          0.94886307, 0.31034989, 0.41785656, 0.5697128, 0.74751913,
+                          0.48868271, 0.22672374, 0.6350584, 0.88979192, 0.97493685,
+                          0.96969836, 0.99457045, 0.89433312, 0.19916606, 0.63957592,
+                          0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289])
+    assert in_tensor.shape[0] == n_inputs
+    assert adversarial_query(in_tensor, 0.01, y_idx_max, other_idx,
+                             "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
+
+    assert not adversarial_query(in_tensor, 0.01, other_idx, y_idx_max,
+                                 "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
+                                 is_fail_test=True)
+
+
+def test_20classes_1rnn8_1fc32():
+    n_inputs = 40
+    y_idx_max = 14
+    other_idx = 3
+    in_tensor = np.array([0.90679393, 0.90352916, 0.1756208, 0.99622917, 0.31828876,
+                          0.54578732, 0.15096196, 0.19435984, 0.58806244, 0.46534135, 0.82525653, 0.61739753,
+                          0.47004321, 0.66255417, 0.78319261, 0.68970699, 0.50609439, 0.68917296, 0.87666094, 0.8222427,
+                          0.10933717, 0.86577764, 0.90037717, 0.85837105, 0.30076024, 0.31086682, 0.24680442,
+                          0.95077129, 0.44299597, 0.98173942, 0.95088949, 0.24104634, 0.25912628, 0.72127712, 0.8212451,
+                          0.50530752, 0.84822531, 0.87344498, 0.60873922, 0.69857207]
+                         )
+
+    assert in_tensor.shape[0] == n_inputs
+    assert adversarial_query(in_tensor, 0.01, y_idx_max, other_idx,
+                             "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
+
+    assert not adversarial_query(in_tensor, 0.01, other_idx, y_idx_max,
+                                 "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
+                                 is_fail_test=True)
+
+
+def search_for_input(path):
+    n_inputs = 40
+    # not_found = True
+    n_iterations = 5
+    examples_found = 0
+    # from datetime import datetime
+    # np.random.seed(datetime.now().microsecond)
+    for j in range(1000):
+        in_tensor = np.random.random((n_inputs,))
+
+        if adversarial_query(in_tensor, 0, None, None, path, is_fail_test=False, n_iterations=n_iterations):
+            # found an example that works, try to get multiple adv queris that work
+            out = get_output_vector(path, in_tensor, n_iterations)
+            net_name = path.split(".")[0].split("/")[-1]
+
+            other_idx = np.argmin(out)
+            y_idx_max = np.argmax(out)
+
+            pickle_path = "{}/{}_{}_{}_{}.pkl".format(WORKING_EXAMPLES_FOLDER, net_name, examples_found, y_idx_max,
+                                                      other_idx)
+            with open(pickle_path, "wb") as f:
+                pickle.dump({'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
+                             'other_idx': other_idx}, f)
+
+            for i in range(len(out[0])):
+                if i != other_idx and i != y_idx_max:
+                    if adversarial_query(in_tensor, 0, y_idx_max, i, path, is_fail_test=False,
+                                         n_iterations=n_iterations):
+                        pickle_path = "{}/{}_{}_{}_{}.pkl".format(WORKING_EXAMPLES_FOLDER, net_name, examples_found,
+                                                                  y_idx_max, i)
+                        with open(pickle_path, "wb") as f:
+                            pickle.dump({'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
+                                         'other_idx': i}, f)
+
+            # np.save(, in_tensor)
+            print("######### found example {}: {} ### \n {} \n #################".format(examples_found, net_name,
+                                                                                         str(in_tensor).replace(' ',
+                                                                                                                ', ')))
+            examples_found += 1
+            # not_found = False
+            if examples_found >= 10:
+                return
 
 
 if __name__ == "__main__":
-    # test_20classes_1rnn3_0fc_pass()
-    # test_20classes_1rnn3_0fc_fail()
-    # test_20classes_1rnn2_0fc_template_input_pass()
-    # test_20classes_1rnn2_0fc_template_input_fail()
+    # search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn4_0_2_4.h5")
+    search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
+    # search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn4_1_32_4.h5")
+
+    #
+    # import multiprocessing
+    # from functools import partial
+    # worker = partial(search_for_input, path="{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER))
+    # for i in range(5):
+    #     p = multiprocessing.Process(target=worker)
+    #     p.start()
+    # search_for_input("{}/model_classes20_1rnn8_0_32_4.h5".format(MODELS_FOLDER))
+    # search_for_input("{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER))
+
     # test_20classes_1rnn2_0fc_pass()
     # test_20classes_1rnn2_0fc_fail()
+    # test_20classes_1rnn2_0fc_template_input_pass()
+    # test_20classes_1rnn2_0fc_template_input_fail()
     # test_20classes_1rnn2_1fc32_pass()
     # test_20classes_1rnn2_1fc32_fail()
+    #
+    # test_20classes_1rnn3_0fc_pass()
+    # test_20classes_1rnn3_0fc_fail()
+    # test_20classes_1rnn4_0fc_pass()
+    # test_20classes_1rnn4_0fc_fail()
+    # test_20classes_1rnn4_1fc32()
+    #
+    # test_20classes_1rnn8_0fc()
 
-    test_20classes_1rnn4_0fc_pass()
-    test_20classes_1rnn4_0fc_fail()
-
-    # test_20classes_1rnn8_0fc_pass()
-    # test_5classes_1rnn2_0fc_pass()
-    # test_5classes_1rnn2_0fc_fail()
     # n_inputs = 40
     # y_idx_max = 1  # 2
     # assert adversarial_query([1] * n_inputs, 0, y_idx_max, "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
