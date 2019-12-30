@@ -95,7 +95,7 @@ class IterateAlphasSGD:
             self._update_invariant_equation(i)
 
         # the property steps are much slower, for each step we do all inductive steps at the worst case
-        self.property_steps = 15
+        self.property_steps = 60
         # self.alphas_le = [AlphaSearchSGD() for _ in range(len(initial_values[0]))]
         assert len(self.rnn_output_idxs) == len(self.rnn_start_idxs)
         assert len(self.rnn_output_idxs) == len(self.alphas)
@@ -132,7 +132,7 @@ class IterateAlphasSGD:
                 self._update_invariant_equation(i)
                 # Get inductive Alphas updates the equations
                 if self.getInductiveAlphas(invariant_oracle):
-                    # print("proved an invariant:", [a.get() for a in self.alphas])
+                    print("proved an invariant:", [a.get() for a in self.alphas])
                     if property_oracle(self.invariant_equations):
                         return self.alphas
                 else:
@@ -173,7 +173,9 @@ class IterateAlphasSGD:
         while counter <= self.inductive_steps:
             counter += 1
             if not all_ge_proved:
+                prev_proved = all_ge_proved
                 all_ge_proved = self._proveInductiveAlphasOnce(invariant_oracle, ge_invariant_eq_idx)
+                assert prev_proved in all_ge_proved
             if not all_le_proved:
                 all_le_proved = self._proveInductiveAlphasOnce(invariant_oracle, le_invariant_eq_idx)
 

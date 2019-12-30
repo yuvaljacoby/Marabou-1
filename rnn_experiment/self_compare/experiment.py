@@ -3,6 +3,7 @@ from maraboupy.MarabouRNNMultiDim import prove_multidim_property
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.MaxAlphasSGDInfStart import MaxAlphasSGD
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
+from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
 from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation
 from maraboupy import MarabouCore
 from timeit import default_timer as timer
@@ -45,8 +46,18 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     rnn_min_values = [val[0] for val in initial_values]
 
     assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
+    # initial_values, rnn_start_idxs, rnn_output_idxs, w_h, w_i, bias, prev_layer_min, prev_layer_max, n_iterations
+    if algorithm_ptr == SmtAlphaSearch:
+        import tensorflow.keras as keras
+        # TODO: Works for very very spesific case (1rnn cell as the first layer)
+        x_min_vals = [x[0] for x in xlim]
+        x_max_vals = [x[1] for x in xlim]
 
-    algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
+        [w_in, w_h, bias] = keras.models.load_model(h5_file_path).layers[0].get_weights()
+        algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs, w_h, w_in, bias,
+                                  x_min_vals, x_max_vals, n_iterations)
+    else:
+        algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
     # rnn_model.network.dump()
     return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
                                    algorithm)
@@ -487,11 +498,14 @@ if __name__ == "__main__":
      'radius': 0.01, 'h5_path': "{}/model_classes20_1rnn2_0_64_4_no_bias.h5".format(MODELS_FOLDER),
      'n_iterations': 4}
     exp = {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
-     'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 100}
+     'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
+    # assert adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
+    #                          SmtAlphaSearch, exp['n_iterations'])
+    # exit(0)
     assert adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
                              IterateAlphasSGD, exp['n_iterations'])
-    assert not adversarial_query(exp['in_tensor'], exp['radius'], exp['other_idx'], exp['idx_max'], exp['h5_path'],
-                                 IterateAlphasSGD, exp['n_iterations'])
+    # assert not adversarial_query(exp['in_tensor'], exp['radius'], exp['other_idx'], exp['idx_max'], exp['h5_path'],
+    #                              IterateAlphasSGD, exp['n_iterations'])
     exit(0)
     for exp in experiemnts:
         exp_res = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],

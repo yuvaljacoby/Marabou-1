@@ -242,11 +242,10 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     for i, ls_eq in enumerate(base_eq):
         for eq in ls_eq:
             network.addEquation(eq)
-        # network.dump()
         marabou_result = marabou_solve_negate_eq(network, print_vars=True)
         # print('induction base query')
-        # if not marabou_result:
-        #     network.dump()
+        # network.dump()
+
         for eq in ls_eq:
             network.removeEquation(eq)
 
@@ -268,9 +267,10 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
             # eq.dump()
             network.addEquation(eq)
 
-        # print("Querying for induction step")
 
-        marabou_result = marabou_solve_negate_eq(network)
+        # print("Querying for induction step: {}".format(marabou_result))
+        marabou_result = marabou_solve_negate_eq(network) #, True, True)
+        # network.dump()
 
         if not marabou_result:
             # for eq in hypothesis_eq:
@@ -372,14 +372,14 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
 
         # TODO: This is only for debug
         # before we prove the property, make sure the invariants does not contradict each other, expect SAT from marabou
-        assert not marabou_solve_negate_eq(network, False, False)
+        # assert not marabou_solve_negate_eq(network, False, False)
 
         for eq in property_equations:
             if eq is not None:
                 network.addEquation(eq)
         res = marabou_solve_negate_eq(network, False, False)
+        # network.dump()
         if res:
-            # network.dump()
             pass
         for eq in invariant_equations + property_equations:
             if eq is not None:
@@ -397,10 +397,13 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_e
     # Get first batch of inductive alphas
     alphas = algorithm.getAlphasThatProveProperty(invariant_oracle, property_oracle)
     if alphas:
-        print('property proved using alphas:', [a.get() for a in alphas])
+        if type(alphas[0]) == float or alphas[0] is None:
+            print('property proved using alphas:', [a for a in alphas])
+        else:
+            print('property proved using alphas:', [a.get() for a in alphas])
         return True
     else:
-        print('failed to prove property, last used alphas are:', [a.get() for a in algorithm.alphas])
+        print('failed to prove property, last used alphas are:', [a.get() for a in algorithm.alphas if a])
         return False
 
 
