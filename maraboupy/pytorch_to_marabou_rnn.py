@@ -107,8 +107,6 @@ class MnistModel():
         property_eq.setScalar(max_value)
         rnn_start_idxs = [i - 3 for i in self.rnn_output_idxs]
 
-        # return prove_multidim_property2(self.network, rnn_start_idxs, self.rnn_output_idxs, self.rnn_initial_values,
-        #                                [property_eq])
         algorithm = IterateAlphasSGD(self.rnn_initial_values, rnn_start_idxs, self.rnn_output_idxs)
         return prove_multidim_property(self.network, rnn_start_idxs, self.rnn_output_idxs, [property_eq], algorithm)
 

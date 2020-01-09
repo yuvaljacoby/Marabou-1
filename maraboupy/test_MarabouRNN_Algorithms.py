@@ -70,6 +70,7 @@ def test_auto_positive_sum_positive_iterateSGD():
     assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_eqs, algorithm)
 
 
+
 def auto_positive_sum_positive_SMTbase():
     num_iterations = 10
     xlim = (-1, 1)
@@ -83,6 +84,7 @@ def auto_positive_sum_positive_SMTbase():
                                [0], [xlim[0]], [xlim[1]], num_iterations)
     assert prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_eqs, algorithm)
 
+
 if __name__ == "__main__":
-    # test_auto_positive_sum_positive_iterateSGD()
-    auto_positive_sum_positive_SMTbase()
+    test_auto_positive_sum_positive_iterateSGD()
+    # auto_positive_sum_positive_SMTbase()

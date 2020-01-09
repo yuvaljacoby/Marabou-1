@@ -2,12 +2,14 @@ from maraboupy import MarabouCore
 import tensorflow as tf
 import numpy as np
 import pickle
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property, add_rnn_multidim_cells, negate_equation
-from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
+from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, negate_equation, prove_multidim_property
+from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD, relative_step, absolute_step
+from timeit import default_timer as timer
 
 SMALL = 10 ** -2
 LARGE = 5000
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
+
 WORKING_EXAMPLES_FOLDER = "/home/yuval/projects/Marabou/working_arrays"
 
 
@@ -90,7 +92,8 @@ class RnnMarabouModel():
 
                     # It's only one iteration so the hidden weights (and bias) is zeroed
                     # TODO: Is the bias zero?
-                    in_w, _, _ = layer.get_weights()
+                    # TODO: Add b
+                    in_w, _, b = layer.get_weights()
                     for rnn_dim_weights in in_w.T:
                         max_val = 0
                         min_val = 0
@@ -103,7 +106,7 @@ class RnnMarabouModel():
                                 max_val += w * xlim[j][0]
                                 min_val += w * xlim[j][1]
                         # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
-                        # min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
+                        min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
                         initial_values.append((relu(min_val), relu(max_val)))
                     # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
                     self.query_marabou_to_improve_values(initial_values)
@@ -501,7 +504,7 @@ def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx
 
 
 def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, n_iterations=10,
-                      is_fail_test=False):
+                      is_fail_test=False, alpha_step_policy_ptr=absolute_step):
     '''
     Query marabou with adversarial query
     :param x: base_vector (input vector that we want to find a ball around it)
@@ -543,10 +546,12 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     rnn_min_values = [val[0] for val in initial_values]
 
     assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-    algorithm = IterateAlphasSGD((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
+    algorithm = IterateAlphasSGD((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs,
+                                 alpha_step_policy_ptr=alpha_step_policy_ptr)
     # rnn_model.network.dump()
-    return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
-                                   algorithm)
+    res, alphas = prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
+                                          algorithm, return_alphas=True)
+    return res
 
 
 def test_20classes_1rnn2_1fc2_fail():
@@ -555,7 +560,7 @@ def test_20classes_1rnn2_1fc2_fail():
     other_idx = 19
 
     assert not adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", is_fail_test=True)
+                                 "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
 def test_20classes_1rnn2_1fc2_pass():
@@ -564,7 +569,7 @@ def test_20classes_1rnn2_1fc2_pass():
     other_idx = 10
 
     assert adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", is_fail_test=False)
+                             "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=False)
 
 
 def test_20classes_1rnn2_1fc32_pass():
@@ -577,7 +582,7 @@ def test_20classes_1rnn2_1fc32_pass():
         if other_idx != y_idx_max:
             other_idx = i
             results.append(adversarial_query([1] * n_inputs, 0, y_idx_max, other_idx,
-                                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5",
+                                             "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
                                              is_fail_test=False))
             print(results)
     assert sum(results) == 19, 'managed to prove on {}%'.fromat((19 - sum(results)) / 19)
@@ -589,7 +594,7 @@ def test_20classes_1rnn2_1fc32_fail():
     other_idx = 13
 
     assert not adversarial_query([1] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5",
+                                 "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
                                  is_fail_test=True)
 
 
@@ -599,7 +604,7 @@ def test_20classes_1rnn2_1fc32_pass():
     other_idx = 0
 
     assert adversarial_query([1] * n_inputs, 0.05, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5",
+                             "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
                              is_fail_test=False)
 
 
@@ -759,17 +764,19 @@ def test_20classes_1rnn8_1fc32():
                                  is_fail_test=True)
 
 
-def search_for_input(path):
+def search_for_input(path, alpha_step_policy_ptr=absolute_step):
     n_inputs = 40
     # not_found = True
     n_iterations = 5
     examples_found = 0
     # from datetime import datetime
     # np.random.seed(datetime.now().microsecond)
-    for j in range(1000):
+    for j in range(300):
+        start = timer()
         in_tensor = np.random.random((n_inputs,))
 
-        if adversarial_query(in_tensor, 0, None, None, path, is_fail_test=False, n_iterations=n_iterations):
+        if adversarial_query(in_tensor, 0, None, None, path, is_fail_test=False, n_iterations=n_iterations,
+                             alpha_step_policy_ptr=alpha_step_policy_ptr):
             # found an example that works, try to get multiple adv queris that work
             out = get_output_vector(path, in_tensor, n_iterations)
             net_name = path.split(".")[0].split("/")[-1]
@@ -801,12 +808,29 @@ def search_for_input(path):
             # not_found = False
             if examples_found >= 10:
                 return
+        end = timer()
+        print("*************** fail to prove iteration: {} took: {} ***************".format(j, end - start))
 
 
 if __name__ == "__main__":
-    # search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn4_0_2_4.h5")
-    search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
-    # search_for_input("/home/yuval/projects/Marabou/model_classes20_1rnn4_1_32_4.h5")
+    # search_for_input("/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5", relative_step)
+    in_tensor = np.array([0.37205514, 0.84609851, 0.34888652, 0.099101, 0.8797378, 0.02679134
+                             , 0.18232116, 0.18231391, 0.12444646, 0.8643345, 0.77595206, 0.16838746
+                             , 0.22769657, 0.55295006, 0.32333069, 0.26841413, 0.67070145, 0.96513381
+                             , 0.89063008, 0.11651877, 0.30640328, 0.70550923, 0.01069241, 0.22659354
+                             , 0.11761449, 0.35928134, 0.13414231, 0.56152431, 0.34172535, 0.81053337
+                             , 0.37676732, 0.19970681, 0.60641318, 0.20872408, 0.20356423, 0.24063641
+                             , 0.32073923, 0.41748575, 0.44155234, 0.63568076])
+    assert adversarial_query(in_tensor, 0, None, None,
+                             "/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5",
+                             is_fail_test=False, alpha_step_policy_ptr=relative_step)
+
+    exit(0)
+    # search_for_input("{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER))
+
+    search_for_input("{}/model_classes20_1rnn8_0_0_100.h5".format(MODELS_FOLDER), absolute_step)
+    # search_for_input("{}/model_classes20_1rnn8_0_0_100.h5".format(MODELS_FOLDER), relative_step)
+    # search_for_input("{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER))
 
     #
     # import multiprocessing
@@ -835,6 +859,6 @@ if __name__ == "__main__":
 
     # n_inputs = 40
     # y_idx_max = 1  # 2
-    # assert adversarial_query([1] * n_inputs, 0, y_idx_max, "/home/yuval/projects/Marabou/model_classes20_1rnn8_0_64_100.h5")
+    # assert adversarial_query([1] * n_inputs, 0, y_idx_max, "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER))
     # assert adversarial_query([1] * n_inputs, 0, y_idx_max,
-    #                          "/home/yuval/projects/Marabou/model_classes5_1rnn2_0_64_4.h5")
+    #                          "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER))

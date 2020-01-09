@@ -1,195 +1,170 @@
 from maraboupy.MarabouRNNMultiDim import alpha_to_equation, double_list
 from maraboupy import MarabouCore
 
-class AlphaSearchSGD:
+
+sign = lambda x: 1 if x >= 0 else -1
+
+
+def relative_step(threshold=0.2, relative_step_size=0.3, init_after_threshold=0.5):
     '''
-    This is a class for a single alpha, how to update it
+    Create a function that is doing a relative step in the form:
+    if alpha <= threshold:
+        return init_after_threshold * direction
+    else:
+        return alphas + step
+    where step is: direction * alpha * relative_step_size * sign(alpha)
+    :return: function pointer that given alpha and direction returning the new alpha
     '''
 
-    def __init__(self):
-        self.alpha = 0
-        self.old_alpha = None
-        self.large = 10
-        self.next_step = None
-        # self.reset_search()
-
-    def proved_alpha(self):
-        '''
-        Update with the last used alpha that is proved to work
-        :param used_alpha:
-        :return:
-        '''
-        pass
-        # temp_alpha = self.get()
-        # if self.alpha is not None and temp_alpha > self.alpha:
-        #     self.alpha = temp_alpha
-
-    def reset_search(self):
-        self.max_val = self.large
-        self.min_val = -self.large
-        self.old_alpha = self.get()
-
-    def update_invariant_fail(self):
-        '''
-        Next time the will get a larger alpha
-        :param used_alpha:
-        :return:
-        '''
-
-        direction = 1
-        self.step(direction)
-
-    def update_property_fail(self):
-        '''
-        Update the using this alpha a property failed, next time will get smaller alpha
-        :param used_alpha:
-        :return: Wheather we can still improve this alpha or not
-        '''
-        direction = -1
-        # self.max_val = self.get()
-        self.step(direction)
-        # print("property fail use smaller alpha, new alpha:", self.alpha)
-        return self.alpha < self.large
-
-    def step(self, direction):
-        sign = lambda x: 1 if x >= 0 else -1
-        self.prev_alpha = self.alpha
-        if abs(self.alpha) > 0.2:
-            self.alpha = self.alpha + (
-                    direction * self.alpha * 0.3 * sign(self.alpha))  # do step size 0.3 to the next direction
+    def do_relative_step(alpha, direction):
+        if abs(alpha) > threshold:
+            return alpha + (
+                    direction * alpha * relative_step_size * sign(alpha))  # do step size 0.3 to the next direction
         else:
-            self.alpha = 0.5 * direction
-        return self.alpha
+            return init_after_threshold * direction
 
-    def get(self):
-        return self.alpha
-        # if self.old_alpha is not None:
-        #     old_alpha = self.old_alpha
-        #     self.old_alpha = None
-        #     return old_alpha
+    return do_relative_step
 
-        # return (self.max_val + self.min_val) / 2
+
+def absolute_step(step_size=0.1):
+    '''
+     Create a function that is doing an absolute step in the form:
+     alpha + (step_size * direction)
+     :return: function pointer that given alpha and direction returning the new alpha
+     '''
+
+    def do_relative_step(alpha, direction):
+        return alpha + (direction * step_size)
+
+    return do_relative_step
+
+
+class IterateAlphaSGDOneSideBound:
+    def __init__(self, initial_values, rnn_start_idxs, rnn_output_idxs, inv_type, alpha_initial_value=0,
+                 alpha_step_policy=relative_step()):
+        '''
+        :param initial_values: list of values (min / max)
+        :param rnn_start_idxs:
+        :param rnn_output_idxs:
+        '''
+        self.rnn_start_idxs = rnn_start_idxs
+        self.rnn_output_idxs = rnn_output_idxs
+        self.initial_values = initial_values
+        self.inv_type = inv_type
+        self.next_idx_step = 0
+        self.prev_alpha = None
+        self.prev_idx = None
+        self.alpha_step_func = alpha_step_policy
+
+        self.first_call = True
+        assert inv_type in [MarabouCore.Equation.LE, MarabouCore.Equation.GE]
+
+        self.alphas = [alpha_initial_value] * len(initial_values)
+        self.equations = [None] * len(self.alphas)
+        for i in range(len(self.alphas)):
+            self.update_equation(i)
+
+    def update_next_idx_step(self):
+        self.next_idx_step = (self.next_idx_step + 1) % len(self.alphas)
+        return self.next_idx_step
+
+    def do_step(self, strengthen=True):
+        '''
+        do a step in the one of the alphas
+        :param strengthen: determines the direction of the step if True will return a stronger suggestion to invert, weaker otherwise
+        :return list of invariant equations (that still needs to be proven)
+        '''
+        self.first_call = False
+        if strengthen:
+            direction = -1
+        else:
+            direction = 1
+
+        i = self.next_idx_step
+
+        self.prev_alpha = self.alphas[self.next_idx_step]
+        self.prev_idx = self.next_idx_step
+        self.alphas[i] = self.alpha_step_func(self.alphas[i], direction)
+
+        self.update_equation(i)
+        self.update_next_idx_step()
+        return self.equations
+
+    def update_equation(self, idx):
+        self.equations[idx] = alpha_to_equation(self.rnn_start_idxs[idx], self.rnn_output_idxs[idx],
+                                                self.initial_values[idx], self.alphas[idx], self.inv_type)
+
+    def revert_last_step(self):
+        if self.prev_idx is not None:
+            self.alphas[self.prev_idx] = self.prev_alpha
+            self.update_equation(self.prev_idx)
+
+    def get_equations(self):
+        return self.equations
+
+    def get_alphas(self):
+        return self.alphas
+
 
 class IterateAlphasSGD:
-    def __init__(self, initial_values, rnn_start_idxs, rnn_output_idxs):
+    def __init__(self, initial_values, rnn_start_idxs, rnn_output_idxs, alpha_initial_value=0,
+                 alpha_step_policy_ptr=relative_step):
         '''
-
         :param initial_values: tuple of lists, [0] is list of min values, [1] for max values
         :param rnn_start_idxs:
         :param rnn_output_idxs:
         '''
 
-        self.rnn_start_idxs = double_list(rnn_start_idxs)
-        self.rnn_output_idxs = double_list(rnn_output_idxs)
-        min_values = initial_values[0]
-        max_values = initial_values[1]
-        self.initial_values = [item for i in range(len(min_values)) for item in [min_values[i], max_values[i]]]
-        # times two to have for each invariant ge and le
-        self.alphas = [AlphaSearchSGD() for _ in range(len(self.initial_values))]
-        self.inv_type = [MarabouCore.Equation.GE if i % 2 == 0 else MarabouCore.Equation.LE for i in
-                         range(len(self.alphas))]
+        # The initial values are opposite to the intuition, for LE we use max_value
+        self.next_is_max = True
 
-        self.inductive_steps = 50
-        self.invariant_equations = [None] * len(self.alphas)
-        for i in range(len(self.alphas)):
-            self._update_invariant_equation(i)
+        self.alpha_initial_value = alpha_initial_value
+        self.alpha_step_policy_ptr = alpha_step_policy_ptr
+        self.alpha_step_policy = self.alpha_step_policy_ptr()
 
-        # the property steps are much slower, for each step we do all inductive steps at the worst case
-        self.property_steps = 60
-        # self.alphas_le = [AlphaSearchSGD() for _ in range(len(initial_values[0]))]
-        assert len(self.rnn_output_idxs) == len(self.rnn_start_idxs)
-        assert len(self.rnn_output_idxs) == len(self.alphas)
-        assert len(self.rnn_output_idxs) == len(self.initial_values)
-        assert len(self.rnn_output_idxs) == len(self.invariant_equations)
+        self.min_invariants = IterateAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
+                                                          MarabouCore.Equation.LE, alpha_initial_value,
+                                                          self.alpha_step_policy)
+        self.max_invariants = IterateAlphaSGDOneSideBound(initial_values[0], rnn_start_idxs, rnn_output_idxs,
+                                                          MarabouCore.Equation.GE, alpha_initial_value,
+                                                          self.alpha_step_policy)
+        self.last_fail = None
 
-    def _update_invariant_equation(self, i):
-        self.invariant_equations[i] = alpha_to_equation(self.rnn_start_idxs[i], self.rnn_output_idxs[i],
-                                                        self.initial_values[i], self.alphas[i].get(), self.inv_type[i])
+    def name(self):
+        return 'iterate_sgd_init{}_step{}'.format(self.alpha_initial_value, self.alpha_step_policy_ptr.__name__  )
 
-    def getAlphasThatProveProperty(self, invariant_oracle, property_oracle):
+    def do_step(self, strengthen=True):
         '''
-        Look for alphas that prove the property using the "SGD" algorithm.
-        i.e. we first check if basic alphas work, if not
-        for each alpha:
-            check that it's inductive (if not fix)
-            check if property holds
-        we do this loop property_steps times
-        :param invariant_oracle: function pointer, input is list of marabou equations, output is whether this is a valid invariant
-        :param property_oracle: function pointer, input is list of marabou equations, output is whether the property holds using this invariants
-        :return: list of alphas if proved, None otherwise
+        do a step in the one of the alphas
+        :param strengthen: determines the direction of the step if True will return a stronger suggestion to invert, weaker otherwise
+        :return list of invariant equations (that still needs to be proven)
         '''
-        # TODO: How can I do this I did not prove the invariant holds...
-        # First check if need if the property holds
-        # if property_oracle(self.invariant_equations):
-        #     return self.alphas
-        # Run maximum property_steps
-        counter = 0
-        while counter < self.property_steps:
-            counter += 1
-            # Do a step to improve each alpha, after that make sure they are inductive and try to prove the propety
-            for i, alpha in enumerate(self.alphas):
-                alpha.update_property_fail()
-                self._update_invariant_equation(i)
-                # Get inductive Alphas updates the equations
-                if self.getInductiveAlphas(invariant_oracle):
-                    print("proved an invariant:", [a.get() for a in self.alphas])
-                    if property_oracle(self.invariant_equations):
-                        return self.alphas
-                else:
-                    # print("fail to prove inductive alphas cur alphas::", [a.get() for a in self.alphas])
-                    return None
-        return None
 
-    def _proveInductiveAlphasOnce(self, invariant_oracle, invariant_equations_idx):
-        prove_inv_res = invariant_oracle([self.invariant_equations[i] for i in invariant_equations_idx])
+        # TODO: If this condition is true it means the last step we did was not good, and we can decide what to do next
+        #  (for example revert, and once passing all directions do a big step)
+        if self.last_fail == strengthen:
+            pass
+        self.last_fail = strengthen
 
-        for i, res in enumerate(prove_inv_res):
-            # i is an index in the current invariant_equations which is a subset of the entire invariants
-            idx = invariant_equations_idx[i]
-            if res:
-                self.alphas[idx].proved_alpha()
-            else:
-                # Doing a step
-                self.alphas[idx].update_invariant_fail()
-                self._update_invariant_equation(idx)
+        if self.next_is_max:
+            res = self.max_invariants.do_step(strengthen) + self.min_invariants.get_equations()
+        else:
+            res = self.min_invariants.do_step(strengthen) + self.max_invariants.get_equations()
 
-                # Update the results (might be that we proved something new)
-                # prove_inv_res = invariant_oracle([self.invariant_equations[i] for i in invariant_equations_idx])
-                # print("after invariant fail, new_alphas:", [a.get() for a in self.alphas])
-        return all(prove_inv_res)
+        self.next_is_max = not (self.next_is_max)
+        return res
 
-    def getInductiveAlphas(self, invariant_oracle):
+    def revert_last_step(self):
         '''
-        Do a step to get better alphas, use the oracle to verify that they are valid invariant
-        :param invariant_oracle: function pointer, input is list marabou equations values output is whether this is a valid invariant
-        :return: list of alphas if found better invariant, otherwise None
+        If last step did not work, call this to revert it (and then we still have a valid invariant)
         '''
-        ge_invariant_eq_idx = [i for i in range(len(self.inv_type)) if self.inv_type[i] == MarabouCore.Equation.GE]
-        le_invariant_eq_idx = [i for i in range(len(self.inv_type)) if self.inv_type[i] == MarabouCore.Equation.LE]
-        assert sorted(ge_invariant_eq_idx + le_invariant_eq_idx) == list(range(len(self.inv_type)))
-        all_ge_proved = False
-        all_le_proved = False
-        counter = 0
-        while counter <= self.inductive_steps:
-            counter += 1
-            if not all_ge_proved:
-                prev_proved = all_ge_proved
-                all_ge_proved = self._proveInductiveAlphasOnce(invariant_oracle, ge_invariant_eq_idx)
-                assert prev_proved in all_ge_proved
-            if not all_le_proved:
-                all_le_proved = self._proveInductiveAlphasOnce(invariant_oracle, le_invariant_eq_idx)
+        if self.next_is_max:
+            self.min_invariants.revert_last_step()
+        else:
+            self.max_invariants.revert_last_step()
 
-            if all_ge_proved and all_le_proved:
-                # Make sure the invariants do not contrdicte each other (we have a lower bound and an upper bound on each cell)
-                for i in range(0, len(self.alphas), 2):
-                    # The invariant order is GE, LE, GE, LE ....
-                    # But when we create an LE equation we multiply alpha by -1
-                    assert self.alphas[i].alpha >= -1 * self.alphas[i + 1].alpha, [a.alpha for a in self.alphas]
+    def get_equations(self):
+        return self.max_invariants.get_equations() + self.min_invariants.get_equations()
 
-                return True
-
-        print("didn't find invariant")
-        return False
-
-    def __name__(self):
-        return 'iterate_sgd'
+    def get_alphas(self):
+        return self.max_invariants.get_alphas() + self.min_invariants.get_alphas()

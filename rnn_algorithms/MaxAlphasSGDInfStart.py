@@ -137,7 +137,7 @@ class MaxAlphasSGD:
 
             proved_inv = self.checkIfInductive(invariant_oracle)
             if all(proved_inv):
-                print("proved an invariant:", [a.get() for a in self.alphas])
+                # print("proved an invariant:", [a.get() for a in self.alphas])
                 if property_oracle(self.invariant_equations):
                     return self.alphas
                 else:

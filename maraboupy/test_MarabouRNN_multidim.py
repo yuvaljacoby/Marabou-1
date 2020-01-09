@@ -1,6 +1,6 @@
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, \
-    negate_equation
+from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, \
+    negate_equation, prove_multidim_property
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 
 import numpy as np

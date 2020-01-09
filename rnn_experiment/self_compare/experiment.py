@@ -2,14 +2,16 @@ from maraboupy.MarabouRNNMultiDim import prove_multidim_property
 
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.MaxAlphasSGDInfStart import MaxAlphasSGD
-from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
+from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD, absolute_step, relative_step
 from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
 from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation
 from maraboupy import MarabouCore
 from timeit import default_timer as timer
 import numpy as np
+from functools import partial
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
+NEW_VCTK_FOLDER = "/home/yuval/projects/Marabou/models_new_vctk/"
 
 
 def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
@@ -59,7 +61,8 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     else:
         algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
     # rnn_model.network.dump()
-    return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
+
+    return prove_multidim_property(rnn_model, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
                                    algorithm)
 
 
@@ -89,17 +92,32 @@ def classes20_1rnn2_1fc2():
 def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterations):
     results = {}
     # algorithms = [MaxAlphasSGD, IterateAlphasSGD, RandomAlphasSGD]
-    algorithms = [IterateAlphasSGD]
-    for algo in algorithms:
+    IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, alpha_step_policy_ptr=absolute_step)
+
+    IterateAlphasSGD_absolute_step10 = partial(IterateAlphasSGD,
+                                               alpha_step_policy_ptr=partial(absolute_step, step_size=10))
+    IterateAlphasSGD_relative_small = partial(IterateAlphasSGD,
+                                              alpha_step_policy_ptr=partial(relative_step, threshold=0.05,
+                                                                            relative_step_size=0.1,
+                                                                            init_after_threshold=0.1))
+    algorithms_ptrs = {'SGD_iterate_relative_default': IterateAlphasSGD,
+                       'SGD_random_relative_default': RandomAlphasSGD,
+                       # 'SGD_iterate_step_10': IterateAlphasSGD_absolute_step10,
+                       # 'SGD_iterate_step_default': IterateAlphasSGD_absolute_step,
+                       # 'SGD_iterate_relative_small': IterateAlphasSGD_relative_small
+                       }
+    for name, algo_ptr in algorithms_ptrs.items():
         start = timer()
-        res = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo, n_iterations)
+        res = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr, n_iterations)
         end = timer()
-        results[algo.__name__] = {'time': end - start, 'result': res}
+        results[name] = {'time': end - start, 'result': res}
         print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
     return results
 
 
 experiemnts = [
+    {'idx_max': 9, 'other_idx': 2, 'in_tensor': np.array([10] * 40),
+     'radius': 0, 'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 1000},
     {'idx_max': 9, 'other_idx': 14, 'in_tensor': np.array([0.43679032, 0.51105192, 0.01603254, 0.45879329, 0.64639347,
                                                            0.39209051, 0.98618169, 0.49293316, 0.70440262, 0.08594672,
                                                            0.17252591, 0.4940284, 0.83947774, 0.55545332, 0.8971317,
@@ -109,8 +127,6 @@ experiemnts = [
                                                            0.96969836, 0.99457045, 0.89433312, 0.19916606, 0.63957592,
                                                            0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289]),
      'radius': 0.01, 'h5_path': "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), 'n_iterations': 10},
-    {'idx_max': 9, 'other_idx': 2, 'in_tensor': np.array([10] * 40),
-     'radius': 0.1, 'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 1000},
     {'idx_max': 13, 'other_idx': 0, 'in_tensor': np.array([1] * 40),
      'radius': 0.05, 'h5_path': "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER), 'n_iterations': 10},
     {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
@@ -494,28 +510,18 @@ if __name__ == "__main__":
     #                                   exp['n_iterations'])
     # exit(0)
 
-    exp = {'idx_max': 9, 'other_idx': 2, 'in_tensor': np.array([10] * 40),
-     'radius': 0.01, 'h5_path': "{}/model_classes20_1rnn2_0_64_4_no_bias.h5".format(MODELS_FOLDER),
-     'n_iterations': 4}
-    exp = {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
-     'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
-    # assert adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-    #                          SmtAlphaSearch, exp['n_iterations'])
-    # exit(0)
-    assert adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-                             IterateAlphasSGD, exp['n_iterations'])
-    # assert not adversarial_query(exp['in_tensor'], exp['radius'], exp['other_idx'], exp['idx_max'], exp['h5_path'],
-    #                              IterateAlphasSGD, exp['n_iterations'])
-    exit(0)
+
     for exp in experiemnts:
         exp_res = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
                                      exp['n_iterations'])
         exp_name = exp['h5_path'].split('.')[0].split('/')[-1] + '_' + str(exp['n_iterations'])
         all_results.append((exp_name, exp_res))
-        print("Finish Test: {}, results: {}".format(exp_name, exp_res))
+        test_pass = all([d[1]['result'] for d in exp_res.items()])
+        print("Finish Test: {},{}, results: {}".format(exp_name, test_pass, exp_res))
 
     for result in all_results:
-        print("Finish Test: {}, results: {}".format(result[0], result[1]))
+        test_pass = all([d[1]['result'] for d in exp_res.items()])
+        print("Finish Test: {}, {}, results: {}".format(result[0], test_pass, result[1]))
     import pickle
 
     pickle.dump(all_results, open("all_results.pkl", "wb"))
