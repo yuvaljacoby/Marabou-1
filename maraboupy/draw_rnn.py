@@ -8,7 +8,7 @@ from tqdm import tqdm
 MIN_GRID = -2
 MAX_GRID = 5
 NUM_POINTS_TO_SAMPLE = 1000
-
+EPS = 10 ** -4
 
 def ReLU(x):
     '''
@@ -39,8 +39,7 @@ def calc_rnn_values(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int):
     r = np.zeros((num_steps + 1, d))
 
     for i in range(1, num_steps + 1):
-        # Pretty sure that this is how to change to non linear but didn't check
-        r[i, ...] = ReLU(x * w_in + np.matmul(w_h, r[i-1, ...]))
+        r[i, ...] = ReLU(np.matmul(x,w_in) + np.matmul(w_h, r[i-1, ...]))
         # r[i, ...] = x * w_in + np.matmul(w_h, r[i - 1, ...])
 
     return r[1:, :]
@@ -105,14 +104,33 @@ def constraint_conjunction(constraints):
     return all_constraints
 
 
-def draw(constraints, min_val, max_val, c="Greys"):
+def translate_points_to_grid(min_val, max_val, length, points):
+    index_point_map =  np.array([min_val + ((max_val - min_val) / length * i) for i in range(length)])
+    grid_points = []
+    for (x,y) in points:
+        x_grid = np.argmax(index_point_map > x)
+        y_grid = np.argmax(index_point_map > y)
+        grid_points.append([x_grid, y_grid])
+    return grid_points
+
+def draw(constraints, min_val, max_val, c="Greys", points=None):
     all_constraints = constraint_conjunction(constraints)
+
 
     im = plt.imshow((all_constraints).astype(int),
                     extent=(min_val, max_val, min_val, max_val),
                     origin="lower", cmap=c)
-    plt.xlabel('alpha0')
-    plt.ylabel('alpha1')
+    # plt.show()
+    if points:
+        # grid_points = translate_points_to_grid(min_val, max_val, all_constraints.shape[0], points)
+        grid_points = points
+        for i in range(0, len(grid_points), 2):
+            # x_points = [grid_points[i][0], grid_points[i+1][0]]
+            # y_points = [grid_points[i][1], grid_points[i + 1][1]]
+            plt.scatter(grid_points[i][0], grid_points[i][1], c='black', s=1)
+
+    plt.xlabel(r'$\alpha_0$')
+    plt.ylabel(r'$\alpha_1$')
     plt.show()
 
 
@@ -148,15 +166,18 @@ def get_2d_constraints(x, w_in, w_h, num_steps):
     a0, a1 = np.meshgrid(d, d)
     induction_constraints = []
     a0_constraints = []
+    # Using i and not (i-1) because we start from 1 in r
     for i, v in enumerate(r0):
-        a0_constraints.append(ReLU(a0 * i + x * w_in[0]) >= v)
+        a0_constraints.append(v - ReLU(a0 * i + np.matmul(x, w_in[:, 0])) < EPS)
         # we removed + x * w_in[0] from both sides of the equation
         induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1]))
 
 
     a1_constraints = []
     for i, v in enumerate(r1):
-        a1_constraints.append(ReLU(a1 * i + x) >= v)
+        # a1_constraints.append(ReLU(a1 * i + x) >= v)
+        a1_constraints.append(v - ReLU(a1 * i + np.matmul(x, w_in[:, 1])) < EPS)
+        # a1_constraints.append(np.abs(ReLU(a1 * i + np.matmul(x, w_in[:, 1])) - v) < EPS)
         # we removed + x * w_in[1] from both sides of the equation
         induction_constraints.append(a1 * i >= ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1]))
 
@@ -164,14 +185,19 @@ def get_2d_constraints(x, w_in, w_h, num_steps):
     return max_constraints, induction_constraints
 
 
-def draw_max_alphas(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int):
-    a0_constraints, a1_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
+def draw_max_alphas(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int, points=None):
+    max_constraints, induction_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
 
-    plt.title("max alpha region")
-    plt.xlabel("alpha_0 max")
-    plt.ylabel("alpha_1 max")
-    draw(a0_constraints, MIN_GRID, MAX_GRID)
-    draw(a1_constraints, MIN_GRID, MAX_GRID, 'BuPu')
+    # Here we calculate the actual values and check for points that hold them
+    plt.title("Actual Values")
+    # draw(max_constraints, MIN_GRID, MAX_GRID, )
+
+    # Here we use the induction hyptoesis which over approximate the actual values
+    plt.title("Values that are provable via induction")
+    # draw(induction_constraints, MIN_GRID, MAX_GRID)
+
+    plt.title("Valid Inductive Invariants")
+    draw(max_constraints + induction_constraints, MIN_GRID, MAX_GRID, 'BuPu', points)
 
 
 
@@ -406,7 +432,32 @@ def draw_4d_hidden_values(x, w_in, w_h0, num_steps):
     # plt.show()
 
 
+def draw_2d_from_h5(h5_path, in_tensor, steps, algorithm_points=None):
+    '''
+    Draws 2d limits by h5 file
+    :param h5_path: path to h5 with rnn model
+    :param in_tensor: in tensor for the model to evaluate the regions
+    :param steps: number of steps (time)
+    :param algorithm_points: None, or a list of points, each point 2d tupple to add a search pattern in the drawing
+    :return:
+    '''
+    from maraboupy.MarabouRnnModel import RnnMarabouModel
+    rnnModel = RnnMarabouModel(h5_path, steps)
+    w_in, w_h, b = rnnModel.get_weights()[0]
+    draw_max_alphas(in_tensor, w_in, w_h, num_steps=steps, points=algorithm_points)
+
+
 if __name__ == "__main__":
+    in_tensor = np.array([0.23300637, 0.0577466 , 0.88960908, 0.02926062, 0.4322654 ,
+        0.05116153, 0.93342266, 0.3143915 , 0.39245229, 0.1144419 ,
+        0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+        0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371 ,
+        0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+        0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+        0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231])
+    draw_2d_from_h5("models/model_classes5_1rnn2_0_64_4.h5", in_tensor, 5)
+    exit(0)
     steps = 3
     max_property = 23
     x = 1

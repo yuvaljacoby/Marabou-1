@@ -1,7 +1,7 @@
 import numpy as np
-
 from maraboupy import MarabouCore
-from maraboupy.keras_to_marabou_rnn import RnnMarabouModel
+from maraboupy.MarabouRnnModel import RnnMarabouModel
+
 large = 5000.0
 small = 10 ** -4
 TOLERANCE_VALUE = 0.01
@@ -49,79 +49,6 @@ def negate_equation(eq):
     return not_eq
 
 
-def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias, num_iterations, print_debug=False):
-    '''
-    Create n rnn cells, where n is hidden_weights.shape[0] == hidden_weights.shape[1] ==  len(bias)
-    The added parameters are (same order): i, s_i-1 f, s_i b, s_i f for each of the n added cells (i.e. adding 4*n variables)
-    :param query: the network so far (will add to this)
-    :param input_idx: list of input id's, length m
-    :param input_weights: matrix of input weights, size m x n
-    :param hidden_weights: matrix of weights
-    :param bias: vector of biases to add to each equation, length should be n, if None use 0 bias
-    :param num_iterations: Number of iterations
-    :return: list of output cells, the length will be the same n
-    '''
-    assert type(hidden_weights) == np.ndarray
-    assert len(hidden_weights.shape) == 2
-    assert hidden_weights.shape[0] == hidden_weights.shape[1]
-    assert len(input_idx) == input_weights.shape[1], "{}, {}".format(len(input_idx), input_weights.shape[1])
-    assert hidden_weights.shape[0] == input_weights.shape[0]
-
-    n = hidden_weights.shape[0]
-
-    if bias is None:
-        bias = [0] * n
-    else:
-        assert len(bias) == n
-    last_idx = query.getNumberOfVariables()
-    prev_iteration_idxs = [i + 1 for i in range(last_idx, last_idx + (4 * n), 4)]
-    output_idxs = [i + 3 for i in range(last_idx, last_idx + (4 * n), 4)]
-    query.setNumberOfVariables(last_idx + (4 * n))  # i, s_i-1 f, s_i b, s_i f
-
-    cell_idx = last_idx
-    for i in range(n):
-        # i
-        query.setLowerBound(cell_idx, 0)
-        query.setUpperBound(cell_idx, num_iterations)
-
-        # s_i-1 f
-        query.setLowerBound(cell_idx + 1, 0)
-        query.setUpperBound(cell_idx + 1, large)
-
-        # s_i b
-        query.setLowerBound(cell_idx + 2, -large)
-        query.setUpperBound(cell_idx + 2, large)
-
-        # s_i f
-        query.setLowerBound(cell_idx + 3, 0)
-        query.setUpperBound(cell_idx + 3, large)
-
-        # s_i f = ReLu(s_i b)
-        MarabouCore.addReluConstraint(query, cell_idx + 2, cell_idx + 3)
-
-        # s_i-1 f >= i * \sum (x_j_min * w_j)
-        # prev_min_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
-        # prev_min_eq.addAddend(1, last_idx + 1)
-        # prev_min_eq.addAddend(1, last_idx + 1)
-
-        # s_i b = x_j * w_j for all j connected + s_i-1 f * hidden_weight
-        update_eq = MarabouCore.Equation()
-        for j in range(len(input_weights[i, :])):
-            w = input_weights[i, j]  # round(input_weights[i, j], 2)
-            update_eq.addAddend(w, input_idx[j])
-
-        for j, w in enumerate(hidden_weights[i, :]):
-            # w = round(w, 2)
-            update_eq.addAddend(w, prev_iteration_idxs[j])
-
-        update_eq.addAddend(-1, cell_idx + 2)
-        update_eq.setScalar(-bias[i])
-        # if print_debug:
-        #     update_eq.dump()
-        query.addEquation(update_eq)
-        cell_idx += 4
-
-    return output_idxs
 
 
 def add_loop_indices_equations(network, loop_indices):
@@ -390,8 +317,10 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
     return property_oracle
 
 
-def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_equations, algorithm,
-                            return_alphas=False, number_of_steps=5000):
+def prove_multidim_property(rnnModel : RnnMarabouModel, property_equations, algorithm,
+                            return_alphas=False, number_of_steps=5000, debug=False, return_num_queries=False):
+    rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
+    network = rnnModel.network
     add_loop_indices_equations(network, rnn_start_idxs)
     invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs)
     property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
@@ -415,11 +344,18 @@ def prove_multidim_property(network, rnn_start_idxs, rnn_output_idxs, property_e
             #     print('fail, iteration {} alphas: {}'.format(i, algorithm.get_alphas()))
 
         #  print progress for debug
-        if i % 1000 == 0:
-            print('iteration {} sum(alphas): {}'.format(i, sum(algorithm.get_alphas())))
+        if debug:
+            if i>0 and i % 300 == 0:
+                print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()), algorithm.get_alphas()))
     if i == number_of_steps:
         print("fail to prove property after {} iterations, last alphas: {}".format(i, algorithm.get_alphas()))
     if not return_alphas:
-        return res
+        if not return_num_queries:
+            return res
+        if return_num_queries:
+            return res, i
     else:
-        return res, algorithm.get_alphas()
+        if not return_num_queries:
+            return res, algorithm.get_alphas()
+        if return_num_queries:
+            return res, algorithm.get_alphas(), i

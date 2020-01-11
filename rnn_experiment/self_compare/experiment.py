@@ -1,69 +1,62 @@
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property
-
-from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
-from rnn_algorithms.MaxAlphasSGDInfStart import MaxAlphasSGD
-from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD, absolute_step, relative_step
-from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
-from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation
-from maraboupy import MarabouCore
-from timeit import default_timer as timer
-import numpy as np
+import pickle
 from functools import partial
+from timeit import default_timer as timer
+
+import numpy as np
+import pandas as pd
+
+from maraboupy import MarabouCore
+from maraboupy.MarabouRNNMultiDim import prove_multidim_property
+from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation, adversarial_query
+from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
+from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
+from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
+from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
+from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 NEW_VCTK_FOLDER = "/home/yuval/projects/Marabou/models_new_vctk/"
 
 
-def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
-                      n_iterations=10):
-    '''
-    Query marabou with adversarial query
-    :param x: base_vector (input vector that we want to find a ball around it)
-    :param radius: determines the limit of the inputs around the base_vector
-    :param y_idx_max: max index in the output layer
-    :param other_idx: which index to compare max idx
-    :param h5_file_path: path to keras model which we will check on
-    :param algorithm_ptr: TODO
-    :param n_iterations: number of iterations to run
-    :return: True / False
-    '''
-
-    # assert_adversarial_query(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
-    rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
-    xlim = calc_min_max_by_radius(x, radius)
-    rnn_model.set_input_bounds(xlim)
-    initial_values = rnn_model.get_rnn_min_max_value_one_iteration(xlim)
-
-    # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
-    adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-    adv_eq.addAddend(-1, rnn_model.output_idx[other_idx])
-    adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
-    adv_eq.setScalar(0)
-
-    rnn_output_idxs = rnn_model.rnn_out_idx
-    rnn_start_idxs = [i - 3 for i in rnn_output_idxs]
-
-    # Convert the initial values to the SGDAlphaAlgorithm format
-    rnn_max_values = [val[1] for val in initial_values]
-    rnn_min_values = [val[0] for val in initial_values]
-
-    assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-    # initial_values, rnn_start_idxs, rnn_output_idxs, w_h, w_i, bias, prev_layer_min, prev_layer_max, n_iterations
-    if algorithm_ptr == SmtAlphaSearch:
-        import tensorflow.keras as keras
-        # TODO: Works for very very spesific case (1rnn cell as the first layer)
-        x_min_vals = [x[0] for x in xlim]
-        x_max_vals = [x[1] for x in xlim]
-
-        [w_in, w_h, bias] = keras.models.load_model(h5_file_path).layers[0].get_weights()
-        algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs, w_h, w_in, bias,
-                                  x_min_vals, x_max_vals, n_iterations)
-    else:
-        algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
-    # rnn_model.network.dump()
-
-    return prove_multidim_property(rnn_model, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
-                                   algorithm)
+# def adversarial_query2(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
+#                       n_iterations=10):
+#     '''
+#     Query marabou with adversarial query
+#     :param x: base_vector (input vector that we want to find a ball around it)
+#     :param radius: determines the limit of the inputs around the base_vector
+#     :param y_idx_max: max index in the output layer
+#     :param other_idx: which index to compare max idx
+#     :param h5_file_path: path to keras model which we will check on
+#     :param algorithm_ptr: TODO
+#     :param n_iterations: number of iterations to run
+#     :return: True / False, and number of queries took to prove
+#     '''
+#     # assert_adversarial_query(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
+#     rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
+#     xlim = calc_min_max_by_radius(x, radius)
+#     rnn_model.set_input_bounds(xlim)
+#
+#     # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
+#     adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
+#     adv_eq.addAddend(-1, rnn_model.output_idx[other_idx])
+#     adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
+#     adv_eq.setScalar(0)
+#
+#     if algorithm_ptr == SmtAlphaSearch:
+#         # import tensorflow.keras as keras
+#         # # TODO: Works for very very spesific case (1rnn cell as the first layer)
+#         # x_min_vals = [x[0] for x in xlim]
+#         # x_max_vals = [x[1] for x in xlim]
+#         #
+#         # [w_in, w_h, bias] = keras.models.load_model(h5_file_path).layers[0].get_weights()
+#         # algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs, w_h, w_in, bias,
+#         #                           x_min_vals, x_max_vals, n_iterations)
+#         raise NotImplementedError
+#     else:
+#         algorithm = algorithm_ptr(rnn_model, xlim)
+#     # rnn_model.network.dump()
+#
+#     return prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1, return_num_queries=True)
 
 
 def classes20_1rnn2_1fc2():
@@ -77,45 +70,49 @@ def classes20_1rnn2_1fc2():
     from timeit import default_timer as timer
     start = timer()
     assert adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", algorithm, n_iterations)
+                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", algorithm, n_iterations)[0]
     rand_time = timer() - start
 
     algorithm = IterateAlphasSGD
     from timeit import default_timer as timer
     start = timer()
     assert adversarial_query([79] * n_inputs, 0, y_idx_max, other_idx,
-                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", algorithm, n_iterations)
+                             "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_2_4.h5", algorithm, n_iterations)[0]
     iter_time = timer() - start
     return iter_time, rand_time
 
 
-def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterations):
+def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterations, algorithms_ptrs):
     results = {}
-    # algorithms = [MaxAlphasSGD, IterateAlphasSGD, RandomAlphasSGD]
-    IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, alpha_step_policy_ptr=absolute_step)
 
-    IterateAlphasSGD_absolute_step10 = partial(IterateAlphasSGD,
-                                               alpha_step_policy_ptr=partial(absolute_step, step_size=10))
-    IterateAlphasSGD_relative_small = partial(IterateAlphasSGD,
-                                              alpha_step_policy_ptr=partial(relative_step, threshold=0.05,
-                                                                            relative_step_size=0.1,
-                                                                            init_after_threshold=0.1))
-    algorithms_ptrs = {'SGD_iterate_relative_default': IterateAlphasSGD,
-                       'SGD_random_relative_default': RandomAlphasSGD,
-                       # 'SGD_iterate_step_10': IterateAlphasSGD_absolute_step10,
-                       # 'SGD_iterate_step_default': IterateAlphasSGD_absolute_step,
-                       # 'SGD_iterate_relative_small': IterateAlphasSGD_relative_small
-                       }
     for name, algo_ptr in algorithms_ptrs.items():
+        print('starting algo:' + name)
         start = timer()
-        res = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr, n_iterations)
+        # import random
+        # res = random.randint(0,1)
+        res, iterations, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr, n_iterations, steps_num=2500)
         end = timer()
-        results[name] = {'time': end - start, 'result': res}
+        results[name] = {'time': end - start, 'result': res, 'iterations': iterations}
         print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
-    return results
+
+    # print(results)
+    row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] + [results[n]['iterations'] for n in
+                                                                           algorithms_ptrs.keys()]
+
+    return row_result
 
 
 experiemnts = [
+    {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466 , 0.88960908, 0.02926062, 0.4322654 ,
+        0.05116153, 0.93342266, 0.3143915 , 0.39245229, 0.1144419 ,
+        0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+        0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371 ,
+        0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+        0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+        0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
+     'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5},
+
     {'idx_max': 9, 'other_idx': 2, 'in_tensor': np.array([10] * 40),
      'radius': 0, 'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 1000},
     {'idx_max': 9, 'other_idx': 14, 'in_tensor': np.array([0.43679032, 0.51105192, 0.01603254, 0.45879329, 0.64639347,
@@ -127,10 +124,11 @@ experiemnts = [
                                                            0.96969836, 0.99457045, 0.89433312, 0.19916606, 0.63957592,
                                                            0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289]),
      'radius': 0.01, 'h5_path': "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), 'n_iterations': 10},
-    {'idx_max': 13, 'other_idx': 0, 'in_tensor': np.array([1] * 40),
-     'radius': 0.05, 'h5_path': "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER), 'n_iterations': 10},
+
+
     {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
      'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 100},
+
     # {'idx_max': 1, 'other_idx': 0, 'in_tensor': np.array([0.19005403, 0.51136299, 0.67302099, 0.59573087, 0.78725824,
     #              0.47257432, 0.65504724, 0.69202802, 0.16531246, 0.84543712,
     #              0.73715671, 0.03674481, 0.39459927, 0.0107714, 0.15337461,
@@ -477,6 +475,7 @@ experiemnts = [
      'h5_path': '{}/model_classes20_1rnn4_1_32_4.h5'.format(MODELS_FOLDER)},
 ]
 
+
 # def classes20_1rnn4_1fc32():
 #     n_inputs = 40
 #     y_idx_max = 9
@@ -501,27 +500,54 @@ experiemnts = [
 #     return run_one_comperasion([1] * n_inputs, 0.05, y_idx_max, other_idx,
 #                                "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5", 10)
 
+def get_all_algorithms():
+    IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
+    WeightedAlphasSGD_absolute_step = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step)
+    Absolute_Step_Big = partial(Absolute_Step, options=[10**i for i in range(-5,3)])
+    IterateAlphasSGD_absolute_step_big = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
+    WeightedAlphasSGD_absolute_step_big = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
+    IterateAlphasSGD_relative_step = partial(IterateAlphasSGD, update_strategy_ptr=Relative_Step)
+    WeightedAlphasSGD_relative_step = partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step)
+    RandomAlphasSGD_relative_step = partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)
+
+    from collections import OrderedDict
+    algorithms_ptrs = OrderedDict({
+                       'iterate_absolute': IterateAlphasSGD_absolute_step,
+                       'weighted_absolute': WeightedAlphasSGD_absolute_step,
+                        'iterate_big_absolute': IterateAlphasSGD_absolute_step_big,
+                        'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
+                       # 'weighted_relative': WeightedAlphasSGD_relative_step,
+                       #  'iterate_relative': IterateAlphasSGD_relative_step,
+                       # 'random_relative': RandomAlphasSGD_relative_step,
+                       # 'SGD_weighted_relative_default': WeightedAlphasSGD,
+                       # 'SGD_iterate_relative_default': IterateAlphasSGD,
+                       # 'SGD_random_relative_default': RandomAlphasSGD,
+                       })
+
+    return algorithms_ptrs
+
 
 if __name__ == "__main__":
-    all_results = []
     # exp = experiemnts[3]
     # alg = IterateAlphasSGD
     # res = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'], alg,
     #                                   exp['n_iterations'])
     # exit(0)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.expand_frame_repr', False)
+    pd.set_option('max_colwidth', -1)
+
+    algorithms_ptrs = get_all_algorithms()
+    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
+                                                                                     algorithms_ptrs.keys()]
+    df = pd.DataFrame(columns=cols)
 
 
     for exp in experiemnts:
-        exp_res = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-                                     exp['n_iterations'])
+        row_result = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'],
+                                        exp['h5_path'],
+                                        exp['n_iterations'], algorithms_ptrs)
         exp_name = exp['h5_path'].split('.')[0].split('/')[-1] + '_' + str(exp['n_iterations'])
-        all_results.append((exp_name, exp_res))
-        test_pass = all([d[1]['result'] for d in exp_res.items()])
-        print("Finish Test: {},{}, results: {}".format(exp_name, test_pass, exp_res))
-
-    for result in all_results:
-        test_pass = all([d[1]['result'] for d in exp_res.items()])
-        print("Finish Test: {}, {}, results: {}".format(result[0], test_pass, result[1]))
-    import pickle
-
-    pickle.dump(all_results, open("all_results.pkl", "wb"))
+        df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
+        print(df)
+        pickle.dump(df, open("all_results.pkl", "wb"))
