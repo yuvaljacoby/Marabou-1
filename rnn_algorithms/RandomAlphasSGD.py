@@ -132,6 +132,7 @@ class RandomAlphasSGD:
                                                          MarabouCore.Equation.GE, alpha_initial_value,
                                                          self.update_strategy)
         self.last_fail = None
+        self.alpha_history= []
 
     def name(self):
         return 'iterate_sgd_init{}_step{}'.format(self.alpha_initial_value, self.alpha_step_policy_ptr.__name__)
@@ -164,6 +165,7 @@ class RandomAlphasSGD:
             res = self.min_invariants.do_step(strengthen) + self.max_invariants.get_equations()
 
         self.next_is_max = random.randint(0, 1)
+        self.alpha_history.append(self.get_alphas())
         return res
 
     def revert_last_step(self):

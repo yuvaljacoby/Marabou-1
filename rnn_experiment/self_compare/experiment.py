@@ -1,21 +1,23 @@
+import os
 import pickle
 from functools import partial
 from timeit import default_timer as timer
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property
-from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation, adversarial_query
+from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
-from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
+from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 
-MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
-NEW_VCTK_FOLDER = "/home/yuval/projects/Marabou/models_new_vctk/"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
+MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
+EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
+IN_SHAPE = (40,)
 
 
 # def adversarial_query2(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
@@ -82,35 +84,40 @@ def classes20_1rnn2_1fc2():
     return iter_time, rand_time
 
 
-def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterations, algorithms_ptrs):
+def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterations, algorithms_ptrs, steps_num=2500):
     results = {}
 
     for name, algo_ptr in algorithms_ptrs.items():
         print('starting algo:' + name)
         start = timer()
-        # import random
-        # res = random.randint(0,1)
-        res, iterations, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr, n_iterations, steps_num=2500)
+
+        res, iterations, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr,
+                                                           n_iterations, steps_num)
+        # res = False
+        # iterations = 23
         end = timer()
+        if iterations is None:
+            return None
         results[name] = {'time': end - start, 'result': res, 'iterations': iterations}
         print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
 
     # print(results)
-    row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] + [results[n]['iterations'] for n in
-                                                                           algorithms_ptrs.keys()]
+    row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] \
+                 + [results[n]['iterations'] for n in algorithms_ptrs.keys()] \
+                 + [results[n]['time'] for n in algorithms_ptrs.keys()]
 
     return row_result
 
 
 experiemnts = [
-    {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466 , 0.88960908, 0.02926062, 0.4322654 ,
-        0.05116153, 0.93342266, 0.3143915 , 0.39245229, 0.1144419 ,
-        0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
-        0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371 ,
-        0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
-        0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
-        0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
-        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
+    {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466, 0.88960908, 0.02926062, 0.4322654,
+                                                          0.05116153, 0.93342266, 0.3143915, 0.39245229, 0.1144419,
+                                                          0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+                                                          0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371,
+                                                          0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+                                                          0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+                                                          0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+                                                          0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
      'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5},
 
     {'idx_max': 9, 'other_idx': 2, 'in_tensor': np.array([10] * 40),
@@ -124,7 +131,6 @@ experiemnts = [
                                                            0.96969836, 0.99457045, 0.89433312, 0.19916606, 0.63957592,
                                                            0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289]),
      'radius': 0.01, 'h5_path': "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), 'n_iterations': 10},
-
 
     {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
      'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 100},
@@ -500,10 +506,81 @@ experiemnts = [
 #     return run_one_comperasion([1] * n_inputs, 0.05, y_idx_max, other_idx,
 #                                "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5", 10)
 
+def get_random_input(model_path, mean, var, n_iterations):
+
+    while True:
+        in_tensor = np.random.normal(mean, var, IN_SHAPE)
+        if any(in_tensor < 0):
+            print("resample got negative input")
+            continue
+        y_idx_max, other_idx = get_out_idx(in_tensor, n_iterations, model_path)
+        if y_idx_max is not None and other_idx is not None and y_idx_max != other_idx:
+            print(in_tensor)
+            return in_tensor, y_idx_max, other_idx
+
+def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, var=3, radius=0.01, n_iterations=50):
+    '''
+    runs comperasion between all the given algorithms on num_points each pointed sampled from Normal(mean,var)
+    :param model_name: h5 file in MODELS_FOLDER
+    :return: DataFrame with results
+    '''
+    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] +\
+           ['{}_queries'.format(n) for n in algorithms_ptrs.keys()] +\
+           ['{}_time'.format(n) for n in algorithms_ptrs.keys()]
+
+    df = pd.DataFrame(columns=cols)
+    model_path = os.path.join(MODELS_FOLDER, model_name)
+    for _ in tqdm(range(num_points)):
+        in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
+
+        row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
+                                        model_path,
+                                        n_iterations, algorithms_ptrs, steps_num=100)
+        if row_result is None:
+            print("Got out vector with all entries equal")
+            continue
+        exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
+        df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
+        print(df)
+        pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys())
+        pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
+    return df
+
+
+def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
+    '''
+    The search_for_input method is creating a pickle with all the examples, read that and compare algorithms using the
+    examples from there
+    :param pickle_name: name of file inside the EXPERIMENTS_FOLDER
+    :param algorithms_ptrs: pointers to algorithms to run the experiment on
+    :return: DataFrame with experiment results
+    '''
+    pickle_path = os.path.join(EXPERIMENTS_FOLDER, pickle_name)
+    experiemnts = pickle.load(open(pickle_path, "rb"))
+    model_name = pickle_name.replace(".pkl", "")
+    model_path = "{}/{}.h5".format(MODELS_FOLDER, model_name)
+    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_queries'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_time'.format(n) for n in algorithms_ptrs.keys()]
+    df = pd.DataFrame(columns=cols)
+
+    for exp in experiemnts:
+        row_result = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'],
+                                        model_path,
+                                        exp['n_iterations'], algorithms_ptrs)
+        exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(exp['n_iterations'])
+        df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
+        print(df)
+        pickle_path = model_name + "_".join(algorithms_ptrs.keys())
+        pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
+
+    return df
+
+
 def get_all_algorithms():
     IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
     WeightedAlphasSGD_absolute_step = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step)
-    Absolute_Step_Big = partial(Absolute_Step, options=[10**i for i in range(-5,3)])
+    Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     IterateAlphasSGD_absolute_step_big = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
     WeightedAlphasSGD_absolute_step_big = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
     IterateAlphasSGD_relative_step = partial(IterateAlphasSGD, update_strategy_ptr=Relative_Step)
@@ -512,42 +589,42 @@ def get_all_algorithms():
 
     from collections import OrderedDict
     algorithms_ptrs = OrderedDict({
-                       'iterate_absolute': IterateAlphasSGD_absolute_step,
-                       'weighted_absolute': WeightedAlphasSGD_absolute_step,
-                        'iterate_big_absolute': IterateAlphasSGD_absolute_step_big,
-                        'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
-                       # 'weighted_relative': WeightedAlphasSGD_relative_step,
-                       #  'iterate_relative': IterateAlphasSGD_relative_step,
-                       # 'random_relative': RandomAlphasSGD_relative_step,
-                       # 'SGD_weighted_relative_default': WeightedAlphasSGD,
-                       # 'SGD_iterate_relative_default': IterateAlphasSGD,
-                       # 'SGD_random_relative_default': RandomAlphasSGD,
-                       })
+        'random_relative': RandomAlphasSGD_relative_step,
+        # 'iterate_relative': IterateAlphasSGD_relative_step,
+        'weighted_relative': WeightedAlphasSGD_relative_step,
+        # 'iterate_big_absolute': IterateAlphasSGD_absolute_step_big,
+        # 'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
+        # 'weighted_absolute': WeightedAlphasSGD_absolute_step,
+        # 'weighted_relative': WeightedAlphasSGD_relative_step,
+        #  'iterate_relative': IterateAlphasSGD_relative_step,
+        # 'random_relative': RandomAlphasSGD_relative_step,
+        # 'SGD_weighted_relative_default': WeightedAlphasSGD,
+        # 'SGD_iterate_relative_default': IterateAlphasSGD,
+        # 'SGD_random_relative_default': RandomAlphasSGD,
+    })
 
     return algorithms_ptrs
 
 
 if __name__ == "__main__":
-    # exp = experiemnts[3]
-    # alg = IterateAlphasSGD
-    # res = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'], alg,
-    #                                   exp['n_iterations'])
-    # exit(0)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', -1)
 
     algorithms_ptrs = get_all_algorithms()
-    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
-                                                                                     algorithms_ptrs.keys()]
-    df = pd.DataFrame(columns=cols)
+    # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
+    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=10)
+    draw_from_dataframe(df)
 
-
-    for exp in experiemnts:
-        row_result = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'],
-                                        exp['h5_path'],
-                                        exp['n_iterations'], algorithms_ptrs)
-        exp_name = exp['h5_path'].split('.')[0].split('/')[-1] + '_' + str(exp['n_iterations'])
-        df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
-        print(df)
-        pickle.dump(df, open("all_results.pkl", "wb"))
+    # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
+    #                                                                                  algorithms_ptrs.keys()]
+    # df = pd.DataFrame(columns=cols)
+    #
+    # for exp in experiemnts:
+    #     row_result = run_one_comparison(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'],
+    #                                     exp['h5_path'],
+    #                                     exp['n_iterations'], algorithms_ptrs)
+    #     exp_name = exp['h5_path'].split('.')[0].split('/')[-1] + '_' + str(exp['n_iterations'])
+    #     df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
+    #     print(df)
+    #     pickle.dump(df, open("all_results.pkl", "wb"))

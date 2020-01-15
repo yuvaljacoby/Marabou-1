@@ -1,4 +1,5 @@
-import numpy as np
+from timeit import default_timer as timer
+
 from maraboupy import MarabouCore
 from maraboupy.MarabouRnnModel import RnnMarabouModel
 
@@ -47,8 +48,6 @@ def negate_equation(eq):
     else:
         raise NotImplementedError("got {} type which is not implemented".format(eq.getType()))
     return not_eq
-
-
 
 
 def add_loop_indices_equations(network, loop_indices):
@@ -300,6 +299,7 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
 
         # TODO: This is only for debug
         # before we prove the property, make sure the invariants does not contradict each other, expect SAT from marabou
+        # network.dump()
         assert not marabou_solve_negate_eq(network, False, False)
 
         for eq in property_equations:
@@ -317,7 +317,7 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
     return property_oracle
 
 
-def prove_multidim_property(rnnModel : RnnMarabouModel, property_equations, algorithm,
+def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm,
                             return_alphas=False, number_of_steps=5000, debug=False, return_num_queries=False):
     rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
     network = rnnModel.network
@@ -326,11 +326,20 @@ def prove_multidim_property(rnnModel : RnnMarabouModel, property_equations, algo
     property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
     equations = algorithm.get_equations()
     res = False
+    invatriant_times = []
+    property_times = []
     for i in range(number_of_steps):
+        start_invariant = timer()
         invariant_results = invariant_oracle(equations)
+        end_invariant = timer()
+        invatriant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
-            if property_oracle(equations):
+            start_property = timer()
+            prop_res = property_oracle(equations)
+            end_property = timer()
+            property_times.append(end_property - start_property)
+            if prop_res:
                 print("proved property after {} iterations, using alphas: {}".format(i, algorithm.get_alphas()))
                 res = True
                 break
@@ -345,10 +354,17 @@ def prove_multidim_property(rnnModel : RnnMarabouModel, property_equations, algo
 
         #  print progress for debug
         if debug:
-            if i>0 and i % 300 == 0:
-                print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()), algorithm.get_alphas()))
+            if i > 0 and i % 300 == 0:
+                print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()),
+                                                                        algorithm.get_alphas()))
+
     if i == number_of_steps:
         print("fail to prove property after {} iterations, last alphas: {}".format(i, algorithm.get_alphas()))
+    if debug:
+        if len(property_times) > 0:
+            print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
+                len(invatriant_times), sum(invatriant_times) / len(invatriant_times), len(property_times),
+                sum(property_times) / len(property_times)))
     if not return_alphas:
         if not return_num_queries:
             return res

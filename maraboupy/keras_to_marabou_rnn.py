@@ -1,3 +1,4 @@
+import os
 import pickle
 from functools import partial
 from timeit import default_timer as timer
@@ -9,8 +10,9 @@ from maraboupy import MarabouCore
 from maraboupy.MarabouRNNMultiDim import negate_equation, prove_multidim_property
 from maraboupy.MarabouRnnModel import RnnMarabouModel
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
-from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
+from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
+
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 
 WORKING_EXAMPLES_FOLDER = "/home/yuval/projects/Marabou/working_arrays"
@@ -180,6 +182,16 @@ def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx
                                    algorithm)
 
 
+def get_out_idx(x, n_iterations, h5_file_path):
+    out = get_output_vector(h5_file_path, x, n_iterations)
+    other_idx = np.argmin(out)
+    y_idx_max = np.argmax(out)
+    print(y_idx_max, other_idx)
+    if y_idx_max == other_idx:
+        # This means all the enteris in the out vector are equal...
+        return None, None
+    return y_idx_max, other_idx
+
 def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
                       n_iterations=10, steps_num=5000):
     '''
@@ -193,13 +205,12 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     :param n_iterations: number of iterations to run
     :return: True / False, and number of queries took to prove
     '''
+
     if y_idx_max is None or other_idx is None:
-        out = get_output_vector(h5_file_path, x, n_iterations)
-        if other_idx is None:
-            other_idx = np.argmin(out)
-        if y_idx_max is None:
-            y_idx_max = np.argmax(out)
-        print(y_idx_max, other_idx)
+        y_idx_max, other_idx = get_out_idx(x, n_iterations, h5_file_path)
+        if y_idx_max == other_idx or y_idx_max is None or other_idx is None:
+            # This means all the enteris in the out vector are equal...
+            return False, None, None
 
     # assert_adversarial_query_wrapper(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
     rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
@@ -215,12 +226,14 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     algorithm = algorithm_ptr(rnn_model, xlim)
     # rnn_model.network.dump()
 
-    res,queries = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1, return_num_queries=True, number_of_steps=steps_num)
+    res, queries = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
+                                           return_num_queries=True, number_of_steps=steps_num)
     return res, queries, algorithm.alpha_history
 
 
-def adversarial_query_wrapper(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, n_iterations=10,
-                             is_fail_test=False, alpha_step_policy_ptr=Absolute_Step):
+def adversarial_query_wrapper(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str,
+                              n_iterations=10,
+                              is_fail_test=False, alpha_step_policy_ptr=Absolute_Step):
     '''
     Query marabou with adversarial query
     :param x: base_vector (input vector that we want to find a ball around it)
@@ -255,7 +268,7 @@ def adversarial_query_wrapper(x: list, radius: float, y_idx_max: int, other_idx:
     adv_eq.setScalar(0)
 
     algorithm_ptr = partial(IterateAlphasSGD, update_strategy_ptr=alpha_step_policy_ptr)
-    res, num_queries = adversarial_query(x, radius, y_idx_max, other_idx, h5_file_path, algorithm_ptr)
+    res, num_queries, _ = adversarial_query(x, radius, y_idx_max, other_idx, h5_file_path, algorithm_ptr)
     # res, num_queries = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, return_alphas=True)
     return res
 
@@ -266,7 +279,7 @@ def test_20classes_1rnn2_1fc2_fail():
     other_idx = 19
 
     assert not adversarial_query_wrapper([79] * n_inputs, 0, y_idx_max, other_idx,
-                                 "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=True)
+                                         "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
 def test_20classes_1rnn2_1fc2_pass():
@@ -275,7 +288,7 @@ def test_20classes_1rnn2_1fc2_pass():
     other_idx = 10
 
     assert adversarial_query_wrapper([79] * n_inputs, 0, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=False)
+                                     "{}/model_classes20_1rnn2_1_2_4.h5".format(MODELS_FOLDER), is_fail_test=False)
 
 
 def test_20classes_1rnn2_1fc32_pass():
@@ -288,8 +301,8 @@ def test_20classes_1rnn2_1fc32_pass():
         if other_idx != y_idx_max:
             other_idx = i
             results.append(adversarial_query_wrapper([1] * n_inputs, 0, y_idx_max, other_idx,
-                                             "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
-                                             is_fail_test=False))
+                                                     "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
+                                                     is_fail_test=False))
             print(results)
     assert sum(results) == 19, 'managed to prove on {}%'.fromat((19 - sum(results)) / 19)
 
@@ -300,8 +313,8 @@ def test_20classes_1rnn2_1fc32_fail():
     other_idx = 13
 
     assert not adversarial_query_wrapper([1] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
-                                 is_fail_test=True)
+                                         "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
+                                         is_fail_test=True)
 
 
 def test_20classes_1rnn2_1fc32_pass():
@@ -310,8 +323,8 @@ def test_20classes_1rnn2_1fc32_pass():
     other_idx = 0
 
     assert adversarial_query_wrapper([1] * n_inputs, 0.05, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
-                             is_fail_test=False)
+                                     "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
+                                     is_fail_test=False)
 
 
 def test_20classes_1rnn2_0fc_template_input_pass():
@@ -341,8 +354,8 @@ def test_20classes_1rnn2_0fc_pass():
     y_idx_max = 9
     other_idx = 2
     assert adversarial_query_wrapper([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
-                             n_iterations=n_iterations)
+                                     "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
+                                     n_iterations=n_iterations)
     return
     # results = []
     # for i in range(20):
@@ -360,7 +373,7 @@ def test_20classes_1rnn2_0fc_fail():
     other_idx = 9
     # 6.199209
     assert not adversarial_query_wrapper([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
+                                         "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
 def test_20classes_1rnn3_0fc_pass():
@@ -369,8 +382,8 @@ def test_20classes_1rnn3_0fc_pass():
     y_idx_max = 10
     other_idx = 19
     assert adversarial_query_wrapper([10] * n_inputs, 0.001, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER),
-                             n_iterations=5)
+                                     "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER),
+                                     n_iterations=5)
     return
 
 
@@ -380,8 +393,8 @@ def test_20classes_1rnn3_0fc_fail():
     other_idx = 10
     # 6.199209
     assert not adversarial_query_wrapper([10] * n_inputs, 0.1, y_idx_max, other_idx,
-                                 "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER), is_fail_test=True,
-                                 n_iterations=5)
+                                         "{}/model_classes20_1rnn3_0_2_4.h5".format(MODELS_FOLDER), is_fail_test=True,
+                                         n_iterations=5)
 
 
 def test_20classes_1rnn4_0fc_pass():
@@ -393,7 +406,7 @@ def test_20classes_1rnn4_0fc_pass():
                              , 3., 8.3, 5.6, 1.8])
     assert in_tensor.shape[0] == n_inputs
     assert adversarial_query_wrapper(in_tensor, 0.01, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER), n_iterations=5)
+                                     "{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER), n_iterations=5)
 
 
 def test_20classes_1rnn4_0fc_fail():
@@ -404,7 +417,7 @@ def test_20classes_1rnn4_0fc_fail():
                              , 2.8, 4.8, 4.3, 5.1, 3.8, 0.8, 2.4, 7.6, 7.3, 0., 3.3, 7.4, 0., 2.1, 0.5, 8., 7.1, 3.9
                              , 3., 8.3, 5.6, 1.8])
     assert not adversarial_query_wrapper(in_tensor, 0, y_idx_max, other_idx,
-                                 "{}/model_classes20_1rnn4_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
+                                         "{}/model_classes20_1rnn4_0_64_4.h5".format(MODELS_FOLDER), is_fail_test=True)
 
 
 def test_20classes_1rnn8_0fc():
@@ -421,11 +434,12 @@ def test_20classes_1rnn8_0fc():
                  0.74464927, 0.69366703, 0.96878231, 0.58014617, 0.41094702]
     n_iterations = 5
     assert adversarial_query_wrapper(in_tensor, 0, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER), n_iterations=n_iterations)
+                                     "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER),
+                                     n_iterations=n_iterations)
 
     assert not adversarial_query_wrapper(in_tensor, 0, other_idx, y_idx_max,
-                                 "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER),
-                                 n_iterations=n_iterations)
+                                         "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER),
+                                         n_iterations=n_iterations)
 
 
 def test_20classes_1rnn4_1fc32():
@@ -442,11 +456,11 @@ def test_20classes_1rnn4_1fc32():
                           0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289])
     assert in_tensor.shape[0] == n_inputs
     assert adversarial_query_wrapper(in_tensor, 0.01, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
+                                     "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
 
     assert not adversarial_query_wrapper(in_tensor, 0.01, other_idx, y_idx_max,
-                                 "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
-                                 is_fail_test=True)
+                                         "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
+                                         is_fail_test=True)
 
 
 def test_20classes_1rnn8_1fc32():
@@ -463,61 +477,88 @@ def test_20classes_1rnn8_1fc32():
 
     assert in_tensor.shape[0] == n_inputs
     assert adversarial_query_wrapper(in_tensor, 0.01, y_idx_max, other_idx,
-                             "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
+                                     "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
 
     assert not adversarial_query_wrapper(in_tensor, 0.01, other_idx, y_idx_max,
-                                 "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
-                                 is_fail_test=True)
+                                         "{}/model_classes20_1rnn8_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10,
+                                         is_fail_test=True)
 
 
-def search_for_input(path, algorithm_ptr):
+def search_for_input(path, algorithm_ptr, radius=0.01, mean=3, var=0.5):
     n_inputs = 40
     # not_found = True
-    n_iterations = 5
+    n_iterations = 50
+    # TODO: If in_tensor has a negative compponnet everything breaks, not sure why :(
+    in_tensor = np.random.normal(mean, var, (n_inputs,))
+    # print(in_tensor)
+    # in_tensor = np.random.random((n_inputs, ))
+
+    res, num_iterations, _ = adversarial_query(in_tensor, radius, None, None, path, algorithm_ptr, n_iterations,
+                                               steps_num=1500)
+    print("finish one query, res: {}, iterations: {}".format(res, num_iterations))
+
+    if res:
+        # found an example that works, try to get multiple adv queries that work
+        out = get_output_vector(path, in_tensor, n_iterations)
+
+        other_idx = np.argmin(out)
+        y_idx_max = np.argmax(out)
+
+        return {'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
+                'other_idx': other_idx, 'radius': radius}
+    else:
+        return None
+
+def search_for_input_multiple(path, algorithm_ptr, radius=0.01, mean=10, var=3):
+    '''
+    Searching for inputs that we can prove advarserial robustness on them
+    sampling from a normal distribution input points until proving
+    :param path: path to h5 file with the model
+    :param algorithm_ptr:  huerstics for the rnn invariant search
+    :param radius: radius of the ball around the input point
+    :param mean: normal distribution mean
+    :param var: normal distribution variance
+    :return:
+    '''
+
     examples_found = 0
-    # from datetime import datetime
-    # np.random.seed(datetime.now().microsecond)
+
+    net_name = path.split(".")[0].split("/")[-1]
+    pickle_path = "{}/{}2.pkl".format(WORKING_EXAMPLES_FOLDER, net_name)
+    if os.path.exists(pickle_path):
+        examples = pickle.load(open(pickle_path, "rb"))
+    else:
+        examples = []
+    print("Searching for inputs on network: {}".format(path))
     for j in range(300):
         start = timer()
-        in_tensor = np.random.random((n_inputs,))
-
-        res, num_iterations = adversarial_query(in_tensor, 0, None, None, path, algorithm_ptr,n_iterations)
-        print("finish one query, res: {}, iterations: {}".format(res, num_iterations))
-        if  num_iterations > 20:
-            # found an example that works, try to get multiple adv queris that work
-            out = get_output_vector(path, in_tensor, n_iterations)
-            net_name = path.split(".")[0].split("/")[-1]
-
-            other_idx = np.argmin(out)
-            y_idx_max = np.argmax(out)
-
-            pickle_path = "{}/{}_{}_{}_{}.pkl".format(WORKING_EXAMPLES_FOLDER, net_name, examples_found, y_idx_max,
-                                                      other_idx)
+        example = search_for_input(path, algorithm_ptr, radius, mean, var)
+        if example is not None:
+            examples.append(example)
             with open(pickle_path, "wb") as f:
-                pickle.dump({'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
-                             'other_idx': other_idx}, f)
+                pickle.dump(examples, f)
 
-            for i in range(len(out[0])):
-                if i != other_idx and i != y_idx_max:
-                    if adversarial_query_wrapper(in_tensor, 0, y_idx_max, i, path, is_fail_test=False,
-                                         n_iterations=n_iterations):
-                        pickle_path = "{}/{}_{}_{}_{}.pkl".format(WORKING_EXAMPLES_FOLDER, net_name, examples_found,
-                                                                  y_idx_max, i)
-                        with open(pickle_path, "wb") as f:
-                            pickle.dump({'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
-                                         'other_idx': i}, f)
-
-            # np.save(, in_tensor)
-            print("######### found example {}: {} ### \n {} \n #################".format(examples_found, net_name,
-                                                                                         str(in_tensor).replace(' ',
-                                                                                                                ', ')))
+            print("###### found example {}: {} ### \n {} \n ############".format(examples_found, net_name,
+                                                                                 str(example['in_tensor']).replace(' ', ', ')))
             examples_found += 1
-            # not_found = False
-            if examples_found >= 10:
-                return
-        end = timer()
-        # print("*************** fail to prove iteration: {} took: {} ***************".format(j, end - start))
+            # for i in range(len(out[0])):
+            #     if i != other_idx and i != y_idx_max:
+            #         res, num_iterations, _ = adversarial_query(in_tensor, radius, y_idx_max, i, path, algorithm_ptr,
+            #                                                    n_iterations, steps_num=1500)
+            #         if res:
+            #             examples.append({'in_tensor': in_tensor, 'n_iterations': n_iterations, 'idx_max': y_idx_max,
+            #                              'other_idx': i, 'radius': radius})
+            #
+            #             print("###### found example {}: {} ### \n {} \n ############".format(examples_found,
+            #                                                                                  net_name,
+            #                                                                                  str(in_tensor)
+            #                                                                                  .replace(' ', ', ')))
+            #             examples_found += 1
 
+            # with open(pickle_path, "wb") as f:
+            #     pickle.dump(examples, f)
+            end = timer()
+            # print("*************** fail to prove iteration: {} took: {} ***************".format(j, end - start))
 
 if __name__ == "__main__":
     # search_for_input("/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5", relative_step)
@@ -534,29 +575,31 @@ if __name__ == "__main__":
     #
     # exit(0)
     # search_for_input("{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER))
-    IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
-    weighted_absolute_step = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step)
-    exp = {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466, 0.88960908, 0.02926062, 0.4322654,
-                                                          0.05116153, 0.93342266, 0.3143915, 0.39245229, 0.1144419,
-                                                          0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
-                                                          0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371,
-                                                          0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
-                                                          0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
-                                                          0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
-                                                          0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
-     'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
-    res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-                                        weighted_absolute_step, exp['n_iterations'], steps_num=1000)
+    # IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
+    weighted_relative_step = partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step)
+    # exp = {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466, 0.88960908, 0.02926062, 0.4322654,
+    #                                                       0.05116153, 0.93342266, 0.3143915, 0.39245229, 0.1144419,
+    #                                                       0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+    #                                                       0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371,
+    #                                                       0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+    #                                                       0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+    #                                                       0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+    #                                                        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
+    #  'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
+    # res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
+    #                                     weighted_absolute_step, exp['n_iterations'], steps_num=1000)
+    #
+    # max_alphas_history = [a[-2:] for a in alpha_history]
+    # from maraboupy.draw_rnn import draw_2d_from_h5
+    #
+    # draw_2d_from_h5(exp['h5_path'], exp['in_tensor'], exp['n_iterations'], max_alphas_history)
+    # exit(0)
 
-    max_alphas_history = [a[-2:] for a in alpha_history]
-    from maraboupy.draw_rnn import draw_2d_from_h5
 
-    draw_2d_from_h5(exp['h5_path'], exp['in_tensor'], exp['n_iterations'], max_alphas_history)
-    exit(0)
-    # search_for_input("{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), IterateAlphasSGD_absolute_step)
-    # search_for_input("{}/model_classes20_1rnn8_0_0_100.h5".format(MODELS_FOLDER), IterateAlphasSGD_absolute_step)
-    # search_for_input("{}/model_classes20_1rnn8_0_0_100.h5".format(MODELS_FOLDER), relative_step)
-    # search_for_input("{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER))
+    # NOTE TO YUVAL - When running this, disabled the assert inside property_oracle to make things run faster
+    # search_for_input_multiple("{}/model_20classes_rnn4_fc16_fc32_epochs3.h5".format(MODELS_FOLDER), weighted_relative_step)
+    search_for_input_multiple("{}/model_20classes_rnn4_fc32_epochs40.h5".format(MODELS_FOLDER), weighted_relative_step)
+    #
 
     #
     # import multiprocessing
@@ -582,9 +625,3 @@ if __name__ == "__main__":
     # test_20classes_1rnn4_1fc32()
     #
     # test_20classes_1rnn8_0fc()
-
-    # n_inputs = 40
-    # y_idx_max = 1  # 2
-    # assert adversarial_query_wrapper([1] * n_inputs, 0, y_idx_max, "{}/model_classes20_1rnn8_0_64_100.h5".format(MODELS_FOLDER))
-    # assert adversarial_query_wrapper([1] * n_inputs, 0, y_idx_max,
-    #                          "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER))

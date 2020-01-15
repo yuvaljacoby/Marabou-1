@@ -6,8 +6,8 @@ import numpy as np
 from tqdm import tqdm
 
 MIN_GRID = -2
-MAX_GRID = 5
-NUM_POINTS_TO_SAMPLE = 1000
+MAX_GRID = 8
+NUM_POINTS_TO_SAMPLE = 500
 EPS = 10 ** -4
 
 def ReLU(x):
@@ -16,12 +16,12 @@ def ReLU(x):
     :param x: int or np.ndarray
     :return: same type, only positive numbers
     '''
-    if isinstance(x, int):
+    if isinstance(x, int) or isinstance(x, np.float64):
         return max(0, x)
     elif isinstance(x, np.ndarray):
         # if len(x.shape) == 1:
         #     x = x[:, None]
-        return np.vectorize(lambda v: max(0, v))(x)
+        return np.vectorize(lambda v: max(0.0, v))(x)
     else:
         return None
 
@@ -154,7 +154,7 @@ def get_multi_d_max_constriants(x, w_in, w_h, num_steps):
             # constraints[i].append(cur_alpha * i >= a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1])
 
 
-def get_2d_constraints(x, w_in, w_h, num_steps):
+def get_2d_max_constraints(x, w_in, w_h, num_steps):
     r = calc_rnn_values(x, w_in, w_h, num_steps)
     r0 = r[:, 0]
     r1 = r[:, 1]
@@ -170,7 +170,7 @@ def get_2d_constraints(x, w_in, w_h, num_steps):
     for i, v in enumerate(r0):
         a0_constraints.append(v - ReLU(a0 * i + np.matmul(x, w_in[:, 0])) < EPS)
         # we removed + x * w_in[0] from both sides of the equation
-        induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1]))
+        # induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])))
 
 
     a1_constraints = []
@@ -179,30 +179,65 @@ def get_2d_constraints(x, w_in, w_h, num_steps):
         a1_constraints.append(v - ReLU(a1 * i + np.matmul(x, w_in[:, 1])) < EPS)
         # a1_constraints.append(np.abs(ReLU(a1 * i + np.matmul(x, w_in[:, 1])) - v) < EPS)
         # we removed + x * w_in[1] from both sides of the equation
-        induction_constraints.append(a1 * i >= ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1]))
+
+    for i in range(1, len(r0)):
+        induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])))
+        induction_constraints.append(a1 * i >= ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])))
 
     max_constraints = a0_constraints + a1_constraints
     return max_constraints, induction_constraints
 
+def get_2d_min_constraints(x, w_in, w_h, num_steps):
+    r = calc_rnn_values(x, w_in, w_h, num_steps)
+    r0 = r[:, 0]
+    r1 = r[:, 1]
+    print("r0, r1 values:", list(zip(r0, r1)))
+    d = np.linspace(MIN_GRID, MAX_GRID, NUM_POINTS_TO_SAMPLE)
+    assert r0[-1] >= MIN_GRID, r0[-1]
+    assert r1[-1] >= MIN_GRID, r1[-1]
+
+    a0, a1 = np.meshgrid(d, d)
+    induction_constraints = []
+    a0_constraints = []
+    # Using i and not (i-1) because we start from 1 in r
+    for i, v in enumerate(r0):
+        a0_constraints.append(ReLU(a0 * i + np.matmul(x, w_in[:, 0]) - v) < EPS)
+
+    a1_constraints = []
+    for i, v in enumerate(r1):
+        a1_constraints.append(ReLU(a1 * i + np.matmul(x, w_in[:, 1]) - v) < EPS)
+
+    for i in range(1, len(r0)):
+        induction_constraints.append(a0 * i <= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])))
+        induction_constraints.append(a1 * i <= ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])))
+
+    min_constraints = a0_constraints + a1_constraints
+    return min_constraints, induction_constraints
+
+def draw_min_alphas(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int, points=None):
+    min_constraints, induction_constraints = get_2d_min_constraints(x, w_in, w_h, num_steps)
+    draw_constraints(min_constraints, induction_constraints, points)
 
 def draw_max_alphas(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int, points=None):
-    max_constraints, induction_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
+    max_constraints, induction_constraints = get_2d_max_constraints(x, w_in, w_h, num_steps)
+    draw_constraints(max_constraints, induction_constraints, points)
 
+def draw_constraints(value_constraints, induction_constraints, points=None):
     # Here we calculate the actual values and check for points that hold them
     plt.title("Actual Values")
-    # draw(max_constraints, MIN_GRID, MAX_GRID, )
+    draw(value_constraints, MIN_GRID, MAX_GRID )
 
     # Here we use the induction hyptoesis which over approximate the actual values
     plt.title("Values that are provable via induction")
-    # draw(induction_constraints, MIN_GRID, MAX_GRID)
+    draw(induction_constraints, MIN_GRID, MAX_GRID)
 
     plt.title("Valid Inductive Invariants")
-    draw(max_constraints + induction_constraints, MIN_GRID, MAX_GRID, 'BuPu', points)
+    draw(value_constraints + induction_constraints, MIN_GRID, MAX_GRID, 'BuPu', points)
 
 
 
 def draw_max_constraints(x, w_in, w_h, prop, num_steps):
-    max_constraints, induction_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
+    max_constraints, induction_constraints = get_2d_max_constraints(x, w_in, w_h, num_steps)
     max_constraints = constraint_conjunction(max_constraints)
     induction_constraints = constraint_conjunction(induction_constraints)
     inductive_overapproximation_constraints = induction_constraints & max_constraints
@@ -277,7 +312,7 @@ def draw_max_alphas_and_property(x: int, w_in: np.ndarray, w_h: np.ndarray, prop
     :param num_steps:
     :return:
     '''
-    a0_constraints, a1_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
+    a0_constraints, a1_constraints = get_2d_max_constraints(x, w_in, w_h, num_steps)
     constraints = a0_constraints + a1_constraints
     valid_invariants = constraints[0]
     for constraint in constraints[1:]:
@@ -323,7 +358,7 @@ def draw_2d_hidden_values_one_image(x, w_in, w_h0, num_steps, file_name):
     for i in range(sqrt_num_points):
         for j in range(sqrt_num_points):
             w_h = np.vstack((w_h0, np.array([i * step_size, j * step_size])))
-            max_constraints, induction_constraints = get_2d_constraints(x, w_in, w_h, num_steps)
+            max_constraints, induction_constraints = get_2d_max_constraints(x, w_in, w_h, num_steps)
             if constraint_conjunction(max_constraints + induction_constraints).any():
                 valid[i, j] = values[1]
             pbar.update(1)
@@ -448,43 +483,26 @@ def draw_2d_from_h5(h5_path, in_tensor, steps, algorithm_points=None):
 
 
 if __name__ == "__main__":
-    in_tensor = np.array([0.23300637, 0.0577466 , 0.88960908, 0.02926062, 0.4322654 ,
-        0.05116153, 0.93342266, 0.3143915 , 0.39245229, 0.1144419 ,
-        0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
-        0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371 ,
-        0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
-        0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
-        0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
-        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231])
-    draw_2d_from_h5("models/model_classes5_1rnn2_0_64_4.h5", in_tensor, 5)
-    exit(0)
+    # in_tensor = np.array([0.23300637, 0.0577466 , 0.88960908, 0.02926062, 0.4322654 ,
+    #     0.05116153, 0.93342266, 0.3143915 , 0.39245229, 0.1144419 ,
+    #     0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+    #     0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371 ,
+    #     0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+    #     0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+    #     0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+    #     0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231])
+    # draw_2d_from_h5("models/model_classes5_1rnn2_0_64_4.h5", in_tensor, 5)
+    # exit(0)
     steps = 3
     max_property = 23
-    x = 1
-    w_in = np.array([1, 1])
+    x = np.array([1])
+    w_in = np.array([1,1])[None, :]
     # w_h = np.array([[0.1, 0.7], [1, 1]]) # no convex shape
     # w_h0 = [0.5,0.5]
-    w_h0 = [1, -1]
-    w_h = np.array([w_h0, [1, 1]])
-    # draw_max_constraints(x, w_in, w_h, steps, steps)
-    # exit(0)
-    # r = calc_rnn_values(x, w_in, w_h, steps)
-    # r = calc_multi_d_rnn_values(x, w_in, w_h, steps)
-    #
-    # assert (r0 == r[:, 0]).all()
-    # assert (r1 == r[:, 1]).all()
-    # func_to_gif('figures/max_alphas_w_h{}'.format(w_h), draw_max_alphas_and_property, steps,
-    #             {'x': x, 'w_in': w_in, 'w_h': w_h, 'property': max_property})
-    # plt.clf()
-    # draw_r_values(*calc_rnn_values(x, w_in, w_h, steps))
+    # w_h0 = [-0.2, 2]
+    w_h = np.array([[1,-0.5], [1, -0.1]])
 
-    # draw_2d_hidden_values_one_image(x, w_in, w_h0, 2, "temp.png")
-    # func_to_gif("figures/hidden_values_w_h0{}".format(w_h0), draw_2d_hidden_values_one_image, 8,
-    #             {'x' : x, 'w_in' : w_in, 'w_h0' : w_h0}, 3)
-    # draw_2d_hidden_values(x, w_in, w_h0, 3,
-    #                       file_name="figures/images_hidden_values_w_h0{}_large_sample".format(w_h0))
-
-    draw_max_alphas(x, w_in, w_h, steps)
+    draw_min_alphas(x, w_in, w_h, steps)
     # draw_max_alphas_and_property(x, w_in, w_h, max_property, steps)
     # draw_min_alphas(x, w_in, w_h, steps)
 

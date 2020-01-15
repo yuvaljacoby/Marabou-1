@@ -188,12 +188,20 @@ class RnnMarabouModel():
                         min_val = 0
                         for j, w in enumerate(rnn_dim_weights):
                             w = round(w, 6)
-                            if w > 0:
-                                max_val += w * xlim[j][1]
-                                min_val += w * xlim[j][0]
+                            v1 = w * xlim[j][1]
+                            v2 = w * xlim[j][0]
+                            if v1 > v2:
+                                max_val += v1
+                                min_val += v2
                             else:
-                                max_val += w * xlim[j][0]
-                                min_val += w * xlim[j][1]
+                                max_val += v2
+                                min_val += v1
+                            # if w > 0:
+                            #     max_val += w * xlim[j][1]
+                            #     min_val += w * xlim[j][0]
+                            # else:
+                            #     max_val += w * xlim[j][0]
+                            #     min_val += w * xlim[j][1]
                         # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
                         min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
                         initial_values.append((relu(min_val), relu(max_val)))
