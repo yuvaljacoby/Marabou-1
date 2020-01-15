@@ -15,51 +15,6 @@ MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
 
 
-# def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
-#                       n_iterations=10):
-#     '''
-#     Query marabou with adversarial query
-#     :param x: base_vector (input vector that we want to find a ball around it)
-#     :param radius: determines the limit of the inputs around the base_vector
-#     :param y_idx_max: max index in the output layer
-#     :param other_idx: which index to compare max idx
-#     :param h5_file_path: path to keras model which we will check on
-#     :param algorithm_ptr: TODO
-#     :param n_iterations: number of iterations to run
-#     :return: True / False
-#     '''
-#
-#     # assert_adversarial_query(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
-#     rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
-#     xlim = calc_min_max_by_radius(x, radius)
-#     rnn_model.set_input_bounds(xlim)
-#     initial_values = rnn_model.get_rnn_min_max_value_one_iteration(xlim)
-#
-#     # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
-#     adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-#     adv_eq.addAddend(-1, rnn_model.output_idx[other_idx])
-#     adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
-#     adv_eq.setScalar(0)
-#
-#     rnn_output_idxs = rnn_model.rnn_out_idx
-#     rnn_start_idxs = [i - 3 for i in rnn_output_idxs]
-#
-#     # Convert the initial values to the SGDAlphaAlgorithm format
-#     rnn_max_values = [val[1] for val in initial_values]
-#     rnn_min_values = [val[0] for val in initial_values]
-#
-#     assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-#
-#     algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
-#     # rnn_model.network.dump()
-#     start = timer()
-#     assert prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
-#                                    algorithm)
-#     end = timer()
-#     return end - start
-
-# x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
-#                       n_iterations=10, steps_num=5000
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iterations=100):
     our_results = []
     rnsverify_results = []

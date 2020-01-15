@@ -9,7 +9,7 @@ class Absolute_Step():
     def __init__(self, options = None):
         self.counter = 0
         self.last_direction = 0
-        self.options = options if options is not None else [5 ** i for i in range(-5, -1)]
+        self.options = options if options is not None else [5 ** i for i in range(-3, 2)]
 
     def do_step(self, alpha, direction):
         if direction == self.last_direction:
@@ -35,10 +35,10 @@ class Absolute_Step():
 sign = lambda x: 1 if x >= 0 else -1
 
 class Relative_Step():
-    def __init__(self):
+    def __init__(self, options = None):
         self.counter = 0
         self.last_direction = 0
-        self.options = [0.01,0.05, 0.1]#, 0.2,0.3]
+        self.options = options if options is not None else [0.01,0.05, 0.1]#, 0.2,0.3]
         # self.options = [0.4, 0.9]
 
     def do_step(self, alpha, direction):

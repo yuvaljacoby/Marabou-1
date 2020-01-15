@@ -3,6 +3,7 @@ import pickle
 from functools import partial
 from timeit import default_timer as timer
 
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -14,52 +15,11 @@ from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+#BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
-
-
-# def adversarial_query2(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
-#                       n_iterations=10):
-#     '''
-#     Query marabou with adversarial query
-#     :param x: base_vector (input vector that we want to find a ball around it)
-#     :param radius: determines the limit of the inputs around the base_vector
-#     :param y_idx_max: max index in the output layer
-#     :param other_idx: which index to compare max idx
-#     :param h5_file_path: path to keras model which we will check on
-#     :param algorithm_ptr: TODO
-#     :param n_iterations: number of iterations to run
-#     :return: True / False, and number of queries took to prove
-#     '''
-#     # assert_adversarial_query(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
-#     rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
-#     xlim = calc_min_max_by_radius(x, radius)
-#     rnn_model.set_input_bounds(xlim)
-#
-#     # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
-#     adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-#     adv_eq.addAddend(-1, rnn_model.output_idx[other_idx])
-#     adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
-#     adv_eq.setScalar(0)
-#
-#     if algorithm_ptr == SmtAlphaSearch:
-#         # import tensorflow.keras as keras
-#         # # TODO: Works for very very spesific case (1rnn cell as the first layer)
-#         # x_min_vals = [x[0] for x in xlim]
-#         # x_max_vals = [x[1] for x in xlim]
-#         #
-#         # [w_in, w_h, bias] = keras.models.load_model(h5_file_path).layers[0].get_weights()
-#         # algorithm = algorithm_ptr((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs, w_h, w_in, bias,
-#         #                           x_min_vals, x_max_vals, n_iterations)
-#         raise NotImplementedError
-#     else:
-#         algorithm = algorithm_ptr(rnn_model, xlim)
-#     # rnn_model.network.dump()
-#
-#     return prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1, return_num_queries=True)
-
 
 def classes20_1rnn2_1fc2():
     n_inputs = 40
@@ -482,30 +442,6 @@ experiemnts = [
 ]
 
 
-# def classes20_1rnn4_1fc32():
-#     n_inputs = 40
-#     y_idx_max = 9
-#     other_idx = 14
-#     in_tensor = np.array([0.43679032, 0.51105192, 0.01603254, 0.45879329, 0.64639347,
-#                           0.39209051, 0.98618169, 0.49293316, 0.70440262, 0.08594672,
-#                           0.17252591, 0.4940284, 0.83947774, 0.55545332, 0.8971317,
-#                           0.72996308, 0.23706766, 0.66869303, 0.74949942, 0.57524252,
-#                           0.94886307, 0.31034989, 0.41785656, 0.5697128, 0.74751913,
-#                           0.48868271, 0.22672374, 0.6350584, 0.88979192, 0.97493685,
-#                           0.96969836, 0.99457045, 0.89433312, 0.19916606, 0.63957592,
-#                           0.02826659, 0.08104817, 0.20176526, 0.1114994, 0.29297289])
-#     assert in_tensor.shape[0] == n_inputs
-#     return run_one_comperasion(in_tensor, 0.01, y_idx_max, other_idx,
-#                                "{}/model_classes20_1rnn4_1_32_4.h5".format(MODELS_FOLDER), n_iterations=10)
-#
-#
-# def classes20_1rnn2_1fc32():
-#     n_inputs = 40
-#     y_idx_max = 13
-#     other_idx = 0
-#     return run_one_comperasion([1] * n_inputs, 0.05, y_idx_max, other_idx,
-#                                "/home/yuval/projects/Marabou/model_classes20_1rnn2_1_32_4.h5", 10)
-
 def get_random_input(model_path, mean, var, n_iterations):
 
     while True:
@@ -530,19 +466,19 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
+    pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=100)
+                                        n_iterations, algorithms_ptrs, steps_num=3000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
         exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
         df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
         print(df)
-        pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys())
         pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
     return df
 
@@ -578,29 +514,23 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
 
 
 def get_all_algorithms():
-    IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
+    RandomAlphasSGD_absolute_step = partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step)
     WeightedAlphasSGD_absolute_step = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step)
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
-    IterateAlphasSGD_absolute_step_big = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
+    RandomAlphasSGD_absolute_step_big = partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
     WeightedAlphasSGD_absolute_step_big = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
-    IterateAlphasSGD_relative_step = partial(IterateAlphasSGD, update_strategy_ptr=Relative_Step)
     WeightedAlphasSGD_relative_step = partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step)
     RandomAlphasSGD_relative_step = partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)
+    # IterateAlphasSGD_relative_step = partial(IterateAlphasSGD, update_strategy_ptr=Relative_Step)
 
     from collections import OrderedDict
     algorithms_ptrs = OrderedDict({
         'random_relative': RandomAlphasSGD_relative_step,
-        # 'iterate_relative': IterateAlphasSGD_relative_step,
         'weighted_relative': WeightedAlphasSGD_relative_step,
-        # 'iterate_big_absolute': IterateAlphasSGD_absolute_step_big,
-        # 'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
-        # 'weighted_absolute': WeightedAlphasSGD_absolute_step,
-        # 'weighted_relative': WeightedAlphasSGD_relative_step,
-        #  'iterate_relative': IterateAlphasSGD_relative_step,
-        # 'random_relative': RandomAlphasSGD_relative_step,
-        # 'SGD_weighted_relative_default': WeightedAlphasSGD,
-        # 'SGD_iterate_relative_default': IterateAlphasSGD,
-        # 'SGD_random_relative_default': RandomAlphasSGD,
+        'iterate_absolute': RandomAlphasSGD_absolute_step,
+        'weighted_absolute': WeightedAlphasSGD_absolute_step,
+        'random_big_absolute': RandomAlphasSGD_absolute_step_big,
+        'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
     })
 
     return algorithms_ptrs
@@ -613,7 +543,7 @@ if __name__ == "__main__":
 
     algorithms_ptrs = get_all_algorithms()
     # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=10)
+    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=150)
     draw_from_dataframe(df)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in

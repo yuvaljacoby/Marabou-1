@@ -15,7 +15,7 @@ def draw_queries_from_df(df, name_1=None, name_2=None, draw_errors=True):
 
 
 def draw_time_from_df(df, name_1=None, name_2=None, draw_errors=True):
-    draw_from_dataframe(df, name_1, name_2, draw_errors, 'queries')
+    draw_from_dataframe(df, name_1, name_2, draw_errors, 'time')
 
 
 def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_param='queries'):
@@ -40,38 +40,48 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
 
     x_name = x_alg + "_" + draw_param
     y_name = y_alg + "_" + draw_param
-    df[x_name] = df[x_name].astype('int32')
-    df[y_name] = df[y_name].astype('int32')
+    df[x_name] = df[x_name].astype('float')
+    df[y_name] = df[y_name].astype('float')
     # Filter only to rows both algorithms proved
 
+
     if draw_errors:
-        max_non_error = max(df_weighted.max()[[x_alg + "_queries", y_alg + "_queries"]])
+        max_val = max(df.max()[[x_name, y_name]])
         df_filter = df
-        df_filter.loc[df_filter[x_alg + "_result"] == False, x_alg + "_queries"] = max_non_error + 100
-        df_filter.loc[df_filter[y_alg + "_result"] == False, y_alg + "_queries"] = max_non_error + 100
+        df_filter.loc[df_filter[x_alg + "_result"] == False, x_name] = max_val + 150
+        df_filter.loc[df_filter[y_alg + "_result"] == False, y_name] = max_val + 150
     else:
         df_filter = df.loc[(df[x_alg + '_result']) & (df[y_alg + '_result'])]
+        max_val = max(df_filter[x_name].max(), df_filter[y_name].max())
     df_filter.plot.scatter(x=x_name, y=y_name)
 
-    max_val = max(df_filter[x_name].max(), df_filter[y_name].max())
+    # print(df_filter)
     rgb = [i/256 for i in (145, 40, 230)]
-    plt.xlim(0, max_val + 50)
-    plt.ylim(0, max_val + 50)
+    plt.xlim(0, max_val + 200)
+    plt.ylim(0, max_val + 200)
     plt.plot(plt.xlim(), plt.ylim(), '--', color= rgb + [0.6])
     if draw_errors:
-        plt.hlines(max_non_error, 0, max_non_error, linestyles='dashed', color='orange')
-        plt.vlines(max_non_error, 0, max_non_error, linestyles='dashed', color='orange')
+        plt.hlines(max_val + 50, 0, max_val + 50, linestyles='dashed', color='orange')
+        plt.vlines(max_val + 50, 0, max_val + 50, linestyles='dashed', color='orange')
 
-    plt.title("Number of Queries")
+    plt.title(draw_param)
     plt.xlabel(x_alg.replace('_big', ''))
     plt.ylabel(y_alg.replace('_big', ''))
-    plt.show()
+    from datetime import datetime
+    save_name = x_name + y_name  # + str(datetime.now()).replace('.', '') + ".png"
+    save_name += ".png"
+    plt.savefig(save_name)
+    # plt.show()
 
 if __name__ == "__main__":
     # # draw_all_pairs(df)
     weighted_exp_summary = "results_model_20classes_rnn4_fc32_epochs40weighted_relative_weighted_big_absolute_weighted_absolute.pkl"
+    weighted_exp_summary  = "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_random_relative_weighted_relative.pkl"
     df_weighted = pickle.load(open(weighted_exp_summary, "rb"))
-    draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')
+    draw_queries_from_df(df_weighted)
+    draw_time_from_df(df_weighted)
+    #draw_from_dataframe(df_weighted)
+    # draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')
 
     # relative_exp_summary = "results_model_20classes_rnn4_fc32_epochs40random_relative_iterate_relative_weighted_relative.pkl"
     # df_relative = pickle.load(open(relative_exp_summary, "rb"))
