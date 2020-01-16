@@ -192,6 +192,7 @@ def get_out_idx(x, n_iterations, h5_file_path):
         return None, None
     return y_idx_max, other_idx
 
+
 def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
                       n_iterations=10, steps_num=5000):
     '''
@@ -203,7 +204,7 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     :param h5_file_path: path to keras model which we will check on
     :param algorithm_ptr: TODO
     :param n_iterations: number of iterations to run
-    :return: True / False, and number of queries took to prove
+    :return: True / False, and queries_stats
     '''
 
     if y_idx_max is None or other_idx is None:
@@ -226,9 +227,9 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     algorithm = algorithm_ptr(rnn_model, xlim)
     # rnn_model.network.dump()
 
-    res, queries = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
-                                           return_num_queries=True, number_of_steps=steps_num)
-    return res, queries, algorithm.alpha_history
+    res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
+                                           return_queries_stats=True, number_of_steps=steps_num)
+    return res, queries_stats, algorithm.alpha_history
 
 
 def adversarial_query_wrapper(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str,
@@ -268,7 +269,7 @@ def adversarial_query_wrapper(x: list, radius: float, y_idx_max: int, other_idx:
     adv_eq.setScalar(0)
 
     algorithm_ptr = partial(IterateAlphasSGD, update_strategy_ptr=alpha_step_policy_ptr)
-    res, num_queries, _ = adversarial_query(x, radius, y_idx_max, other_idx, h5_file_path, algorithm_ptr)
+    res, _, _ = adversarial_query(x, radius, y_idx_max, other_idx, h5_file_path, algorithm_ptr)
     # res, num_queries = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, return_alphas=True)
     return res
 

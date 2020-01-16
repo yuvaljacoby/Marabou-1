@@ -318,7 +318,7 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
 
 
 def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm,
-                            return_alphas=False, number_of_steps=5000, debug=False, return_num_queries=False):
+                            return_alphas=False, number_of_steps=5000, debug=False, return_queries_stats=False):
     rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
     network = rnnModel.network
     add_loop_indices_equations(network, rnn_start_idxs)
@@ -326,13 +326,13 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
     equations = algorithm.get_equations()
     res = False
-    invatriant_times = []
+    invariant_times = []
     property_times = []
     for i in range(number_of_steps):
         start_invariant = timer()
         invariant_results = invariant_oracle(equations)
         end_invariant = timer()
-        invatriant_times.append(end_invariant - start_invariant)
+        invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
             start_property = timer()
@@ -363,15 +363,22 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     if debug:
         if len(property_times) > 0:
             print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
-                len(invatriant_times), sum(invatriant_times) / len(invatriant_times), len(property_times),
+                len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
                 sum(property_times) / len(property_times)))
+    queries_stats = {}
+    if return_queries_stats:
+        queries_stats['property_times'] = property_times
+        queries_stats['invariant_times'] = invariant_times
+        queries_stats['property_queries'] = len(property_times)
+        queries_stats['invariant_queries'] = len(invariant_times)
+        queries_stats['number_of_updates'] = i
     if not return_alphas:
-        if not return_num_queries:
+        if not return_queries_stats:
             return res
-        if return_num_queries:
-            return res, i
+        if return_queries_stats:
+            return res, queries_stats
     else:
-        if not return_num_queries:
+        if not return_queries_stats:
             return res, algorithm.get_alphas()
-        if return_num_queries:
-            return res, algorithm.get_alphas(), i
+        if return_queries_stats:
+            return res, algorithm.get_alphas(), queries_stats

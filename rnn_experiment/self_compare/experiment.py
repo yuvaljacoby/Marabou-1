@@ -1,9 +1,10 @@
 import os
 import pickle
+from collections import OrderedDict
+from datetime import datetime
 from functools import partial
 from timeit import default_timer as timer
 
-from datetime import datetime
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -11,17 +12,15 @@ from tqdm import tqdm
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
-from rnn_algorithms.InverseWeightedAlphasSGD import InverseWeightedAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
-from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
-from collections import OrderedDict
 
 # BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
+
 
 def classes20_1rnn2_1fc2():
     n_inputs = 40
@@ -53,20 +52,30 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
         print('starting algo:' + name)
         start = timer()
 
-        res, iterations, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr,
-                                                           n_iterations, steps_num)
+        res, queries_stats, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr,
+                                                              n_iterations, steps_num)
         # res = False
         # iterations = 23
         end = timer()
-        if iterations is None:
+        if queries_stats is None:
             return None
-        results[name] = {'time': end - start, 'result': res, 'iterations': iterations}
+        results[name] = {'time': end - start, 'result': res,
+                         'invariant_iterations': queries_stats['invariant_queries'],
+                         'property_iterations': queries_stats['property_queries'],
+                         'invariant_times': queries_stats['property_times'],
+                         'property_times': queries_stats['invariant_times'],
+                         'iterations': queries_stats['number_of_updates']
+                         }
         print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
 
     # print(results)
-    row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] \
-                 + [results[n]['iterations'] for n in algorithms_ptrs.keys()] \
-                 + [results[n]['time'] for n in algorithms_ptrs.keys()]
+    row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['iterations'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['time'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['invariant_iterations'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['property_iterations'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['invariant_times'] for n in algorithms_ptrs.keys()] + \
+                 [results[n]['property_times'] for n in algorithms_ptrs.keys()]
 
     return row_result
 
@@ -445,7 +454,6 @@ experiemnts = [
 
 
 def get_random_input(model_path, mean, var, n_iterations):
-
     while True:
         in_tensor = np.random.normal(mean, var, IN_SHAPE)
         if any(in_tensor < 0):
@@ -456,20 +464,26 @@ def get_random_input(model_path, mean, var, n_iterations):
             print(in_tensor)
             return in_tensor, y_idx_max, other_idx
 
+
 def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, var=3, radius=0.01, n_iterations=50):
     '''
     runs comperasion between all the given algorithms on num_points each pointed sampled from Normal(mean,var)
     :param model_name: h5 file in MODELS_FOLDER
     :return: DataFrame with results
     '''
-    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] +\
-           ['{}_queries'.format(n) for n in algorithms_ptrs.keys()] +\
-           ['{}_time'.format(n) for n in algorithms_ptrs.keys()]
+    cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_queries'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_time'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_invariant_queries'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_property_queries'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_invariant_times'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_property_times'.format(n) for n in algorithms_ptrs.keys()]
 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
     # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
-    pickle_path = "randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ', '')
+    pickle_path = "randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ',
+                                                                                                                 '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
@@ -519,18 +533,17 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
 def get_all_algorithms():
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
-    Relative_Step_Fixed = partial(Absolute_Step, options=[0.01])
+    Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
 
-
     algorithms_ptrs = OrderedDict({
-        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        # 'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
-        # 'random_relative_big': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Big),
+        'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
+        'random_relative_big': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Big),
 
-        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-        'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
-        'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        # 'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
+        # 'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
 
         # 'inverseWeighted_relative': partial(InverseWeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -552,7 +565,7 @@ if __name__ == "__main__":
 
     algorithms_ptrs = get_all_algorithms()
     # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=150)
+    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=3)
     draw_from_dataframe(df)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
