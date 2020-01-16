@@ -11,12 +11,14 @@ from tqdm import tqdm
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
+from rnn_algorithms.InverseWeightedAlphasSGD import InverseWeightedAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
+from collections import OrderedDict
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-#BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -466,13 +468,14 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
-    pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
+    # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
+    pickle_path = "randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ', '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=3000)
+                                        n_iterations, algorithms_ptrs, steps_num=10000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
@@ -514,23 +517,29 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
 
 
 def get_all_algorithms():
-    RandomAlphasSGD_absolute_step = partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step)
-    WeightedAlphasSGD_absolute_step = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step)
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
-    RandomAlphasSGD_absolute_step_big = partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
-    WeightedAlphasSGD_absolute_step_big = partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big)
-    WeightedAlphasSGD_relative_step = partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step)
-    RandomAlphasSGD_relative_step = partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)
-    # IterateAlphasSGD_relative_step = partial(IterateAlphasSGD, update_strategy_ptr=Relative_Step)
+    Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
+    Relative_Step_Fixed = partial(Absolute_Step, options=[0.01])
+    Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
 
-    from collections import OrderedDict
+
     algorithms_ptrs = OrderedDict({
-        'random_relative': RandomAlphasSGD_relative_step,
-        'weighted_relative': WeightedAlphasSGD_relative_step,
-        'iterate_absolute': RandomAlphasSGD_absolute_step,
-        'weighted_absolute': WeightedAlphasSGD_absolute_step,
-        'random_big_absolute': RandomAlphasSGD_absolute_step_big,
-        'weighted_big_absolute': WeightedAlphasSGD_absolute_step_big,
+        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
+        # 'random_relative_big': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Big),
+
+        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
+        'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+
+        # 'inverseWeighted_relative': partial(InverseWeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+
+        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+
+        # 'random_big_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        # 'weighted_big_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
     })
 
     return algorithms_ptrs
