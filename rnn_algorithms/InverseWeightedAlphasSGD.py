@@ -81,8 +81,8 @@ class InverseWeightedAlphaSGDOneSideBound:
 
         influence_sum = np.abs(influence_sum)
         # inverse the probability
-        influence_sum = 1 / influence_sum
         if np.sum(influence_sum) > 0:
+            influence_sum = 1 / influence_sum
             self.next_idx_step = np.random.choice(range(len(influence_sum)), 1, p=influence_sum / np.sum(influence_sum))[0]
         else:
             self.next_idx_step = random.randint(0, len(self.alphas) - 1)
