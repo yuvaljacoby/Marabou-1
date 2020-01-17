@@ -11,6 +11,8 @@ from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
+from rnn_algorithms.InverseWeightedAlphasSGD import InverseWeightedAlphasSGD
+from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
@@ -541,18 +543,18 @@ def get_all_algorithms():
         'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
         'random_relative_big': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Big),
 
-        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-        # 'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
-        # 'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
+        'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
 
-        # 'inverseWeighted_relative': partial(InverseWeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        'inverseWeighted_relative': partial(InverseWeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
-        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-        # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
 
-        # 'random_big_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
-        # 'weighted_big_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        'random_big_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        'weighted_big_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
     })
 
     return algorithms_ptrs
