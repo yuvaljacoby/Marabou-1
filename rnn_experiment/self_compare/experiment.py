@@ -11,14 +11,13 @@ from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
-from rnn_algorithms.InverseWeightedAlphasSGD import InverseWeightedAlphasSGD
-from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
+from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -64,8 +63,8 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
         results[name] = {'time': end - start, 'result': res,
                          'invariant_iterations': queries_stats['invariant_queries'],
                          'property_iterations': queries_stats['property_queries'],
-                         'invariant_times': queries_stats['property_times'],
-                         'property_times': queries_stats['invariant_times'],
+                         'invariant_times': queries_stats['invariant_times'],
+                         'property_times': queries_stats['property_times'],
                          'iterations': queries_stats['number_of_updates']
                          }
         print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
@@ -491,7 +490,7 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=10000)
+                                        n_iterations, algorithms_ptrs, steps_num=4000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
@@ -537,24 +536,28 @@ def get_all_algorithms():
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
     Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
-
+    sigmoid = lambda x : 1 / (1+ np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
-        'random_relative_big': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Big),
+        'weighted_tanh_relative' : partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
-        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-        'random_absolute_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Fixed),
-        'random_absolute_big': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=sigmoid),
+        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
-        'inverseWeighted_relative': partial(InverseWeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-
-        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-        'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
-
-        'random_big_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
-        'weighted_big_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step_Big),
+        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'random_relative_fixed': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step_Fixed),
+        #
+        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        #
+        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+        #
+        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        #
+        # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
     })
 
     return algorithms_ptrs
@@ -567,7 +570,7 @@ if __name__ == "__main__":
 
     algorithms_ptrs = get_all_algorithms()
     # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=3)
+    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=200)
     draw_from_dataframe(df)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in

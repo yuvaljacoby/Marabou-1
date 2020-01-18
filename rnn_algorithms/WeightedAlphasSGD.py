@@ -49,11 +49,12 @@ MAX_IDX_IN_A_ROW = 4
 
 class WeightedAlphaSGDOneSideBound:
     def __init__(self, initial_values, rnn_start_idxs, rnn_output_idxs, inv_type, alpha_initial_value=0,
-                 update_strategy=Absolute_Step()):
+                 update_strategy=Absolute_Step(), activation=None):
         '''
         :param initial_values: list of values (min / max)
         :param rnn_start_idxs:
         :param rnn_output_idxs:
+        :param activation: If not none, executing the activation function before transforming to probabilties
         '''
         self.rnn_start_idxs = rnn_start_idxs
         self.rnn_output_idxs = rnn_output_idxs
@@ -63,6 +64,7 @@ class WeightedAlphaSGDOneSideBound:
         self.prev_alpha = None
         self.prev_idx = None
         self.update_strategy = update_strategy
+        self.activation = activation
 
         self.first_call = True
         assert inv_type in [MarabouCore.Equation.LE, MarabouCore.Equation.GE]
@@ -81,6 +83,8 @@ class WeightedAlphaSGDOneSideBound:
 
         influence_sum = np.abs(influence_sum)
         if np.sum(influence_sum) > 0:
+            if self.activation:
+                influence_sum = self.activation(influence_sum)
             self.next_idx_step = np.random.choice(range(len(influence_sum)), 1, p=influence_sum / np.sum(influence_sum))[0]
         else:
             self.next_idx_step = random.randint(0, len(self.alphas) - 1)
@@ -137,7 +141,7 @@ class WeightedAlphaSGDOneSideBound:
 
 class WeightedAlphasSGD:
     def __init__(self, rnnModel:RnnMarabouModel, xlim, alpha_initial_value=0,
-                 update_strategy_ptr=Absolute_Step):
+                 update_strategy_ptr=Absolute_Step, activation=None):
         '''
         :param initial_values: tuple of lists, [0] is list of min values, [1] for max values
         :param rnn_start_idxs:
@@ -157,10 +161,10 @@ class WeightedAlphasSGD:
         # The initial values are opposite to the intuition, for LE we use max_value
         self.min_invariants = WeightedAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
                                                            MarabouCore.Equation.LE, alpha_initial_value,
-                                                           self.update_strategy)
+                                                           self.update_strategy, activation=activation)
         self.max_invariants = WeightedAlphaSGDOneSideBound(initial_values[0], rnn_start_idxs, rnn_output_idxs,
                                                            MarabouCore.Equation.GE, alpha_initial_value,
-                                                           self.update_strategy)
+                                                           self.update_strategy, activation=activation)
         self.last_fail = None
         self.alpha_history = []
 

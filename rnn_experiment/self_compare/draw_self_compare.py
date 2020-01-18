@@ -6,10 +6,17 @@ import matplotlib.pyplot as plt
 DEFAULT_FILE_PATH = "all_results.pkl"
 
 def draw_all_pairs(df):
+    if isinstance(df, str):
+        df = pickle.load(open(df, "rb"))
     names = [n.replace("_result", "") for n in df.columns if n.endswith('_result')]
     for i, name_1 in enumerate(names):
         for name_2 in names[i+1:]:
-            draw_from_dataframe(df, name_1, name_2)
+            draw_all_columns(df, name_1, name_2)
+
+def draw_all_columns(df, name_1=None, name_2=None, draw_errors=True):
+    intresting_columns = ['queries', 'time', 'invariant_queries', 'property_queries'] #['invariant_times', 'property_times']
+    for c in intresting_columns:
+        draw_from_dataframe(df, name_1, name_2, draw_errors, c)
 
 def draw_queries_from_df(df, name_1=None, name_2=None, draw_errors=True):
     draw_from_dataframe(df, name_1, name_2, draw_errors, 'queries')
@@ -26,6 +33,9 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
     :param name_2: Optional, y axis, if None use an algorithm from df.columns
     :return:
     '''
+    if isinstance(df, str):
+        df = pickle.load(open(df, "rb"))
+
     names =  [n.replace("_result", "") for n in df.columns if n.endswith('_result')]
 
     if len(names) < 2:
@@ -47,6 +57,8 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
 
 
     df_filter = df.loc[(df[x_alg + '_result']) & (df[y_alg + '_result'])]
+    if df_filter.shape[0] == 0:
+        return
     max_no_error = max(df_filter[x_name].max(), df_filter[y_name].max())
     if draw_errors:
         # max_val = max(df.max()[[x_name, y_name]])
@@ -66,8 +78,8 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
         plt.vlines(max_no_error + 50, 0, max_no_error + 50, linestyles='dashed', color='orange')
 
     plt.title(draw_param)
-    plt.xlabel(x_alg.replace('_big', ''))
-    plt.ylabel(y_alg.replace('_big', ''))
+    # plt.xlabel(x_alg.replace('_big', ''))
+    # plt.ylabel(y_alg.replace('_big', ''))
     from datetime import datetime
     save_name = x_name + y_name  # + str(datetime.now()).replace('.', '') + ".png"
     save_name += ".png"
@@ -83,23 +95,16 @@ if __name__ == "__main__":
     # draw_time_from_df(df_weighted)
 
     # Random vs Weighted with relative
-    path = os.path.join("pickles",
-                        "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_random_relative_weighted_relative2020-01-15 17:20:29232138.pkl")
-    path = os.path.join("pickles",
-                        "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_random_relative_weighted_relative2020-01-15 17:31:07048509.pkl")
-    path = os.path.join("pickles",
-                        "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_random_relative_weighted_relative2020-01-15 17:35:30981224.pkl")
-
-
-    # path = os.path.join("pickles",
-    #                     "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_weighted_relative_iterate_relative2020-01-15 19:30:33489217.pkl")
 
     path = os.path.join("pickles",
                         "results_model_20classes_rnn4_fc32_epochs40.h5_randomexp_random_relative_weighted_relative_iterate_absolute_weighted_absolute_random_big_absolute_weighted_big_absolute2020-01-15 19:37:29378275.pkl")
 
     path = "random_vs_weighted_realtive.pkl"
-    draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
-    draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
+    path = os.path.join("pickles", "absolute_compars.pkl")
+    # path = os.path.join("pickles", "inverse_vs_weighted_absolute.pkl")
+    draw_all_pairs(path)
+    # draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
+    # draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')
 
     # relative_exp_summary = "results_model_20classes_rnn4_fc32_epochs40random_relative_iterate_relative_weighted_relative.pkl"
@@ -109,3 +114,4 @@ if __name__ == "__main__":
     # absolute_exp_summary = "results_model_20classes_rnn4_fc32_epochs40iterate_big_absolute_weighted_big_absolute_result.pkl"
     # df_absolute = pickle.load(open(absolute_exp_summary, "rb"))
     # draw_from_dataframe(df_absolute, 'iterate_big_absolute', 'weighted_big_absolute')
+
