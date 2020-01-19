@@ -1,5 +1,6 @@
 import os
 import pickle
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from functools import partial
@@ -16,8 +17,8 @@ from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -490,7 +491,7 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=4000)
+                                        n_iterations, algorithms_ptrs, steps_num=1000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
@@ -531,14 +532,41 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
     return df
 
 
+def get_algorithms():
+    Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
+    Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
+    Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
+    Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
+    sigmoid = lambda x: 1 / (1 + np.exp(-x))
+    experiments = {
+        'weighted_tanh': OrderedDict({
+            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        }),
+        'random_weighted_relative': OrderedDict({
+            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+            'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        }),
+        'weighted_sigmoid': OrderedDict({
+            'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+                                                 activation=sigmoid),
+            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        }),
+        'random_weighted_relative': OrderedDict({
+            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+            'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+        })
+    }
+    return experiments
+
 def get_all_algorithms():
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
     Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
-    sigmoid = lambda x : 1 / (1+ np.exp(-x))
+    sigmoid = lambda x: 1 / (1 + np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'weighted_tanh_relative' : partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
         'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=sigmoid),
@@ -562,15 +590,44 @@ def get_all_algorithms():
 
     return algorithms_ptrs
 
+def create_sbatch_files(folder_to_write):
+    exps = get_algorithms()
+    for exp in exps.keys():
+        exp_time = str(datetime.now()).replace(" ", "-")
+        with open(os.path.join(folder_to_write, exp + ".bat"), "w") as slurm_file:
+            job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
+            slurm_file.write('#!/bin/bash\n')
+            slurm_file.write(f'#SBATCH --job-name={exp}_{exp_time}\n')
+            slurm_file.write(f'#SBATCH --cpus-per-task=3\n')
+            slurm_file.write(f'#SBATCH --output={job_output_rel_path}\n')
+            # slurm_file.write(f'#SBATCH --partition={partition}\n')
+            slurm_file.write(f'#SBATCH --time=24:00:00\n')
+            slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
+            slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
+            slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
+            slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
+            slurm_file.write(f'export python3 rnn_experiment/self_compare/experiment.py {exp}\n')
+
 
 if __name__ == "__main__":
     pd.set_option('display.max_columns', None)
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', -1)
 
-    algorithms_ptrs = get_all_algorithms()
-    # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=200)
+    # sbatch_folder = os.path.join(sys.path[0], "temp")
+    # if not os.path.exists(sbatch_folder):
+    #     os.mkdir(sbatch_folder)
+    # create_sbatch_files(sbatch_folder)
+    # exit(0)
+    
+    if len(sys.argv) > 1:
+        algorithms_ptrs = get_algorithms()[sys.argv[1]]
+        if algorithms_ptrs is None:
+            exit(1)
+    else:
+        algorithms_ptrs = get_all_algorithms()
+        # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
+    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=5)
     draw_from_dataframe(df)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
