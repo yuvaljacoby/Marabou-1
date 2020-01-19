@@ -50,7 +50,7 @@ class AllAlphaSGDOneSideBound:
         for i in range(len(self.alphas)):
             self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
             self.update_equation(i)
-        self.update_next_idx_step()
+
         return self.equations
 
     def update_equation(self, idx):

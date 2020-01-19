@@ -510,6 +510,7 @@ def search_for_input(path, algorithm_ptr, radius=0.01, mean=3, var=0.5):
     else:
         return None
 
+
 def search_for_input_multiple(path, algorithm_ptr, radius=0.01, mean=10, var=3):
     '''
     Searching for inputs that we can prove advarserial robustness on them
@@ -560,6 +561,7 @@ def search_for_input_multiple(path, algorithm_ptr, radius=0.01, mean=10, var=3):
             #     pickle.dump(examples, f)
             end = timer()
             # print("*************** fail to prove iteration: {} took: {} ***************".format(j, end - start))
+
 
 if __name__ == "__main__":
     # search_for_input("/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5", relative_step)

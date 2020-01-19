@@ -24,7 +24,7 @@ BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
-
+SBATCH_FOLDER = "sbatch_exp"
 
 def classes20_1rnn2_1fc2():
     n_inputs = 40
@@ -544,31 +544,28 @@ def get_algorithms():
             'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
             'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
-        'weighted_tanh2': OrderedDict({
+        'random_tanh': OrderedDict({
             'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
-        'random_weighted_relative': OrderedDict({
             'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-            'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         }),
         'weighted_sigmoid': OrderedDict({
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
             'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
-        'weighted_sigmoid2': OrderedDict({
+        'tanh_sigmoid': OrderedDict({
+            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
-        'random_weighted_relative': OrderedDict({
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-            'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'random_sigmoid': OrderedDict({
+            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+            'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+                                                 activation=sigmoid),
         }),
-        'all_weighted_relative': OrderedDict({
+        'all_random_relative': OrderedDict({
             'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
+            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
     }
     return experiments
@@ -610,19 +607,19 @@ def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
     for exp in exps.keys():
         exp_time = str(datetime.now()).replace(" ", "-")
-        with open(os.path.join(folder_to_write, "run_" + exp + ".bat"), "w") as slurm_file:
+        with open(os.path.join(folder_to_write, "run_" + exp + ".sh"), "w") as slurm_file:
             job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
             slurm_file.write('#!/bin/bash\n')
             slurm_file.write(f'#SBATCH --job-name={exp}_{exp_time}\n')
             slurm_file.write(f'#SBATCH --cpus-per-task=3\n')
             slurm_file.write(f'#SBATCH --output={job_output_rel_path}\n')
             # slurm_file.write(f'#SBATCH --partition={partition}\n')
-            slurm_file.write(f'#SBATCH --time=24:00:00\n')
+            slurm_file.write(f'#SBATCH --time=30:00:00\n')
             slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
             slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
             slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
             slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
-            slurm_file.write(f'export python3 rnn_experiment/self_compare/experiment.py {exp}\n')
+            slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp}\n')
 
 
 if __name__ == "__main__":
@@ -630,16 +627,17 @@ if __name__ == "__main__":
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', -1)
 
-    # sbatch_folder = os.path.join(sys.path[0], "temp")
-    # if not os.path.exists(sbatch_folder):
-    #     os.mkdir(sbatch_folder)
-    # create_sbatch_files(sbatch_folder)
-    # exit(0)
-
     if len(sys.argv) > 1:
-        algorithms_ptrs = get_algorithms()[sys.argv[1]]
-        if algorithms_ptrs is None:
-            exit(1)
+        if sys.argv[1] == 'create_sbatch':
+            sbatch_folder = os.path.join(sys.path[0], SBATCH_FOLDER)
+            if not os.path.exists(sbatch_folder):
+                os.mkdir(sbatch_folder)
+            create_sbatch_files(sbatch_folder)
+            exit(0)
+        else:
+            algorithms_ptrs = get_algorithms()[sys.argv[1]]
+            if algorithms_ptrs is None:
+                exit(1)
     else:
         algorithms_ptrs = get_all_algorithms()
         # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)

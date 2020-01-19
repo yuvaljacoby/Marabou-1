@@ -17,8 +17,8 @@ def draw_all_pairs(df):
 
 
 def draw_all_columns(df, name_1=None, name_2=None, draw_errors=True):
-    interesting_columns = [# 'queries', 'time_log', 'time', 'invariant_queries', 'property_queries',
-                           'invariant_times_mean', 'property_times_mean']
+    interesting_columns = ['queries', 'time_log', 'time']
+                           # + ['invariant_queries', 'property_queries', 'invariant_times_mean', 'property_times_mean']
     df[name_1 + '_invariant_times_mean'] = df[name_1 + '_invariant_times'].apply(np.mean)
     df[name_1 + '_property_times_mean'] = df[name_1 + '_property_times'].apply(np.mean)
     df[name_2 + '_invariant_times_mean'] = df[name_2 + '_invariant_times'].apply(np.mean)
@@ -118,6 +118,9 @@ if __name__ == "__main__":
     path = os.path.join("pickles", "random_vs_weighted_relative.pkl")
     # path = os.path.join("pickles", "absolute_compars.pkl")
     # path = os.path.join("pickles", "inverse_vs_weighted_absolute.pkl")
+    path = os.path.join("pickles", "relative_sigmoid_vs_weighted.pkl")
+    path = os.path.join("pickles", "relative_absolute_all.pkl")
+
     draw_all_pairs(path)
     # draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
