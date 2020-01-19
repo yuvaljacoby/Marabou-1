@@ -11,12 +11,11 @@ import pandas as pd
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
+from rnn_algorithms.AllAlphasSGD import AllAlphasSGD
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
-from rnn_algorithms.AllAlphasSGD import AllAlphasSGD
-
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 
 BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
@@ -25,6 +24,7 @@ MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
 SBATCH_FOLDER = "sbatch_exp"
+
 
 def classes20_1rnn2_1fc2():
     n_inputs = 40
@@ -567,7 +567,22 @@ def get_algorithms():
             'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
             'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
+        'all_tanh_relative': OrderedDict({
+            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        }),
+        'all_sigmoid_relative': OrderedDict({
+            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+            'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+                                                 activation=sigmoid),
+        }),
+        'all_weightd_relative': OrderedDict({
+            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        }),
     }
+
+
     return experiments
 
 
