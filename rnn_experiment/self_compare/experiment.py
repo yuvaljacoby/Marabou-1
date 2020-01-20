@@ -1,3 +1,7 @@
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+import sys
+sys.path.insert(0, BASE_FOLDER)
+
 import os
 import pickle
 import sys
@@ -19,8 +23,8 @@ from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
 
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
