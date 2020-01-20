@@ -643,7 +643,7 @@ def create_sbatch_files(folder_to_write):
     for exp in exps.keys():
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
-            with open(os.path.join(folder_to_write, "run_" + exp + ".sh"), "w") as slurm_file:
+            with open(os.path.join(folder_to_write, "run_" + exp + model + ".sh"), "w") as slurm_file:
                 job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
                 slurm_file.write('#!/bin/bash\n')
                 slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
