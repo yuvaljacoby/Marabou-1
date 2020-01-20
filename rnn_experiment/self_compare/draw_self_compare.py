@@ -97,7 +97,7 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
     # plt.ylabel(y_alg.replace('_big', ''))
     save_name = x_name + y_name  # + str(datetime.now()).replace('.', '') + ".png"
     save_name += ".png"
-    plt.savefig(save_name)
+    # plt.savefig(save_name)
     plt.show()
 
 
@@ -121,7 +121,8 @@ if __name__ == "__main__":
     path = os.path.join("pickles", "relative_sigmoid_vs_weighted.pkl")
     path = os.path.join("pickles", "relative_absolute_all.pkl")
 
-    draw_all_pairs(path)
+    for p in os.listdir("pickles/exp200120"):
+        draw_all_pairs("pickles/exp200120/" + p)
     # draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')

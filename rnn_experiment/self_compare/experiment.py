@@ -17,9 +17,10 @@ from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
+from rnn_algorithms.GurobiBased import AlphasGurobiBased
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -485,14 +486,14 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
     # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
-    pickle_path = "randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ',
+    pickle_path = model_name + str(radius)  + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ',
                                                                                                                  '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=4000)
+                                        n_iterations, algorithms_ptrs, steps_num=6000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
@@ -544,10 +545,10 @@ def get_algorithms():
             'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
             'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
-        'random_tanh': OrderedDict({
-            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
+        # 'random_tanh': OrderedDict({
+        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # }),
         'weighted_sigmoid': OrderedDict({
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
@@ -558,19 +559,19 @@ def get_algorithms():
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
         }),
-        'random_sigmoid': OrderedDict({
-            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-            'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-                                                 activation=sigmoid),
-        }),
-        'all_random_relative': OrderedDict({
-            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
-        'all_tanh_relative': OrderedDict({
-            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-        }),
+        # 'random_sigmoid': OrderedDict({
+        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        #     'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+        #                                          activation=sigmoid),
+        # }),
+        # 'all_random_relative': OrderedDict({
+        #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # }),
+        # 'all_tanh_relative': OrderedDict({
+        #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        # }),
         'all_sigmoid_relative': OrderedDict({
             'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
             'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
@@ -580,9 +581,22 @@ def get_algorithms():
             'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
             'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
+
+        'all_sigmoid_absolute': OrderedDict({
+            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
+            'sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
+                                        activation=sigmoid),
+        }),
+        'all_weightd__absolute': OrderedDict({
+            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
+            'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
+        }),
+        'tanh_sigmoid_absolute': OrderedDict({
+            'weighted_tanh_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step, activation=np.tanh),
+            'weighted_sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
+                                                 activation=sigmoid),
+        }),
     }
-
-
     return experiments
 
 
@@ -593,10 +607,11 @@ def get_all_algorithms():
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        'gurobi' : AlphasGurobiBased,
+        # 'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
-        'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=sigmoid),
+        # 'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=sigmoid),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
         # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -605,7 +620,7 @@ def get_all_algorithms():
         # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         #
-        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
         # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -620,21 +635,23 @@ def get_all_algorithms():
 
 def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
+    models = ['model_classes20_1rnn8_1_32_4.h5', 'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
     for exp in exps.keys():
-        exp_time = str(datetime.now()).replace(" ", "-")
-        with open(os.path.join(folder_to_write, "run_" + exp + ".sh"), "w") as slurm_file:
-            job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
-            slurm_file.write('#!/bin/bash\n')
-            slurm_file.write(f'#SBATCH --job-name={exp}_{exp_time}\n')
-            slurm_file.write(f'#SBATCH --cpus-per-task=3\n')
-            slurm_file.write(f'#SBATCH --output={job_output_rel_path}\n')
-            # slurm_file.write(f'#SBATCH --partition={partition}\n')
-            slurm_file.write(f'#SBATCH --time=30:00:00\n')
-            slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
-            slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
-            slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
-            slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
-            slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp}\n')
+        for model in models:
+            exp_time = str(datetime.now()).replace(" ", "-")
+            with open(os.path.join(folder_to_write, "run_" + exp + ".sh"), "w") as slurm_file:
+                job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
+                slurm_file.write('#!/bin/bash\n')
+                slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
+                slurm_file.write(f'#SBATCH --cpus-per-task=3\n')
+                slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
+                # slurm_file.write(f'#SBATCH --partition={partition}\n')
+                slurm_file.write(f'#SBATCH --time=30:00:00\n')
+                slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
+                slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
+                slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
+                slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
+                slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp} {model}\n')
 
 
 if __name__ == "__main__":
@@ -642,6 +659,7 @@ if __name__ == "__main__":
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', -1)
 
+    network_path = "model_20classes_rnn4_fc32_epochs40.h5"
     if len(sys.argv) > 1:
         if sys.argv[1] == 'create_sbatch':
             sbatch_folder = os.path.join(sys.path[0], SBATCH_FOLDER)
@@ -653,11 +671,13 @@ if __name__ == "__main__":
             algorithms_ptrs = get_algorithms()[sys.argv[1]]
             if algorithms_ptrs is None:
                 exit(1)
+        if len(sys.argv) > 2:
+            network_path = sys.argv[2]
     else:
         algorithms_ptrs = get_all_algorithms()
         # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment("model_20classes_rnn4_fc32_epochs40.h5", algorithms_ptrs, num_points=200)
-    draw_from_dataframe(df)
+    df = run_random_experiment(network_path, algorithms_ptrs, num_points=200)
+    # draw_from_dataframe(df)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]

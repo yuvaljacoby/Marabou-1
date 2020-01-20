@@ -12,6 +12,7 @@ from maraboupy.MarabouRnnModel import RnnMarabouModel
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
+from rnn_algorithms.GurobiBased import AlphasGurobiBased, build_gurobi_query
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 
@@ -44,8 +45,10 @@ def calc_min_max_by_radius(x, radius):
     assert radius >= 0
     xlim = []
     for val in x:
-        if val != 0:
+        if val > 0:
             xlim.append((val * (1 - radius), val * (1 + radius)))
+        elif val < 0:
+            xlim.append((val * (1 + radius)), (val * (1 - radius)))
         else:
             xlim.append((-radius, radius))
     return xlim
@@ -564,6 +567,23 @@ def search_for_input_multiple(path, algorithm_ptr, radius=0.01, mean=10, var=3):
 
 
 if __name__ == "__main__":
+    exp = {'idx_max': 1, 'other_idx': 4,
+           'in_tensor': np.array([0.23300637, 0.0577466, 0.88960908, 0.02926062, 0.4322654,
+                                  0.05116153, 0.93342266, 0.3143915, 0.39245229, 0.1144419,
+                                  0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
+                                  0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371,
+                                  0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
+                                  0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
+                                  0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
+                                  0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
+           'radius': 0, 'h5_path': "{}/old/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
+
+    rnn_model = RnnMarabouModel("{}/old/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 50)
+    w_in, w_h, b = rnn_model.get_weights()[0]
+    xlim = calc_min_max_by_radius(exp['in_tensor'], exp['radius'])
+    initial_values = rnn_model.get_rnn_min_max_value_one_iteration(xlim)
+    build_gurobi_query(initial_values[1], w_in, w_h, b, exp['n_iterations'])
+
     # search_for_input("/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5", relative_step)
     # in_tensor = np.array([0.37205514, 0.84609851, 0.34888652, 0.099101, 0.8797378, 0.02679134
     #                          , 0.18232116, 0.18231391, 0.12444646, 0.8643345, 0.77595206, 0.16838746
@@ -579,18 +599,10 @@ if __name__ == "__main__":
     # exit(0)
     # search_for_input("{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER))
     # IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
-    weighted_relative_step = partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step)
-    # exp = {'idx_max': 1, 'other_idx': 4, 'in_tensor': np.array([0.23300637, 0.0577466, 0.88960908, 0.02926062, 0.4322654,
-    #                                                       0.05116153, 0.93342266, 0.3143915, 0.39245229, 0.1144419,
-    #                                                       0.08748452, 0.24332963, 0.34622415, 0.42573235, 0.26952168,
-    #                                                       0.53801347, 0.26718764, 0.24274057, 0.11475819, 0.9423371,
-    #                                                       0.70257952, 0.34443971, 0.08917664, 0.50140514, 0.75890139,
-    #                                                       0.65532994, 0.74165648, 0.46543468, 0.00583174, 0.54016713,
-    #                                                       0.74460554, 0.45771724, 0.59844178, 0.73369685, 0.50576504,
-    #                                                        0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231]),
-    #  'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5}
-    # res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-    #                                     weighted_absolute_step, exp['n_iterations'], steps_num=1000)
+    gurobi_relative_step = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step)
+
+    res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
+                                        gurobi_relative_step, exp['n_iterations'], steps_num=1000)
     #
     # max_alphas_history = [a[-2:] for a in alpha_history]
     # from maraboupy.draw_rnn import draw_2d_from_h5
@@ -601,7 +613,7 @@ if __name__ == "__main__":
 
     # NOTE TO YUVAL - When running this, disabled the assert inside property_oracle to make things run faster
     # search_for_input_multiple("{}/model_20classes_rnn4_fc16_fc32_epochs3.h5".format(MODELS_FOLDER), weighted_relative_step)
-    search_for_input_multiple("{}/model_20classes_rnn4_fc32_epochs40.h5".format(MODELS_FOLDER), weighted_relative_step)
+    # search_for_input_multiple("{}/model_20classes_rnn4_fc32_epochs40.h5".format(MODELS_FOLDER), weighted_relative_step)
     #
 
     #

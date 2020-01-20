@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 
 MIN_GRID = -2
-MAX_GRID = 14
+MAX_GRID = 17
 NUM_POINTS_TO_SAMPLE = 500
 EPS = 10 ** -4
 
@@ -41,9 +41,9 @@ def calc_rnn_values(x: int, w_in: np.ndarray, w_h: np.ndarray, num_steps: int):
 
     for i in range(1, num_steps + 1):
         r[i, ...] = ReLU(np.matmul(x, w_in) + np.matmul(w_h, r[i - 1, ...]))
-        # r[i, ...] = x * w_in + np.matmul(w_h, r[i - 1, ...])
+        # r[i, ...] = x * w_in + np.matmul(w _h, r[i - 1, ...])
 
-    return r[1:, :]
+    return r  # [1:, :]
 
 
 def draw_r_values(r0_values, r1_values, eps=None):
@@ -168,15 +168,21 @@ def get_2d_max_constraints(x, w_in, w_h, num_steps):
     induction_constraints = []
     a0_constraints = []
     # Using i and not (i-1) because we start from 1 in r
-    for i, v in enumerate(r0):
-        a0_constraints.append(v - ReLU(a0 * i + np.matmul(x, w_in[:, 0])) < EPS)
+    for i in range(1, len(r0)):
+        v = r0[i]
+        # a0_constraints.append(v - ReLU(a0 * i + np.matmul(x, w_in[:, 0])) < EPS)
+        # a0_constraints.append(v - ReLU(a0 * i ) < EPS)
+        a0_constraints.append(v - ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])) < EPS)
         # we removed + x * w_in[0] from both sides of the equation
         # induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])))
 
     a1_constraints = []
-    for i, v in enumerate(r1):
+    for i in range(1, len(r1)):
+        v = r1[i]
         # a1_constraints.append(ReLU(a1 * i + x) >= v)
-        a1_constraints.append(v - ReLU(a1 * i + np.matmul(x, w_in[:, 1])) < EPS)
+        # a1_constraints.append(v - ReLU(a1 * i + np.matmul(x, w_in[:, 1])) < EPS)
+        # a1_constraints.append(v - ReLU(a1 * i) < EPS)
+        a1_constraints.append(v - ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])) < EPS)
         # a1_constraints.append(np.abs(ReLU(a1 * i + np.matmul(x, w_in[:, 1])) - v) < EPS)
         # we removed + x * w_in[1] from both sides of the equation
 
@@ -186,7 +192,8 @@ def get_2d_max_constraints(x, w_in, w_h, num_steps):
         induction_constraints.append(
             a1 * i >= ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])))
 
-    max_constraints = a0_constraints + a1_constraints
+    max_constraints = a1_constraints + a0_constraints
+    # induction_constraints = max_constraints
     return max_constraints, induction_constraints
 
 
@@ -261,24 +268,25 @@ def draw_max_constraints(x, w_in, w_h, prop, num_steps):
     # ax2.set_ylabel('alpha1')
     # ax3.set_ylabel('alpha1')
 
-    im_max = np.zeros(inductive_overapproximation_constraints.shape)
-    im_max[inductive_overapproximation_constraints] = 1
+    im_max = np.zeros(max_constraints.shape)
+    im_max[max_constraints] = 1
     ax1.imshow(im_max, cmap=cmap, extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID), origin="lower", alpha=0.3,
                zorder=1)
-    ax1.set_title('Inductive Invariant Holds')
+    ax1.set_title('Max Constraints')
 
-    # im_induction = np.zeros(max_constraints.shape)
-    # im_induction[induction_constraints] = 1
-    # ax2.imshow(im_induction, cmap=cmap, extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID), origin="lower", alpha=0.3,
-    #            zorder=1)
-    # ax2.set_title('Inductive')
-
-    im_prop = np.zeros(max_constraints.shape)
-    im_prop[property_constraints] = 1
+    im_prop = np.zeros(induction_constraints.shape)
+    im_prop[induction_constraints] = 1
     ax2.imshow(im_prop, cmap=cmap, extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID), origin="lower", alpha=0.3,
                zorder=1)
-    ax2.set_title('Property Implies')
+    ax2.set_title('Induction Constraints')
     plt.show()
+
+    # im_prop = np.zeros(property_constraints.shape)
+    # im_prop[property_constraints] = 1
+    # ax2.imshow(im_prop, cmap=cmap, extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID), origin="lower", alpha=0.3,
+    #            zorder=1)
+    # ax2.set_title('Property Implies')
+    # plt.show()
 
     plt.imshow(inductive_overapproximation_constraints, cmap=cmap, extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID),
                origin="lower", alpha=0.5,
@@ -503,35 +511,35 @@ if __name__ == "__main__":
     # draw_2d_from_h5("models/model_classes5_1rnn2_0_64_4.h5", in_tensor, 5)
     # exit(0)
     steps = 3
-    max_property = 10
+    max_property = 15
 
-    d = np.linspace(MIN_GRID, MAX_GRID, NUM_POINTS_TO_SAMPLE)
-    v1, v2 = np.meshgrid(d, d)
+    # d = np.linspace(MIN_GRID, MAX_GRID, NUM_POINTS_TO_SAMPLE)
+    # v1, v2 = np.meshgrid(d, d)
+    #
+    # # y1 = Relu(-v1 + 3v0) + Relu(-2v0 + v1)
+    # h1 = ReLU(2.0 * v1 - 1.0 * v2)
+    # h2 = ReLU(-1.0 *v1 + 1.5 * v2)
+    # r1 = ReLU(-1.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
+    # r2 = ReLU(-3.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
+    # y1 = r1 + 2.0 *r2
+    # y2 = 2.0 *r1 + r2
+    # property_constraints = (y2 <= y1)
+    #
+    # im = plt.imshow((property_constraints).astype(int),
+    #                 extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID),
+    #                  cmap='hot')
+    #
+    # plt.show()
+    # exit(0)
 
-    # y1 = Relu(-v1 + 3v0) + Relu(-2v0 + v1)
-    h1 = ReLU(2.0 * v1 - 1.0 * v2)
-    h2 = ReLU(-1.0 *v1 + 1.5 * v2)
-    r1 = ReLU(-1.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
-    r2 = ReLU(-3.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
-    y1 = r1 + 2.0 *r2
-    y2 = 2.0 *r1 + r2
-    property_constraints = (y2 <= y1)
-
-    im = plt.imshow((property_constraints).astype(int),
-                    extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID),
-                     cmap='hot')
-
-    plt.show()
-    exit(0)
-
-    x = np.array([1])
-    w_in = np.array([3, 3])[None, :]
+    x = np.array([2])
+    w_in = np.array([-1, 2])[None, :]
     # w_h = np.array([[0.1, 0.7], [1, 1]]) # no convex shape
     # w_h0 = [0.5,0.5]
     # w_h0 = [-0.2, 2]
-    w_h = np.array([[1, 0.5], [1, 0.1]])
+    w_h = np.array([[1, 1], [1, -1]])
 
-
+    draw_max_constraints(x, w_in, w_h, 10, 2)
     # draw_min_alphas(x, w_in, w_h, steps)
     # draw_max_alphas_and_property(x, w_in, w_h, max_property, steps)
     # draw_min_alphas(x, w_in, w_h, steps)
