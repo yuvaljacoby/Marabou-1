@@ -12,7 +12,7 @@ from maraboupy.MarabouRnnModel import RnnMarabouModel
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
-from rnn_algorithms.GurobiBased import AlphasGurobiBased, build_gurobi_query
+from rnn_algorithms.GurobiBased import AlphasGurobiBased
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 
@@ -48,7 +48,7 @@ def calc_min_max_by_radius(x, radius):
         if val > 0:
             xlim.append((val * (1 - radius), val * (1 + radius)))
         elif val < 0:
-            xlim.append((val * (1 + radius)), (val * (1 - radius)))
+            xlim.append((val * (1 + radius), val * (1 - radius)))
         else:
             xlim.append((-radius, radius))
     return xlim
@@ -582,7 +582,7 @@ if __name__ == "__main__":
     w_in, w_h, b = rnn_model.get_weights()[0]
     xlim = calc_min_max_by_radius(exp['in_tensor'], exp['radius'])
     initial_values = rnn_model.get_rnn_min_max_value_one_iteration(xlim)
-    build_gurobi_query(initial_values[1], w_in, w_h, b, exp['n_iterations'])
+    # build_gurobi_query(initial_values[1], w_in, w_h, b, exp['n_iterations'])
 
     # search_for_input("/home/yuval/projects/Marabou/models_new_vctk/model_classes20_1rnn3_1_32_3.h5", relative_step)
     # in_tensor = np.array([0.37205514, 0.84609851, 0.34888652, 0.099101, 0.8797378, 0.02679134

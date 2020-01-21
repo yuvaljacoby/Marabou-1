@@ -3,6 +3,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 DEFAULT_FILE_PATH = "all_results.pkl"
 
@@ -17,7 +18,7 @@ def draw_all_pairs(df):
 
 
 def draw_all_columns(df, name_1=None, name_2=None, draw_errors=True):
-    interesting_columns = ['queries', 'time_log', 'time']
+    interesting_columns = ['queries', 'time_log'] #, 'time']
                            # + ['invariant_queries', 'property_queries', 'invariant_times_mean', 'property_times_mean']
     df[name_1 + '_invariant_times_mean'] = df[name_1 + '_invariant_times'].apply(np.mean)
     df[name_1 + '_property_times_mean'] = df[name_1 + '_property_times'].apply(np.mean)
@@ -80,7 +81,22 @@ def draw_from_dataframe(df, name_1=None, name_2=None, draw_errors=True, draw_par
         df_filter.loc[df_filter[x_alg + "_result"] == False, x_name] = error_value  # max_no_error + 150
         df_filter.loc[df_filter[y_alg + "_result"] == False, y_name] = error_value  # max_no_error + 150
 
-    df_filter.plot.scatter(x=x_name, y=y_name)
+    categories = np.unique(df['net_name'])
+    colors = ['#FF0000', '#0000FF', '#333333', '#FF00FF']
+    colordict = dict(zip(categories, colors))
+
+    df_filter["color"] = df_filter['net_name'].apply(lambda x: colordict[x])
+    # ax.scatter(df[xcol], df[ycol], c=df.Color)
+
+    # df_filter.plot.scatter(x=x_name, y=y_name, c=df_filter.color, label=df_filter['net_name'])
+    # df_filter.plot.scatter(x=x_name, y=y_name, color=df_filter.color)
+    # scatter = plt.scatter(df_filter[x_name], y=df_filter[y_name], c=df_filter.color) #, cmap=colours)
+    # plt.legend(*scatter.legend_elements(), labels=df_filter.net_name)
+    #
+    #
+
+    sns.scatterplot(x=df_filter[x_name], y=df_filter[y_name], hue=df_filter.net_name)
+    # plt.show()
 
     # print(df_filter)
     rgb = [i / 256 for i in (145, 40, 230)]
@@ -121,8 +137,9 @@ if __name__ == "__main__":
     path = os.path.join("pickles", "relative_sigmoid_vs_weighted.pkl")
     path = os.path.join("pickles", "relative_absolute_all.pkl")
 
-    for p in os.listdir("pickles/exp200120"):
-        draw_all_pairs("pickles/exp200120/" + p)
+    folder_name = "pickles/exp210120/combined"
+    for p in os.listdir(folder_name):
+        draw_all_pairs(os.path.join(folder_name, p))
     # draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')

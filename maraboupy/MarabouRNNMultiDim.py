@@ -331,6 +331,7 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     for i in range(number_of_steps):
         start_invariant = timer()
         invariant_results = invariant_oracle(equations)
+        # print(invariant_results)
         end_invariant = timer()
         invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):

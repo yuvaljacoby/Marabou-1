@@ -464,9 +464,10 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
 def get_random_input(model_path, mean, var, n_iterations):
     while True:
         in_tensor = np.random.normal(mean, var, IN_SHAPE)
-        if any(in_tensor < 0):
-            print("resample got negative input")
-            continue
+
+        # if any(in_tensor < 0):
+        #     print("resample got negative input")
+        #     continue
         y_idx_max, other_idx = get_out_idx(in_tensor, n_iterations, model_path)
         if y_idx_max is not None and other_idx is not None and y_idx_max != other_idx:
             print(in_tensor)
@@ -497,13 +498,13 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=6000)
+                                        n_iterations, algorithms_ptrs, steps_num=10000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
         exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
         df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
-        # print(df)
+        print(df[[n for n in df.columns if "result" in n]])
         pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
     return df
 
@@ -545,29 +546,24 @@ def get_algorithms():
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
     experiments = {
-        'weighted_tanh': OrderedDict({
-            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
+        # 'weighted_tanh': OrderedDict({
+        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        #     'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+        # }),
         # 'random_tanh': OrderedDict({
         #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         # }),
-        'weighted_sigmoid': OrderedDict({
-            'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-                                                 activation=sigmoid),
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
-        'tanh_sigmoid': OrderedDict({
-            'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+        'random_sigmoid_relative': OrderedDict({
+            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
         }),
-        # 'random_sigmoid': OrderedDict({
-        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        #     'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-        #                                          activation=sigmoid),
-        # }),
+        'random_sigmoid_absolute': OrderedDict({
+            'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+            'weighted_sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
+                                                 activation=sigmoid),
+        }),
         # 'all_random_relative': OrderedDict({
         #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
         #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -581,24 +577,14 @@ def get_algorithms():
             'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
                                                  activation=sigmoid),
         }),
-        'all_weightd_relative': OrderedDict({
-            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
-
-        'all_sigmoid_absolute': OrderedDict({
-            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
+        'sigmoid_absolute_relative': OrderedDict({
+            'sigmoid_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
             'sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
                                         activation=sigmoid),
         }),
-        'all_weightd__absolute': OrderedDict({
+        'all_absolute_relative': OrderedDict({
             'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
-            'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
-        }),
-        'tanh_sigmoid_absolute': OrderedDict({
-            'weighted_tanh_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step, activation=np.tanh),
-            'weighted_sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
-                                                 activation=sigmoid),
+            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
         }),
     }
     return experiments
@@ -639,7 +625,7 @@ def get_all_algorithms():
 
 def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
-    models = ['model_classes20_1rnn8_1_32_4.h5', 'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
+    models = ['model_20classes_rnn4_fc32_epochs40.h5', 'model_classes20_1rnn8_1_32_4.h5', 'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
     for exp in exps.keys():
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
@@ -680,8 +666,16 @@ if __name__ == "__main__":
     else:
         algorithms_ptrs = get_all_algorithms()
         # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
-    df = run_random_experiment(network_path, algorithms_ptrs, num_points=200)
-    # draw_from_dataframe(df)
+
+
+    # df = run_random_experiment(network_path, algorithms_ptrs, num_points=200, n_iterations=50)
+    df = run_random_experiment(network_path, algorithms_ptrs, num_points=200, n_iterations=50)
+    draw_from_dataframe(df)
+
+    # GUROBI experiment:
+    # network_path = "simple_model.h5"
+    # df = run_random_experiment(network_path, algorithms_ptrs,  mean=1, var=2, num_points=1, radius=0.01, n_iterations=5)
+
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]
@@ -695,3 +689,4 @@ if __name__ == "__main__":
     #     df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
     #     print(df)
     #     pickle.dump(df, open("all_results.pkl", "wb"))
+
