@@ -1,6 +1,6 @@
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-import sys
-sys.path.insert(0, BASE_FOLDER)
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# import sys
+# sys.path.insert(0, BASE_FOLDER)
 
 import os
 import pickle
@@ -16,15 +16,14 @@ from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.AllAlphasSGD import AllAlphasSGD
+from rnn_algorithms.GurobiBased import AlphasGurobiBased
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
-from rnn_experiment.self_compare.draw_self_compare import draw_from_dataframe
-from rnn_algorithms.GurobiBased import AlphasGurobiBased
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -470,6 +469,14 @@ def get_random_input(model_path, mean, var, n_iterations):
         #     continue
         y_idx_max, other_idx = get_out_idx(in_tensor, n_iterations, model_path)
         if y_idx_max is not None and other_idx is not None and y_idx_max != other_idx:
+            # in_tensor = np.array(
+            #     [-1.3047684, 5.46331191, 1.93008573, 5.54210032, -0.04579439, 0.84698066, 0.88733042, 0.36111682,
+            #      -0.89590958, 2.02979288, 0.02477424, 1.50918829, 1.8345788, 2.26410531, 3.49979787, 0.42402515,
+            #      -1.22385631, 0.78972247, -0.18285229, -1.71556589, -0.34333373, -0.4077247, -1.32055327, 3.3423448,
+            #      0.20721657, -2.58905041, 4.83447012, -0.25091597, 1.27664352, 2.0043919, -3.37314246, 2.1957612,
+            #      -2.1478245, 1.44939961, 1.59584935, 2.38236111, -1.84593505, 1.24174073, 2.45039407, 1.94192])
+            # y_idx_max = 14
+            # other_idx = 11
             print(in_tensor)
             return in_tensor, y_idx_max, other_idx
 
@@ -491,8 +498,10 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
     # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
-    pickle_path = model_name + str(radius)  + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '').replace(' ',
-                                                                                                                 '')
+    pickle_path = model_name + str(radius) + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.',
+                                                                                                            '').replace(
+        ' ',
+        '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
@@ -575,7 +584,7 @@ def get_algorithms():
         'all_sigmoid_relative': OrderedDict({
             'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
             'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-                                                 activation=sigmoid),
+                                        activation=sigmoid),
         }),
         'sigmoid_absolute_relative': OrderedDict({
             'sigmoid_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -597,7 +606,7 @@ def get_all_algorithms():
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'gurobi' : AlphasGurobiBased,
+        'gurobi': AlphasGurobiBased,
         # 'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
@@ -610,10 +619,10 @@ def get_all_algorithms():
         # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
         #
-        'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+        # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         # 'weighted_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
-        # 'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
@@ -625,7 +634,8 @@ def get_all_algorithms():
 
 def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
-    models = ['model_20classes_rnn4_fc32_epochs40.h5', 'model_classes20_1rnn8_1_32_4.h5', 'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
+    models = ['model_20classes_rnn4_fc32_epochs40.h5', 'model_classes20_1rnn8_1_32_4.h5',
+              'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
     for exp in exps.keys():
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
@@ -667,15 +677,14 @@ if __name__ == "__main__":
         algorithms_ptrs = get_all_algorithms()
         # df = run_experiment_from_pickle("model_20classes_rnn4_fc32_epochs40.pkl", algorithms_ptrs)
 
-
     # df = run_random_experiment(network_path, algorithms_ptrs, num_points=200, n_iterations=50)
-    df = run_random_experiment(network_path, algorithms_ptrs, num_points=200, n_iterations=50)
-    draw_from_dataframe(df)
+    # df = run_random_experiment(network_path, algorithms_ptrs, num_points=200, n_iterations=50)
+    # draw_from_dataframe(df)
 
     # GUROBI experiment:
-    # network_path = "simple_model.h5"
-    # df = run_random_experiment(network_path, algorithms_ptrs,  mean=1, var=2, num_points=1, radius=0.01, n_iterations=5)
-
+    # network_path = "rnn4_simple.h5"
+    # network_path = "model_20classes_rnn2_fc32_epochs200.h5"
+    df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=10)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]
@@ -689,4 +698,3 @@ if __name__ == "__main__":
     #     df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
     #     print(df)
     #     pickle.dump(df, open("all_results.pkl", "wb"))
-

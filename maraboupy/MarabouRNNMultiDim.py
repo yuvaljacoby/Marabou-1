@@ -9,7 +9,7 @@ TOLERANCE_VALUE = 0.01
 ALPHA_IMPROVE_EACH_ITERATION = 5
 
 
-def marabou_solve_negate_eq(query, debug=False, print_vars=False):
+def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=False):
     '''
     Run marabou solver
     :param query: query to execute
@@ -24,10 +24,17 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False):
         if print_vars:
             print("SAT")
             print(vars1)
-        return False
+        res = False
     else:
         # print("UNSAT")
-        return True
+        res = True
+
+    if return_vars:
+        if len(vars1) > 0:
+            print(vars1)
+        return res, vars1
+    else:
+        return res
 
 
 def negate_equation(eq):
@@ -141,7 +148,7 @@ def create_invariant_equations(loop_indices, invariant_eq):
     return induction_base_equations, induction_step_equations, induction_hypothesis
 
 
-def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
+def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_vars = False):
     '''
     Prove invariants where we need to assume multiple assumptions and conclude from them.
     For each of the invariant_equations creating 3 sets: base_equations, hyptosis_equations, step_equations
@@ -157,6 +164,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     base_eq = []
     step_eq = []  # this needs to be a list of lists, each time we work on all equations of a list
     hypothesis_eq = []
+    vars = []
 
     for i in range(len(invariant_equations)):
         cur_base_eq, cur_step_eq, cur_hypothesis_eq = create_invariant_equations(rnn_start_idxs, invariant_equations[i])
@@ -193,7 +201,8 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
             # eq.dump()
             network.addEquation(eq)
 
-        marabou_result = marabou_solve_negate_eq(network)  # , True, True)
+        marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars= True)
+        vars.append(cur_vars)
         # print("Querying for induction step: {}".format(marabou_result))
         # network.dump()
 
@@ -212,8 +221,10 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations):
     for eq in hypothesis_eq:
         network.removeEquation(eq)
 
-    return proved_invariants
-
+    if return_vars:
+        return proved_invariants, vars
+    else:
+        return proved_invariants
 
 def alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, inv_type, alphas):
     '''
@@ -273,7 +284,7 @@ def double_list(ls):
     return new_ls
 
 
-def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs):
+def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars = False):
     '''
     Creates a function that can verify invariants accodring to the network and rnn indcies
     :param network: Marabou format of a network
@@ -285,7 +296,7 @@ def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs):
     def invariant_oracle(equations_to_verify):
         # assert len(alphas) == len(initial_values)
         # invariant_equations = alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, alphas)
-        return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify)
+        return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify, return_vars =return_vars )
 
     return invariant_oracle
 
@@ -322,7 +333,7 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
     network = rnnModel.network
     add_loop_indices_equations(network, rnn_start_idxs)
-    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs)
+    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars = True)
     property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
     equations = algorithm.get_equations()
     res = False
@@ -330,9 +341,9 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     property_times = []
     for i in range(number_of_steps):
         start_invariant = timer()
-        invariant_results = invariant_oracle(equations)
-        # print(invariant_results)
+        invariant_results, sat_vars = invariant_oracle(equations)
         end_invariant = timer()
+        print(invariant_results)
         invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
@@ -346,10 +357,16 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 break
             else:
                 # If the property failed no need to pass which invariants passed (of course)
-                equations = algorithm.do_step(True, None)
+                if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
+                    equations = algorithm.do_step(True, None, sat_vars)
+                else:
+                    equations = algorithm.do_step(True, None)
         else:
             # print('fail to prove invariant: {}'.format(algorithm.get_alphas()))
-            equations = algorithm.do_step(False, invariant_results)
+            if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
+                equations = algorithm.do_step(False, invariant_results, sat_vars)
+            else:
+                equations = algorithm.do_step(False, invariant_results)
             # if i % 20 == 0:
             #     print('fail, iteration {} alphas: {}'.format(i, algorithm.get_alphas()))
 
