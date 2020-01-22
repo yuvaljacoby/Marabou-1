@@ -572,7 +572,7 @@ def get_algorithms():
         cartesian_product = [OrderedDict(zip(possible_values, v)) for v in product(*possible_values.values())]
         experiments = {}
         for entry in cartesian_product:
-            entry_name = "_".join([str(v) for v in entry.values()])
+            entry_name = "gurobi_" + "_".join([str(v) for v in entry.values() if type(v) != type])
             entry_pointer = partial(AlphasGurobiBased, **entry)
             experiments.update({'{}_{}'.format(entry_name, compare_entry[0]): OrderedDict({
                 entry_name: entry_pointer,
