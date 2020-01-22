@@ -1,6 +1,6 @@
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-import sys
-sys.path.insert(0, BASE_FOLDER)
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# import sys
+# sys.path.insert(0, BASE_FOLDER)
 
 import os
 import pickle
@@ -15,15 +15,13 @@ import pandas as pd
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
-from rnn_algorithms.AllAlphasSGD import AllAlphasSGD
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
-from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -72,7 +70,8 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
                          'property_iterations': queries_stats['property_queries'],
                          'invariant_times': queries_stats['invariant_times'],
                          'property_times': queries_stats['property_times'],
-                         'iterations': queries_stats['number_of_updates']
+                         'iterations': queries_stats['number_of_updates'],
+                         'in_tensor': hash(str(in_tensor))
                          }
         print("%%%%%%%%% {} {} %%%%%%%%%".format(res, end - start))
 
@@ -461,14 +460,15 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
 
 
 def get_random_input(model_path, mean, var, n_iterations):
-#     return [14.27122768, 10.01429519, 15.79244755, 12.31632729, 10.77446205, 11.6998685
-# , 10.02309098, 10.20288622, 10.1177965, 12.98410927, 11.80191447, 7.18403711
-# , 8.64965939, 12.03823125, 11.88635415, 14.10741009, 12.95682361, 7.72710876
-# , 10.92425513, 5.54067457, 7.44212401, 14.02778702, 4.92153551, 6.81608973
-# , 7.61313801, 10.73096574, 15.37313871, 5.519518, 8.77897563, 12.87859216
-# , 11.5303272, 5.33148159, 9.86905325, 5.87211545, 5.12149148, 8.93463704
-# , 7.61022822, 5.07853598, 17.71975044, 8.69002408], 14, 11
+    #     return [14.27122768, 10.01429519, 15.79244755, 12.31632729, 10.77446205, 11.6998685
+    # , 10.02309098, 10.20288622, 10.1177965, 12.98410927, 11.80191447, 7.18403711
+    # , 8.64965939, 12.03823125, 11.88635415, 14.10741009, 12.95682361, 7.72710876
+    # , 10.92425513, 5.54067457, 7.44212401, 14.02778702, 4.92153551, 6.81608973
+    # , 7.61313801, 10.73096574, 15.37313871, 5.519518, 8.77897563, 12.87859216
+    # , 11.5303272, 5.33148159, 9.86905325, 5.87211545, 5.12149148, 8.93463704
+    # , 7.61022822, 5.07853598, 17.71975044, 8.69002408], 14, 11
     while True:
+        np.random.seed(9)
         in_tensor = np.random.normal(mean, var, IN_SHAPE)
 
         # if any(in_tensor < 0):
@@ -500,13 +500,14 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
            ['{}_invariant_queries'.format(n) for n in algorithms_ptrs.keys()] + \
            ['{}_property_queries'.format(n) for n in algorithms_ptrs.keys()] + \
            ['{}_invariant_times'.format(n) for n in algorithms_ptrs.keys()] + \
-           ['{}_property_times'.format(n) for n in algorithms_ptrs.keys()]
+           ['{}_property_times'.format(n) for n in algorithms_ptrs.keys()] + \
+           ['{}_in_tensor'.format(n) for n in algorithms_ptrs.keys()]
 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
     # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
-    pickle_path = model_name + str(radius) + "_".join(algorithms_ptrs.keys()) +\
-                  str(datetime.now()).replace('.', '').replace(' ','')
+    pickle_path = model_name + str(radius) + "_".join(algorithms_ptrs.keys()) + \
+                  str(datetime.now()).replace('.', '').replace(' ', '')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
@@ -554,17 +555,17 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
 
 
 def get_algorithms():
-
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
     Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
+
     def create_gurobi_permutations(compare_entry):
         possible_values = {
-            'update_strategy_ptr' : [Relative_Step], #Absolute_Step,
-            'random_threshold' : [20, 1000], # [5, 20,100,1000],
-            'use_relu' : [True, False],
+            'update_strategy_ptr': [Relative_Step],  # Absolute_Step,
+            'random_threshold': [20, 1000],  # [5, 20,100,1000],
+            'use_relu': [True, False],
             'add_alpha_constraint': [True, False],
             'use_counter_example': [True, False],
         }
@@ -633,6 +634,23 @@ def get_algorithms():
     # return experiments
 
 
+def get_algorithms_list():
+    return [
+        {'random_relative' : partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)},
+        {'gurobi_relative_20_1_1_0' :
+         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
+                 add_alpha_constraint=True, use_counter_example=False)},
+         {'gurobi_relative_20_1_1_1':
+         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
+                 add_alpha_constraint=True, use_counter_example=True)},
+          {'gurobi_relative_20_0_1_1' :
+         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
+                 add_alpha_constraint=True, use_counter_example=True)},
+           {'gurobi_relative_20_0_0_0' :
+         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
+                 add_alpha_constraint=False, use_counter_example=False)}
+    ]
+
 def get_all_algorithms():
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
@@ -669,7 +687,7 @@ def get_all_algorithms():
 def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
     models = ['model_20classes_rnn4_fc32_epochs40.h5', 'model_classes20_1rnn8_1_32_4.h5',
-               'model_20classes_rnn2_fc32_epochs200.h5'] #'model_20classes_rnn4_fc32_epochs100.h5',
+              'model_20classes_rnn2_fc32_epochs200.h5']  # 'model_20classes_rnn4_fc32_epochs100.h5',
     for exp in exps.keys():
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
@@ -700,6 +718,7 @@ if __name__ == "__main__":
 
     network_path = "model_20classes_rnn4_fc32_epochs40.h5"
     if len(sys.argv) > 1:
+        print(sys.argv[1])
         if sys.argv[1] == 'create_sbatch':
             sbatch_folder = os.path.join(SBATCH_FOLDER)
             if not os.path.exists(sbatch_folder):
@@ -707,11 +726,15 @@ if __name__ == "__main__":
             create_sbatch_files(sbatch_folder)
             print("created experiments in: {}".format(SBATCH_FOLDER))
             exit(0)
+        elif sys.argv[1] == 'single':
+            # If single, add another argument with the index in the get_algorithms_list function
+            algorithms_ptrs = get_algorithms_list()[int(sys.argv[2])]
+
         else:
             algorithms_ptrs = get_algorithms()[sys.argv[1]]
             if algorithms_ptrs is None:
                 exit(1)
-        if len(sys.argv) > 2:
+        if len(sys.argv) > 2 and not str.isnumeric(sys.argv[2]):
             network_path = sys.argv[2]
     else:
         algorithms_ptrs = get_all_algorithms()
@@ -725,7 +748,7 @@ if __name__ == "__main__":
     # network_path = "simple_model.h5"
     # network_path = "model_20classes_rnn2_fc32_epochs200.h5"
     # df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
-    df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=15)
+    df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]

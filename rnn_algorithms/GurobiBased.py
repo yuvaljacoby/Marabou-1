@@ -134,6 +134,8 @@ class AlphasGurobiBased:
         self.w_in, self.w_h, self.b = rnnModel.get_weights()[0]
         self.n_iterations = rnnModel.n_iterations
 
+        # initalize alphas to -infty +infty
+        self.alphas = [-LARGE] * self.w_h.shape[0] + [LARGE] * self.w_h.shape[0]
         self.update_strategy = update_strategy_ptr()
         self.same_step_counter = 0
         rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
