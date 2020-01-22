@@ -467,8 +467,8 @@ def get_random_input(model_path, mean, var, n_iterations):
     # , 7.61313801, 10.73096574, 15.37313871, 5.519518, 8.77897563, 12.87859216
     # , 11.5303272, 5.33148159, 9.86905325, 5.87211545, 5.12149148, 8.93463704
     # , 7.61022822, 5.07853598, 17.71975044, 8.69002408], 14, 11
+
     while True:
-        np.random.seed(9)
         in_tensor = np.random.normal(mean, var, IN_SHAPE)
 
         # if any(in_tensor < 0):
@@ -716,7 +716,9 @@ if __name__ == "__main__":
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', -1)
 
+    np.random.seed(9)
     network_path = "model_20classes_rnn4_fc32_epochs40.h5"
+    
     if len(sys.argv) > 1:
         print(sys.argv[1])
         if sys.argv[1] == 'create_sbatch':
