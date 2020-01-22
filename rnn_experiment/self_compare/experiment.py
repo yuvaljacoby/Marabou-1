@@ -554,59 +554,83 @@ def run_experiment_from_pickle(pickle_name, algorithms_ptrs):
 
 
 def get_algorithms():
+
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
     Absolute_Step_Fixed = partial(Absolute_Step, options=[0.1])
     Relative_Step_Fixed = partial(Absolute_Step, options=[0.05])
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
-    experiments = {
-        # 'weighted_tanh': OrderedDict({
-        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-        #     'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
-        # }),
-        # 'random_tanh': OrderedDict({
-        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        # }),
-        'random_gurobi_relative': OrderedDict({
-            'gurobi_relative': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step),
-            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
+    def create_gurobi_permutations(compare_entry):
+        possible_values = {
+            'update_strategy_ptr' : [Relative_Step], #Absolute_Step,
+            'random_threshold' : [20, 1000], # [5, 20,100,1000],
+            'use_relu' : [True, False],
+            'add_alpha_constraint': [True, False],
+            'use_counter_example': [True, False],
+        }
+        from itertools import product
+        cartesian_product = [OrderedDict(zip(possible_values, v)) for v in product(*possible_values.values())]
+        experiments = {}
+        for entry in cartesian_product:
+            entry_name = "_".join([str(v) for v in entry.values()])
+            entry_pointer = partial(AlphasGurobiBased, **entry)
+            experiments.update({'{}_{}'.format(entry_name, compare_entry[0]): OrderedDict({
+                entry_name: entry_pointer,
+                compare_entry[0]: compare_entry[1]
+            })})
 
-        'random_sigmoid_relative': OrderedDict({
-            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-            'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-                                                 activation=sigmoid),
-        }),
-        'random_sigmoid_absolute': OrderedDict({
-            'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
-            'weighted_sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
-                                                 activation=sigmoid),
-        }),
-        # 'all_random_relative': OrderedDict({
-        #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-        #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
-        # }),
-        # 'all_tanh_relative': OrderedDict({
-        #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-        #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
-        # }),
-        'all_sigmoid_relative': OrderedDict({
-            'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
-                                        activation=sigmoid),
-        }),
-        'sigmoid_absolute_relative': OrderedDict({
-            'sigmoid_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-            'sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
-                                        activation=sigmoid),
-        }),
-        'all_absolute_relative': OrderedDict({
-            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
-            'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
-        }),
-    }
-    return experiments
+        return experiments
+
+    return create_gurobi_permutations(('random_relative', partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)))
+
+    # experiments = {
+    #     # 'weighted_tanh': OrderedDict({
+    #     #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+    #     #     'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     # }),
+    #     # 'random_tanh': OrderedDict({
+    #     #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+    #     #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     # }),
+    #     'random_gurobi_relative': OrderedDict({
+    #         'gurobi_relative': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step),
+    #         'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     }),
+    #
+    #     'random_sigmoid_relative': OrderedDict({
+    #         'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+    #         'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+    #                                              activation=sigmoid),
+    #     }),
+    #     'random_sigmoid_absolute': OrderedDict({
+    #         'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
+    #         'weighted_sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
+    #                                              activation=sigmoid),
+    #     }),
+    #     # 'all_random_relative': OrderedDict({
+    #     #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     # }),
+    #     # 'all_tanh_relative': OrderedDict({
+    #     #     'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
+    #     # }),
+    #     'all_sigmoid_relative': OrderedDict({
+    #         'all_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+    #         'sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
+    #                                     activation=sigmoid),
+    #     }),
+    #     'sigmoid_absolute_relative': OrderedDict({
+    #         'sigmoid_relative': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+    #         'sigmoid_absolute': partial(WeightedAlphasSGD, update_strategy_ptr=Absolute_Step,
+    #                                     activation=sigmoid),
+    #     }),
+    #     'all_absolute_relative': OrderedDict({
+    #         'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Absolute_Step),
+    #         'all_absolute': partial(AllAlphasSGD, update_strategy_ptr=Relative_Step),
+    #     }),
+    # }
+    # return experiments
 
 
 def get_all_algorithms():
@@ -645,7 +669,7 @@ def get_all_algorithms():
 def create_sbatch_files(folder_to_write):
     exps = get_algorithms()
     models = ['model_20classes_rnn4_fc32_epochs40.h5', 'model_classes20_1rnn8_1_32_4.h5',
-              'model_20classes_rnn4_fc32_epochs100.h5', 'model_20classes_rnn2_fc32_epochs200.h5']
+               'model_20classes_rnn2_fc32_epochs200.h5'] #'model_20classes_rnn4_fc32_epochs100.h5',
     for exp in exps.keys():
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
@@ -677,10 +701,11 @@ if __name__ == "__main__":
     network_path = "model_20classes_rnn4_fc32_epochs40.h5"
     if len(sys.argv) > 1:
         if sys.argv[1] == 'create_sbatch':
-            sbatch_folder = os.path.join(sys.path[0], SBATCH_FOLDER)
+            sbatch_folder = os.path.join(SBATCH_FOLDER)
             if not os.path.exists(sbatch_folder):
                 os.mkdir(sbatch_folder)
             create_sbatch_files(sbatch_folder)
+            print("created experiments in: {}".format(SBATCH_FOLDER))
             exit(0)
         else:
             algorithms_ptrs = get_algorithms()[sys.argv[1]]

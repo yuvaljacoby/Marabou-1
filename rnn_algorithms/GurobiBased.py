@@ -115,7 +115,7 @@ PRINT_GUROBI = False
 
 class AlphasGurobiBased:
     def __init__(self, rnnModel, xlim, update_strategy_ptr=Absolute_Step, random_threshold=RANDOM_THRESHOLD,
-                 use_relu=True):
+                 use_relu=True, use_counter_example=False, add_alpha_constraint=False):
         '''
 
         :param rnnModel:
@@ -124,9 +124,11 @@ class AlphasGurobiBased:
         :param random_threshold: If more then this thresholds steps get the same result doing random step
         '''
 
+        self.add_alpha_constraint =add_alpha_constraint
+        self.use_counter_example = use_counter_example
         self.use_relu = use_relu
         self.return_vars = True
-        self.next_is_max = True
+
         self.xlim = xlim
         self.random_threshold = random_threshold
         self.w_in, self.w_h, self.b = rnnModel.get_weights()[0]
@@ -183,8 +185,7 @@ class AlphasGurobiBased:
         # self.update_next_idx_step()
         return self.equations
 
-    def do_gurobi_step(self, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
-                       use_counter_example=False, add_alpha_constraint=False):
+    def do_gurobi_step(self, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], [])):
 
         gmodel = Model("test")
         # add the alphas variables
@@ -274,7 +275,7 @@ class AlphasGurobiBased:
 
                 # gmodel.addConstr(alphas_vars[i] >= SMALL, "alpha{}_positive".format(i, t))
 
-        if use_counter_example:
+        if self.use_counter_example:
             # TODO: I am pretty sure I can use only counter example of the spesific invariant that failed and not all values
             outputs, time = counter_examples
             for i in range(len(time)):
@@ -288,7 +289,7 @@ class AlphasGurobiBased:
         #         gmodel.addConstr(alphas_u[j] * (time[i] - 1) >= hy_outputs[i][j])
         #         gmodel.addConstr(alphas_l[j] * (time[i] - 1) <= hy_outputs[i][j])
 
-        if add_alpha_constraint:
+        if self.add_alpha_constraint:
             for j in range(len(alphas_u)):
                 gmodel.addConstr(alphas_u[j] >= self.alphas[j + len(alphas_u)] + SMALL, 'loop_constraint_u')
                 gmodel.addConstr(alphas_l[j] <= self.alphas[j] - SMALL, 'loop_constraint_l')
@@ -297,11 +298,11 @@ class AlphasGurobiBased:
             gmodel.setParam('OutputFlag', False)
 
         gmodel.optimize()
-        gmodel.write("temp.lp")
+        # gmodel.write("temp.lp")
 
         if gmodel.status == GRB.CUTOFF or gmodel.status == GRB.INFEASIBLE:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
-            exit(0)
+            # exit(0)
             return None
         # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
 
@@ -403,10 +404,11 @@ class AlphasGurobiBased:
                                                  add_alpha_constraint=True)
 
             if new_alphas is None:
-                #     No fesabile solution, maybe to much over approximation, imporve at random
-                # self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
-                self.alphas[i] = self.alphas[i] + (direction * 10)
-                print("********************************\nproblem\n**************************************")
+                # No fesabile solution, maybe to much over approximation, improve at random
+                # TODO: Can we get out of this situation? fall back to something else or doomed to random?
+                self.do_random_step(strengthen)
+                # self.alphas[i] = self.alphas[i] + (direction * 10)
+                # print("********************************\nproblem\n**************************************")
             else:
                 self.alphas = new_alphas
 
