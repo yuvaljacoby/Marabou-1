@@ -9,8 +9,11 @@ from rnn_algorithms.Update_Strategy import Absolute_Step
 
 sign = lambda x: 1 if x >= 0 else -1
 
-SMALL = 0  # 10 ** -5
+SMALL =  10 ** -5
 LARGE = 10 ** 5
+
+RANDOM_THRESHOLD = 20  #
+PRINT_GUROBI = False
 
 
 # class RandomAlphaSGDOneSideBound:
@@ -111,16 +114,21 @@ LARGE = 10 ** 5
 
 
 class AlphasGurobiBased:
-    def __init__(self, rnnModel, xlim, update_strategy_ptr=Absolute_Step):
-        '''
-        :param initial_values: tuple of lists, [0] is list of min values, [1] for max values
-        :param rnn_start_idxs:
-        :param rnn_output_idxs:
+    def __init__(self, rnnModel, xlim, update_strategy_ptr=Absolute_Step, random_threshold=RANDOM_THRESHOLD,
+                 use_relu=True):
         '''
 
+        :param rnnModel:
+        :param xlim:
+        :param update_strategy_ptr:
+        :param random_threshold: If more then this thresholds steps get the same result doing random step
+        '''
+
+        self.use_relu = use_relu
         self.return_vars = True
         self.next_is_max = True
         self.xlim = xlim
+        self.random_threshold = random_threshold
         self.w_in, self.w_h, self.b = rnnModel.get_weights()[0]
         self.n_iterations = rnnModel.n_iterations
 
@@ -135,7 +143,7 @@ class AlphasGurobiBased:
         self.initial_values = initial_values  # [1] + initial_values[0]
         self.inv_type = [MarabouCore.Equation.LE] * len(initial_values[1]) + [MarabouCore.Equation.GE] * len(
             initial_values[0])
-        self.alphas = self.build_gurobi_query()
+        self.alphas = self.do_gurobi_step()
         if self.alphas is None:
             self.alphas = [0] * len(self.inv_type)
         assert len(self.alphas) == len(self.inv_type)
@@ -158,8 +166,26 @@ class AlphasGurobiBased:
         self.last_fail = None
         self.alpha_history = []
 
-    def build_gurobi_query(self, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], [])):
-        # TODO: Need to extract the counter example
+    def do_random_step(self, strengthen):
+        if strengthen:
+            direction = -1
+        else:
+            direction = 1
+
+        # self.update_strategy.counter = self.same_step_counter
+        i = np.random.randint(0, len(self.alphas))
+
+        # self.prev_alpha = self.alphas[self.next_idx_step]
+        # self.prev_idx = self.next_idx_step
+        self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction, self.same_step_counter)
+
+        self.update_equation(i)
+        # self.update_next_idx_step()
+        return self.equations
+
+    def do_gurobi_step(self, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
+                       use_counter_example=False, add_alpha_constraint=False):
+
         gmodel = Model("test")
         # add the alphas variables
         alphas_u = []
@@ -189,18 +215,12 @@ class AlphasGurobiBased:
         lower_bounds = []
         delta_l = []
 
-
         for i in range(self.w_h.shape[0]):
             for t in range(1, self.n_iterations):
                 # Conditions for the over approximation of the memory cell at every time point
                 cond_u = LinExpr()
                 cond_l = LinExpr()
                 cond_x = LinExpr()
-                # Result of the relu of the over approximation of the memory cell
-                upper_bounds.append(gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="ub{}_t_{}".format(i, t)))
-                lower_bounds.append(gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="lb{}_t_{}".format(i, t)))
-                delta_u.append(gmodel.addVar(vtype=GRB.BINARY))
-                delta_l.append(gmodel.addVar(vtype=GRB.BINARY))
                 for j in range(self.w_h.shape[0]):
                     # For the min invariants we want max value, and the other way around
                     # if self.w_h[j, i] > 0:
@@ -209,12 +229,18 @@ class AlphasGurobiBased:
                     # else:
                     #     cond_l += (alphas_u[j] + self.initial_values[0][i]) * (t - 1) * self.w_h[j, i]
                     #     cond_u += (alphas_l[j] + self.initial_values[1][i]) * (t - 1) * self.w_h[j, i]
-                    if self.w_h[j, i] > 0:
-                        cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
-                        cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
+                    # if self.w_h[j, i] > 0:
+                    #     cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
+                    #     cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
+                    # else:
+                    #     cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
+                    #     cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
+                    if self.w_h[i, j] > 0:
+                        cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[i, j]
+                        cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[i, j]
                     else:
-                        cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
-                        cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
+                        cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[i, j]
+                        cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[i, j]
 
                 for j in range(len(in_vars)):
                     cond_x += in_vars[j] * self.w_in[j, i]
@@ -223,32 +249,53 @@ class AlphasGurobiBased:
                 cond_u += cond_x
                 cond_l += cond_x
 
-                gmodel.addConstr(upper_bounds[-1] >= cond_u)
-                gmodel.addConstr(upper_bounds[-1] <= cond_u + LARGE * delta_u[-1])
-                gmodel.addConstr(upper_bounds[-1] <= LARGE * (1 - delta_u[-1]))
+                if self.use_relu:
+                    # Result of the relu of the over approximation of the memory cell
+                    upper_bounds.append(
+                        gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="ub{}_t_{}".format(i, t)))
+                    lower_bounds.append(
+                        gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="lb{}_t_{}".format(i, t)))
+                    delta_u.append(gmodel.addVar(vtype=GRB.BINARY))
+                    delta_l.append(gmodel.addVar(vtype=GRB.BINARY))
 
-                gmodel.addConstr(lower_bounds[-1] >= cond_l)
-                gmodel.addConstr(lower_bounds[-1] <= cond_l + LARGE * delta_l[-1])
-                gmodel.addConstr(lower_bounds[-1] <= LARGE * (1 - delta_l[-1]))
+                    gmodel.addConstr(upper_bounds[-1] >= cond_u)
+                    gmodel.addConstr(upper_bounds[-1] <= cond_u + LARGE * delta_u[-1])
+                    gmodel.addConstr(upper_bounds[-1] <= LARGE * (1 - delta_u[-1]))
 
-                gmodel.addConstr(alphas_u[i] * t >= upper_bounds[-1], "alpha_u{}_t{}".format(i, t))
-                gmodel.addConstr(alphas_l[i] * t <= lower_bounds[-1], "alpha_l{}_t{}".format(i, t))
+                    gmodel.addConstr(lower_bounds[-1] >= cond_l)
+                    gmodel.addConstr(lower_bounds[-1] <= cond_l + LARGE * delta_l[-1])
+                    gmodel.addConstr(lower_bounds[-1] <= LARGE * (1 - delta_l[-1]))
+
+                    gmodel.addConstr(alphas_u[i] * t >= upper_bounds[-1], "alpha_u{}_t{}".format(i, t))
+                    gmodel.addConstr(alphas_l[i] * t <= lower_bounds[-1], "alpha_l{}_t{}".format(i, t))
+                else:
+                    gmodel.addConstr(alphas_u[i] * t >= cond_u, "alpha_u{}_t{}".format(i, t))
+                    gmodel.addConstr(alphas_l[i] * t <= cond_l, "alpha_l{}_t{}".format(i, t))
 
                 # gmodel.addConstr(alphas_vars[i] >= SMALL, "alpha{}_positive".format(i, t))
 
-        outputs, time = counter_examples
-        for i in range(len(time)):
-            for j in range(len(alphas_u)):
-                gmodel.addConstr(alphas_u[j] * time[i] >= outputs[i][j])
-                gmodel.addConstr(alphas_l[j] * time[i] <= outputs[i][j])
-
+        if use_counter_example:
+            # TODO: I am pretty sure I can use only counter example of the spesific invariant that failed and not all values
+            outputs, time = counter_examples
+            for i in range(len(time)):
+                for j in range(len(alphas_u)):
+                    gmodel.addConstr(alphas_u[j] * time[i] >= outputs[i][j], 'ce_alpha_u')
+                    gmodel.addConstr(alphas_l[j] * time[i] <= outputs[i][j], "ce_alpha_l")
 
         # hy_outputs, _ = hyptoesis_ce
         # for i in range(len(time)):
         #     for j in range(len(alphas_u)):
         #         gmodel.addConstr(alphas_u[j] * (time[i] - 1) >= hy_outputs[i][j])
         #         gmodel.addConstr(alphas_l[j] * (time[i] - 1) <= hy_outputs[i][j])
-        gmodel.setParam('OutputFlag', False)
+
+        if add_alpha_constraint:
+            for j in range(len(alphas_u)):
+                gmodel.addConstr(alphas_u[j] >= self.alphas[j + len(alphas_u)] + SMALL, 'loop_constraint_u')
+                gmodel.addConstr(alphas_l[j] <= self.alphas[j] - SMALL, 'loop_constraint_l')
+
+        if not PRINT_GUROBI:
+            gmodel.setParam('OutputFlag', False)
+
         gmodel.optimize()
         gmodel.write("temp.lp")
 
@@ -256,11 +303,11 @@ class AlphasGurobiBased:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
             exit(0)
             return None
-        print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
+        # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
 
         # for v in gmodel.getVars():
-        for v in alphas_l + alphas_u:
-            print(v.varName, v.x)
+        # for v in alphas_l + alphas_u:
+        #     print(v.varName, v.x)
 
         return [a.x for a in alphas_l] + [a.x for a in alphas_u]
 
@@ -335,50 +382,42 @@ class AlphasGurobiBased:
         self.last_fail = strengthen
 
         if strengthen:
-            new_min_sum = sum(self.alphas) * np.random.normal(0.5, 0.1)
+            new_min_sum = None #sum(self.alphas) * np.random.normal(0.5, 0.1)
             direction = -1
         else:
             new_min_sum = sum(self.alphas) * 2
             direction = 1
 
-            # i = self.next_idx_step
-            # self.prev_alpha = self.alphas[self.next_idx_step]
-            # self.prev_idx = self.next_idx_step
-            # self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
         i = random.randint(0, len(self.alphas) - 1)
-        if self.same_step_counter > 10:
-            # do a random (big)  step try to move else where
-            print("random step")
-            new_alphas = self.alphas
-            # new_alphas[i] = new_alphas[i] + (direction * new_alphas[i] * 0.1 * sign(new_alphas[i]))
-            new_alphas[i] = new_alphas[i] + (direction * 10)
-            # self.same_step_counter = math.floor(self.same_step_counter / 2)
+        if self.same_step_counter > self.random_threshold:
+            # print("random step")
+            self.do_random_step(strengthen)
+            new_alphas = None
         else:
             counter_examples = self.extract_equation_from_counter_example(sat_vars)
-            hyptoesis_ce = self.extract_hyptoesis_from_counter_example(sat_vars)
-            new_alphas = self.build_gurobi_query(alphas_sum=new_min_sum, counter_examples=counter_examples, hyptoesis_ce=hyptoesis_ce)
+            # hyptoesis_ce = self.extract_hyptoesis_from_counter_example(sat_vars)
 
-        if new_alphas is None:
-            #     No fesabile solution, maybe to much over approximation, imporve at random
-            # self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
-            self.alphas[i] = self.alphas[i] + (direction * 10)
-        else:
-            self.alphas = new_alphas
+            new_alphas = self.do_gurobi_step(alphas_sum=new_min_sum, counter_examples=counter_examples)
+            if new_alphas == self.alphas:
+                new_alphas = self.do_gurobi_step(alphas_sum=new_min_sum, counter_examples=counter_examples,
+                                                 add_alpha_constraint=True)
+
+            if new_alphas is None:
+                #     No fesabile solution, maybe to much over approximation, imporve at random
+                # self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
+                self.alphas[i] = self.alphas[i] + (direction * 10)
+                print("********************************\nproblem\n**************************************")
+            else:
+                self.alphas = new_alphas
 
         for i in range(len(self.alphas)):
             self.update_equation(i)
         # print(self.alphas)
         self.alpha_history.append(self.get_alphas())
+
         # self.update_next_idx_step()
         # self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
         return self.equations
-
-        # if self.next_is_max:
-        #     res = self.min_invariants.get_equations() + self.max_invariants.do_step(strengthen)
-        # else:
-        #     res = self.min_invariants.do_step(strengthen) + self.max_invariants.get_equations()
-
-        # self.next_is_max = random.randint(0, 1)
 
         return res
 

@@ -30,8 +30,8 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
         res = True
 
     if return_vars:
-        if len(vars1) > 0:
-            print(vars1)
+        # if len(vars1) > 0:
+        #     print(vars1)
         return res, vars1
     else:
         return res
@@ -343,7 +343,7 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
         start_invariant = timer()
         invariant_results, sat_vars = invariant_oracle(equations)
         end_invariant = timer()
-        print(invariant_results)
+        # print(invariant_results)
         invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
@@ -376,13 +376,15 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()),
                                                                         algorithm.get_alphas()))
 
-    if i == number_of_steps:
-        print("fail to prove property after {} iterations, last alphas: {}".format(i, algorithm.get_alphas()))
+
     if debug:
         if len(property_times) > 0:
             print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
                 len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
                 sum(property_times) / len(property_times)))
+        else:
+            print("did {} invariant queries that took on avg: {}, and {} property".format(
+                len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times)))
     queries_stats = {}
     if return_queries_stats:
         queries_stats['property_times'] = property_times

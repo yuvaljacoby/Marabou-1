@@ -18,7 +18,7 @@ def draw_all_pairs(df):
 
 
 def draw_all_columns(df, name_1=None, name_2=None, draw_errors=True):
-    interesting_columns = ['queries', 'time_log'] #, 'time']
+    interesting_columns = ['queries', 'time', 'invariant_queries', 'property_queries'] #, 'time_log']
                            # + ['invariant_queries', 'property_queries', 'invariant_times_mean', 'property_times_mean']
     df[name_1 + '_invariant_times_mean'] = df[name_1 + '_invariant_times'].apply(np.mean)
     df[name_1 + '_property_times_mean'] = df[name_1 + '_property_times'].apply(np.mean)
@@ -138,8 +138,9 @@ if __name__ == "__main__":
     path = os.path.join("pickles", "relative_absolute_all.pkl")
 
     folder_name = "pickles/exp210120/combined"
-    for p in os.listdir(folder_name):
-        draw_all_pairs(os.path.join(folder_name, p))
+    draw_all_pairs("/home/yuval/projects/Marabou/pickles/new_pickles/combined/0.1gurobi_random_relative.pkl")
+    # for p in os.listdir(folder_name):
+    #     draw_all_pairs(os.path.join(folder_name, p))
     # draw_queries_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_time_from_df(pickle.load(open(path, 'rb'))) #, "random_big_absolute", "weighted_big_absolute")
     # draw_from_dataframe(df_weighted, 'weighted_relative', 'weighted_big_absolute')

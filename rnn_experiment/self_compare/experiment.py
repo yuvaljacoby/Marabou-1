@@ -1,6 +1,6 @@
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# import sys
-# sys.path.insert(0, BASE_FOLDER)
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+import sys
+sys.path.insert(0, BASE_FOLDER)
 
 import os
 import pickle
@@ -22,8 +22,8 @@ from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
@@ -74,7 +74,7 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
                          'property_times': queries_stats['property_times'],
                          'iterations': queries_stats['number_of_updates']
                          }
-        print("%%%%%%%%% {} %%%%%%%%%".format(end - start))
+        print("%%%%%%%%% {} {} %%%%%%%%%".format(res, end - start))
 
     # print(results)
     row_result = [results[n]['result'] for n in algorithms_ptrs.keys()] + \
@@ -461,6 +461,13 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
 
 
 def get_random_input(model_path, mean, var, n_iterations):
+#     return [14.27122768, 10.01429519, 15.79244755, 12.31632729, 10.77446205, 11.6998685
+# , 10.02309098, 10.20288622, 10.1177965, 12.98410927, 11.80191447, 7.18403711
+# , 8.64965939, 12.03823125, 11.88635415, 14.10741009, 12.95682361, 7.72710876
+# , 10.92425513, 5.54067457, 7.44212401, 14.02778702, 4.92153551, 6.81608973
+# , 7.61313801, 10.73096574, 15.37313871, 5.519518, 8.77897563, 12.87859216
+# , 11.5303272, 5.33148159, 9.86905325, 5.87211545, 5.12149148, 8.93463704
+# , 7.61022822, 5.07853598, 17.71975044, 8.69002408], 14, 11
     while True:
         in_tensor = np.random.normal(mean, var, IN_SHAPE)
 
@@ -498,22 +505,20 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
     df = pd.DataFrame(columns=cols)
     model_path = os.path.join(MODELS_FOLDER, model_name)
     # pickle_path = model_name + "_randomexp_" + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.', '')
-    pickle_path = model_name + str(radius) + "_".join(algorithms_ptrs.keys()) + str(datetime.now()).replace('.',
-                                                                                                            '').replace(
-        ' ',
-        '')
+    pickle_path = model_name + str(radius) + "_".join(algorithms_ptrs.keys()) +\
+                  str(datetime.now()).replace('.', '').replace(' ','')
     for _ in tqdm(range(num_points)):
         in_tensor, y_idx_max, other_idx = get_random_input(model_path, mean, var, n_iterations)
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=10000)
+                                        n_iterations, algorithms_ptrs, steps_num=5000)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
         exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
         df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
-        print(df[[n for n in df.columns if "result" in n]])
+        print(df[[n for n in df.columns if "result" in n or 'invariant_queries' in n]])
         pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
     return df
 
@@ -563,6 +568,11 @@ def get_algorithms():
         #     'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         #     'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
         # }),
+        'random_gurobi_relative': OrderedDict({
+            'gurobi_relative': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step),
+            'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        }),
+
         'random_sigmoid_relative': OrderedDict({
             'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
             'weighted_sigmoid_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step,
@@ -606,7 +616,7 @@ def get_all_algorithms():
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'gurobi': AlphasGurobiBased,
+        'gurobi_relative': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step),
         # 'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
@@ -650,6 +660,7 @@ def create_sbatch_files(folder_to_write):
                 slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
                 slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
                 slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
+                slurm_file.write(f'export LD_LIBRARY_PATH=/cd/usr/yuvalja/projects/Marabou\n')
                 slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
                 slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp} {model}\n')
 
@@ -682,9 +693,10 @@ if __name__ == "__main__":
     # draw_from_dataframe(df)
 
     # GUROBI experiment:
-    # network_path = "rnn4_simple.h5"
+    # network_path = "simple_model.h5"
     # network_path = "model_20classes_rnn2_fc32_epochs200.h5"
-    df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=10)
+    # df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
+    df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=15)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]

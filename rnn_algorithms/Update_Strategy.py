@@ -1,8 +1,8 @@
 import math
 import random
 
-EPSILON_CHANCE = 10**-3
-SAME_STEP_SIZE_IN_A_ROW = 80
+EPSILON_CHANCE = 0 #10**-3
+SAME_STEP_SIZE_IN_A_ROW = 20
 
 MAX_ALPHA = 10**4
 class Absolute_Step():
@@ -11,11 +11,14 @@ class Absolute_Step():
         self.last_direction = 0
         self.options = options if options is not None else [5 ** i for i in range(-3, 2)]
 
-    def do_step(self, alpha, direction):
+    def do_step(self, alpha, direction,  same_step_counter = None):
         if direction == self.last_direction:
             self.counter += 1
         else:
             self.counter = 0
+        if same_step_counter is not None:
+            self.counter = same_step_counter
+
         self.last_direction = direction
 
         idx = math.floor(self.counter / SAME_STEP_SIZE_IN_A_ROW)
@@ -41,17 +44,23 @@ class Relative_Step():
         self.options = options if options is not None else [0.01,0.05, 0.1]#, 0.2,0.3]
         # self.options = [0.4, 0.9]
 
-    def do_step(self, alpha, direction):
+    def do_step(self, alpha, direction, same_step_counter=None):
         if direction == self.last_direction:
             self.counter += 1
-            if self.counter >= len(self.options):
-                self.counter = len(self.options) - 1
+            # if self.counter >= len(self.options):
+            #     self.counter = len(self.options) - 1
         else:
             self.counter = 0
         self.last_direction = direction
 
+
+        if same_step_counter is not None:
+            self.counter = same_step_counter
+
+        idx = math.floor(self.counter / SAME_STEP_SIZE_IN_A_ROW)
+        idx = idx if idx < len(self.options) else -1
         if abs(alpha) > 0.001:
-            alpha =  alpha + (direction * alpha * self.options[self.counter] * sign(alpha))  # do step size 0.3 to the next direction
+            alpha =  alpha + (direction * alpha * self.options[idx] * sign(alpha))  # do step size 0.3 to the next direction
         else:
             alpha = 0.5 * direction
 
