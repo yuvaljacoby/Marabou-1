@@ -650,19 +650,23 @@ def create_sbatch_files(folder_to_write):
         for model in models:
             exp_time = str(datetime.now()).replace(" ", "-")
             with open(os.path.join(folder_to_write, "run_" + exp + model + ".sh"), "w") as slurm_file:
-                job_output_rel_path = f"slurm_{exp}_{exp_time}.out"
+                # job_output_rel_path = "slurm_{exp}_{exp_time}.out"
+                job_output_rel_path = "slurm_{}_{}.out".format(exp, exp_time)
                 slurm_file.write('#!/bin/bash\n')
-                slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
-                slurm_file.write(f'#SBATCH --cpus-per-task=3\n')
-                slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
+                slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model, exp, exp_time))
+                # slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
+                slurm_file.write('#SBATCH --cpus-per-task=3\n')
+                # slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
+                slurm_file.write('#SBATCH --output={}_{}\n'.format(model, job_output_rel_path))
                 # slurm_file.write(f'#SBATCH --partition={partition}\n')
-                slurm_file.write(f'#SBATCH --time=30:00:00\n')
-                slurm_file.write(f'#SBATCH --mem-per-cpu=300\n')
-                slurm_file.write(f'#SBATCH --mail-type=BEGIN,END,FAIL\n')
-                slurm_file.write(f'#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
-                slurm_file.write(f'export LD_LIBRARY_PATH=/cd/usr/yuvalja/projects/Marabou\n')
-                slurm_file.write(f'export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
-                slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp} {model}\n')
+                slurm_file.write('#SBATCH --time=30:00:00\n')
+                slurm_file.write('#SBATCH --mem-per-cpu=300\n')
+                slurm_file.write('#SBATCH --mail-type=BEGIN,END,FAIL\n')
+                slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
+                slurm_file.write('export LD_LIBRARY_PATH=/cd/usr/yuvalja/projects/Marabou\n')
+                slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
+                # slurm_file.write(f'python3 rnn_experiment/self_compare/experiment.py {exp} {model}\n')
+                slurm_file.write('python3 rnn_experiment/self_compare/experiment.py {} {}\n'.format(exp, model))
 
 
 if __name__ == "__main__":
