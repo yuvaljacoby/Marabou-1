@@ -659,7 +659,8 @@ def get_all_algorithms():
     Relative_Step_Big = partial(Absolute_Step, options=[0.01, 0.05, 0.1, 0.3])
     sigmoid = lambda x: 1 / (1 + np.exp(-x))
     algorithms_ptrs = OrderedDict({
-        'gurobi_relative': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step),
+        'gurobi_relative_20_0_1_1': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
+                                            use_relu=False, add_alpha_constraint=True, use_counter_example=True),
         # 'weighted_tanh_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step, activation=np.tanh),
         # 'weighted_relative': partial(WeightedAlphasSGD, update_strategy_ptr=Relative_Step),
 
