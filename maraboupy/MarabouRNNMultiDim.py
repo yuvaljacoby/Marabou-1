@@ -202,6 +202,11 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
             network.addEquation(eq)
 
         marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars= True)
+        # if not marabou_result:
+        #     network.dump()
+        #     print(cur_vars)
+        #     print("-------------------------- invariant : {}".format(i))
+        #     assert False
         vars.append(cur_vars)
         # print("Querying for induction step: {}".format(marabou_result))
         # network.dump()

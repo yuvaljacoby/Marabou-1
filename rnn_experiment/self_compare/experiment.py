@@ -519,7 +519,7 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
             continue
         exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
         df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
-        print(df[[n for n in df.columns if "result" in n or 'invariant_queries' in n]])
+        print(df[[n for n in df.columns if "result" in n or 'queries' in n]])
         pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
     return df
 
@@ -636,20 +636,21 @@ def get_algorithms():
 
 def get_algorithms_list():
     return [
-        {'random_relative' : partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)},
-        {'gurobi_relative_20_1_1_0' :
-         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
-                 add_alpha_constraint=True, use_counter_example=False)},
-         {'gurobi_relative_20_1_1_1':
-         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
-                 add_alpha_constraint=True, use_counter_example=True)},
-          {'gurobi_relative_20_0_1_1' :
-         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
-                 add_alpha_constraint=True, use_counter_example=True)},
-           {'gurobi_relative_20_0_0_0' :
-         partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
-                 add_alpha_constraint=False, use_counter_example=False)}
+        {'random_relative': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)},
+        {'gurobi_relative_20_1_1_0':
+             partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
+                     add_alpha_constraint=True, use_counter_example=False)},
+        {'gurobi_relative_20_1_1_1':
+             partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True,
+                     add_alpha_constraint=True, use_counter_example=True)},
+        {'gurobi_relative_20_0_1_1':
+             partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
+                     add_alpha_constraint=True, use_counter_example=True)},
+        {'gurobi_relative_20_0_0_0':
+             partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=False,
+                     add_alpha_constraint=False, use_counter_example=False)}
     ]
+
 
 def get_all_algorithms():
     Absolute_Step_Big = partial(Absolute_Step, options=[10 ** i for i in range(-5, 3)])
@@ -718,7 +719,7 @@ if __name__ == "__main__":
 
     np.random.seed(9)
     network_path = "model_20classes_rnn4_fc32_epochs40.h5"
-    
+
     if len(sys.argv) > 1:
         print(sys.argv[1])
         if sys.argv[1] == 'create_sbatch':
@@ -747,10 +748,12 @@ if __name__ == "__main__":
     # draw_from_dataframe(df)
 
     # GUROBI experiment:
-    # network_path = "simple_model.h5"
     # network_path = "model_20classes_rnn2_fc32_epochs200.h5"
-    # df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
+    # network_path = "simple_model.h5"
+    # algorithms_ptrs = get_algorithms_list()[2]
+    # network_path = "simple_rnn2.h5"
     df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
+    # df = run_random_experiment(network_path, algorithms_ptrs, radius=0.01, num_points=200, n_iterations=5)
 
     # cols = ['exp_name'] + ['{}_result'.format(n) for n in algorithms_ptrs.keys()] + ['{}_queries'.format(n) for n in
     #                                                                                  algorithms_ptrs.keys()]
