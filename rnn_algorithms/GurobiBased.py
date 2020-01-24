@@ -197,6 +197,7 @@ class AlphasGurobiBased:
         obj = LinExpr()
         for i in range(self.w_h.shape[0]):
             alphas_l.append(gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_l_{}".format(i)))
+            # We later return -alphas_l so the smallest here results the largest bound
             obj += alphas_l[-1]
 
         for i in range(self.w_h.shape[0]):
@@ -296,15 +297,18 @@ class AlphasGurobiBased:
                 # for j in range(len(alphas_u)):
                 if not strengthen:
                     # Invariant failed, need larger alphas
-                    gmodel.addConstr(alphas_u[i] * time[i] >= outputs[i], 'ce_alpha_u')
-                    gmodel.addConstr(alphas_l[i] * time[i] <= outputs[i], "ce_alpha_l")
+                    if i < len(time) / 2:
+                        gmodel.addConstr(alphas_l[i] * time[i] <= outputs[i], "ce_alpha_l")
+                    else:
+                        idx = i // 2
+                        gmodel.addConstr(alphas_u[idx] * time[idx] >= outputs[idx], 'ce_alpha_u')
             if strengthen and previous_alphas is not None:
                 for i, a in enumerate(previous_alphas):
                     # First half of previous_alphas is a_l, second a_u
                     if i > len(previous_alphas) / 2:
                         gmodel.addConstr(alphas_l[j] <= a, "ce_output_alpha_l")
                     else:
-                        gmodel.addConstr(alphas_u[j] >= a,  'ce_output_alpha_u')
+                        gmodel.addConstr(alphas_u[i // 2] >= a,  'ce_output_alpha_u')
 
         # hy_outputs, _ = hyptoesis_ce
         # for i in range(len(time)):

@@ -1,7 +1,7 @@
 import pickle
 import numpy as np
 from maraboupy.MarabouRNNMultiDim import prove_multidim_property
-from maraboupy.keras_to_marabou_rnn import adversarial_query
+from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.MaxAlphasSGDInfStart import MaxAlphasSGD
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
@@ -39,8 +39,10 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iteration
 def plot_results(our_results, rnsverify_results, exp_name):
     assert len(our_results) == len(rnsverify_results)
     x_idx = range(2, len(our_results) + 2)
-    sns.plot(x_idx, our_results, 'o', color='blue')
-    sns.plot(x_idx, rnsverify_results, 'o', color='orange')
+    # plt.plot(x_idx, our_results, 'o', color='blue')
+    # plt.plot(x_idx, rnsverify_results, 'o', color='orange')
+    sns.scatterplot(x_idx, our_results)
+    sns.scatterplot(x_idx, rnsverify_results)
     plt.legend(['ours', 'rnsverify', ], loc='upper left')
     plt.title(exp_name)
     plt.tight_layout()
@@ -51,17 +53,33 @@ def plot_results(our_results, rnsverify_results, exp_name):
 
 
 experiemnts = [
-    # {'idx_max': 4, 'other_idx': 0, 'in_tensor': [10] * 40,
-    #  'radius': 0, 'h5_path': "{}/model_classes5_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
-    # {'idx_max': 13, 'other_idx': 15,
-    #  'in_tensor': np.array([6.3, 9.4, 9.6, 3.1, 8.5, 9.4, 7.2, 8.6, 3.8, 1.4, 0.7, 7.8, 1.9, 8.2, 6.2, 3.6, 8.7, 1.7
-    #                            , 2.8, 4.8, 4.3, 5.1, 3.8, 0.8, 2.4, 7.6, 7.3, 0., 3.3, 7.4, 0., 2.1, 0.5, 8., 7.1, 3.9
-    #                            , 3., 8.3, 5.6, 1.8]), 'radius': 0.01,
-    #  'h5_path': "{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
-    {'idx_max': 9, 'other_idx': 2,
-     'in_tensor': [10] * 40, 'radius': 0.01,
-     'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5},
-
+    # {'idx_max': 9, 'other_idx': 2,
+    #  'in_tensor': [10] * 40, 'radius': 0.01,
+    #  'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
+    {'idx_max': None, 'other_idx': None,
+     'in_tensor': np.array([2.21710942e-03, -5.79088139e-01, -2.23213261e+00, -2.57655135e-02,
+       -7.56722928e-01, -9.62270726e-01, -3.03466236e+00, -9.81743962e-01,
+       -4.81361157e-01, -1.29589492e+00,  1.27178216e+00,  3.48023461e+00,
+        5.93364435e-01,  1.41500732e+00,  3.64563153e+00,  8.61538059e-01,
+        3.08545925e+00, -1.80144234e+00, -2.74250021e-01,  2.59515802e+00,
+        1.35054233e+00,  6.39162339e-02,  1.83629179e+00,  7.61018933e-01,
+        1.03273497e+00, -7.10478917e-01,  4.17554002e-01,  6.56822152e-01,
+       -9.96449533e-01, -4.18355355e+00, -1.65175481e-01,  4.91036530e+00,
+       -5.34422001e+00, -1.82655856e+00, -4.54628714e-01,  5.38630754e-01,
+        2.26092251e+00,  2.08479489e+00,  2.60762089e+00,  2.77880146e+00]), 'radius': 0.01,
+     'h5_path': "{}/model_20classes_rnn2_fc32_epochs200.h5".format(MODELS_FOLDER), 'n_iterations': 25},
+    {'idx_max': None, 'other_idx': None,
+     'in_tensor': np.array([2.21710942e-03, -5.79088139e-01, -2.23213261e+00, -2.57655135e-02,
+       -7.56722928e-01, -9.62270726e-01, -3.03466236e+00, -9.81743962e-01,
+       -4.81361157e-01, -1.29589492e+00,  1.27178216e+00,  3.48023461e+00,
+        5.93364435e-01,  1.41500732e+00,  3.64563153e+00,  8.61538059e-01,
+        3.08545925e+00, -1.80144234e+00, -2.74250021e-01,  2.59515802e+00,
+        1.35054233e+00,  6.39162339e-02,  1.83629179e+00,  7.61018933e-01,
+        1.03273497e+00, -7.10478917e-01,  4.17554002e-01,  6.56822152e-01,
+       -9.96449533e-01, -4.18355355e+00, -1.65175481e-01,  4.91036530e+00,
+       -5.34422001e+00, -1.82655856e+00, -4.54628714e-01,  5.38630754e-01,
+        2.26092251e+00,  2.08479489e+00,  2.60762089e+00,  2.77880146e+00]), 'radius': 0.01,
+     'h5_path': "{}/model_20classes_rnn4_fc32_epochs40.h5".format(MODELS_FOLDER), 'n_iterations': 25},
 ]
 
 if __name__ == "__main__":
@@ -73,7 +91,9 @@ if __name__ == "__main__":
     # model_path = 'models/model_classes5_1rnn2_0_64_4.h5'
 
     for exp in experiemnts:
-        our, rns = run_experiment(exp['in_tensor'], 0, exp['idx_max'], exp['other_idx'],
+        if exp['idx_max'] is None:
+            exp['idx_max'], exp['other_idx'] = get_out_idx(exp['in_tensor'], exp['n_iterations'], exp['h5_path'])
+        our, rns = run_experiment(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'],
                                   exp['h5_path'], max_iterations=exp['n_iterations'])
         rnn_dim = exp['h5_path'].split('/')[-1].split('_')[2].replace('1rnn', '')
         exp_name = 'verification time as a function of iterations, one rnn cell dimension: {}'.format(rnn_dim)
