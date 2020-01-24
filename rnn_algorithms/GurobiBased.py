@@ -143,10 +143,12 @@ class AlphasGurobiBased:
         self.rnn_start_idxs = rnn_start_idxs + rnn_start_idxs
         self.rnn_output_idxs_double = rnn_output_idxs + rnn_output_idxs
         initial_values = rnnModel.get_rnn_min_max_value_one_iteration(xlim)
+        # initial_values = (initial_values[1], initial_values[0])
+        initial_values = ([0] * len(initial_values[0]), initial_values[1])
 
         self.initial_values = initial_values  # [1] + initial_values[0]
-        self.inv_type = [MarabouCore.Equation.LE] * len(initial_values[1]) + [MarabouCore.Equation.GE] * len(
-            initial_values[0])
+        # self.inv_type = [MarabouCore.Equation.LE] * len(initial_values[1]) + [MarabouCore.Equation.GE] * len(initial_values[0])
+        self.inv_type = [MarabouCore.Equation.GE] * len(initial_values[1]) + [MarabouCore.Equation.LE] * len(initial_values[0])
         self.alphas = self.do_gurobi_step(strengthen=True)
         if self.alphas is None:
             self.alphas = [0] * len(self.inv_type)
@@ -193,15 +195,15 @@ class AlphasGurobiBased:
         # add the alphas variables
         alphas_u = []
         alphas_l = []
-        in_vars = []
         obj = LinExpr()
         for i in range(self.w_h.shape[0]):
             alphas_l.append(gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_l_{}".format(i)))
             # We later return -alphas_l so the smallest here results the largest bound
-            obj += alphas_l[-1]
+            obj += -alphas_l[-1]
+            gmodel.addConstr(alphas_l[i] >= 0, "alpha_l{}<alpha_u{}".format(i, i))
 
         for i in range(self.w_h.shape[0]):
-            alphas_u.append(gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_u_{}".format(i)))
+            alphas_u.append(gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_u_{}".format(i)))
             obj += alphas_u[-1]
             gmodel.addConstr(alphas_u[i] >= SMALL + alphas_l[i], "alpha_l{}<alpha_u{}".format(i, i))
 
@@ -220,39 +222,22 @@ class AlphasGurobiBased:
         delta_l = []
 
         for i in range(self.w_h.shape[0]):
-            for t in range(1, self.n_iterations):
+            #TODO: Should t start from zero or 1? start from zero for now
+            for t in range(self.n_iterations):
                 # Conditions for the over approximation of the memory cell at every time point
                 cond_u = LinExpr()
                 cond_l = LinExpr()
                 cond_x_u = LinExpr()
                 cond_x_l = LinExpr()
                 for j in range(self.w_h.shape[0]):
-                    # For the min invariants we want max value, and the other way around
-                    # if self.w_h[j, i] > 0:
-                    #     cond_l += (alphas_l[j] + self.initial_values[1][i]) * (t - 1) * self.w_h[j, i]
-                    #     cond_u += (alphas_u[j] + self.initial_values[0][i]) * (t - 1) * self.w_h[j, i]
-                    # else:
-                    #     cond_l += (alphas_u[j] + self.initial_values[0][i]) * (t - 1) * self.w_h[j, i]
-                    #     cond_u += (alphas_l[j] + self.initial_values[1][i]) * (t - 1) * self.w_h[j, i]
-                    # if self.w_h[j, i] > 0:
-                    #     cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
-                    #     cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
-                    # else:
-                    #     cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[j, i]
-                    #     cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[j, i]
-                    # if self.w_h[i, j] > 0:
-                    #     cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[i, j]
-                    #     cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[i, j]
-                    # else:
-                    #     cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t - 1) * self.w_h[i, j]
-                    #     cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t - 1) * self.w_h[i, j]
                     if self.w_h[i, j] > 0:
-                        cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
-                        cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
-                    else:
                         cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
                         cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
-                for j in range(len(in_vars)):
+                    else:
+                        cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+                        cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+
+                for j in range(len(self.xlim)):
                     if self.w_in[j, i] >= 0:
                         cond_x_u += self.xlim[j][1] * self.w_in[j, i]
                         cond_x_l += self.xlim[j][0] * self.w_in[j, i]
@@ -278,13 +263,13 @@ class AlphasGurobiBased:
                     gmodel.addConstr(cond_u_f[-1] <= cond_u + LARGE * delta_u[-1], "cond_u_relu1")
                     gmodel.addConstr(cond_u_f[-1] <= LARGE * (1 - delta_u[-1]), "cond_u_relu2")
 
-                    # gmodel.addConstr(cond_l_f[-1] >= cond_l, "cond_l_relu0")
-                    # gmodel.addConstr(cond_l_f[-1] <= cond_l + LARGE * delta_l[-1], "cond_l_relu1")
-                    # gmodel.addConstr(cond_l_f[-1] <= LARGE * (1 - delta_l[-1]), "cond_l_relu2")
+                    gmodel.addConstr(cond_l_f[-1] >= cond_l, "cond_l_relu0")
+                    gmodel.addConstr(cond_l_f[-1] <= cond_l + LARGE * delta_l[-1], "cond_l_relu1")
+                    gmodel.addConstr(cond_l_f[-1] <= LARGE * (1 - delta_l[-1]), "cond_l_relu2")
 
                     gmodel.addConstr(alphas_u[i] * (t +1) >= cond_u_f[-1], "alpha_u{}_t{}".format(i, t))
-                    # gmodel.addConstr(alphas_l[i] * (t +1) <= cond_l_f[-1], "alpha_l{}_t{}".format(i, t))
-                    gmodel.addConstr(alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
+                    gmodel.addConstr(alphas_l[i] * (t +1) <= cond_l_f[-1], "alpha_l{}_t{}".format(i, t))
+                    # gmodel.addConstr(alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
                 else:
                     gmodel.addConstr(alphas_u[i] * (t +1) >= cond_u, "alpha_u{}_t{}".format(i, t))
                     gmodel.addConstr(alphas_l[i] * (t +1) <= cond_l, "alpha_l{}_t{}".format(i, t))
@@ -330,7 +315,7 @@ class AlphasGurobiBased:
 
         if gmodel.status == GRB.CUTOFF or gmodel.status == GRB.INFEASIBLE:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
-            # exit(0)
+            exit(0)
             return None
         # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
 
@@ -342,12 +327,12 @@ class AlphasGurobiBased:
         # for v in alphas_u:
         #     print(v.varName, v.x)
 
-        return  [-1 * a.x for a in alphas_l] + [a.x for a in alphas_u]
+        return [1 * a.x for a in alphas_l] + [a.x for a in alphas_u]
 
     def update_equation(self, idx):
 
         # Change the formal of initial values, first those for LE equations next to GE
-        initial_values = self.initial_values[1] + self.initial_values[0]
+        initial_values = self.initial_values[0] + self.initial_values[1]
         self.equations[idx] = alpha_to_equation(self.rnn_start_idxs[idx], self.rnn_output_idxs_double[idx],
                                                 initial_values[idx], self.alphas[idx], self.inv_type[idx])
 

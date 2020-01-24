@@ -126,11 +126,11 @@ class RandomAlphasSGD:
         initial_values = rnnModel.get_rnn_min_max_value_one_iteration(xlim)
 
         # The initial values are opposite to the intuition, for LE we use max_value
-        self.min_invariants = RandomAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
-                                                         MarabouCore.Equation.LE, alpha_initial_value,
-                                                         self.update_strategy)
-        self.max_invariants = RandomAlphaSGDOneSideBound(initial_values[0], rnn_start_idxs, rnn_output_idxs,
+        self.min_invariants = RandomAlphaSGDOneSideBound([0] * len(initial_values[0]), rnn_start_idxs, rnn_output_idxs,
                                                          MarabouCore.Equation.GE, alpha_initial_value,
+                                                         self.update_strategy)
+        self.max_invariants = RandomAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
+                                                         MarabouCore.Equation.LE, alpha_initial_value,
                                                          self.update_strategy)
         self.last_fail = None
         self.alpha_history= []

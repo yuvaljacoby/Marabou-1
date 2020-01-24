@@ -693,8 +693,8 @@ def get_all_algorithms():
 
     algorithms_ptrs = OrderedDict({
         'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
-                          use_relu=False, add_alpha_constraint=True, use_counter_example=True),
-        'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+                          use_relu=True, add_alpha_constraint=True, use_counter_example=True),
+        # 'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
 
         # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
@@ -820,4 +820,8 @@ if __name__ == "__main__":
             exit(0)
 
     algorithms_ptrs, network_path = parse_input_strings()
-    df = run_random_experiment(network_path, algorithms_ptrs)
+    # network_path = 'simple_model.h5'
+    # np.random.seed(10)
+    # algorithms_ptrs = {'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
+    #                       use_relu=True, add_alpha_constraint=True, use_counter_example=True)}
+    df = run_random_experiment(network_path, algorithms_ptrs,mean=1, var=1, n_iterations=3, radius=0.1)
