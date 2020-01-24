@@ -315,7 +315,7 @@ class AlphasGurobiBased:
 
         if gmodel.status == GRB.CUTOFF or gmodel.status == GRB.INFEASIBLE:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
-            exit(0)
+            raise ValueError("INFEASIBLE problem")
             return None
         # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
 
