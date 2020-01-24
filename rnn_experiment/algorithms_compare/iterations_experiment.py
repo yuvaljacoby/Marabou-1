@@ -10,7 +10,7 @@ from maraboupy import MarabouCore
 from timeit import default_timer as timer
 import seaborn as sns
 from rns_verify.verify_keras import verify_query as rns_verify_query
-
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
@@ -20,7 +20,7 @@ FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iterations=100):
     our_results = []
     rnsverify_results = []
-    for i in range(2, max_iterations):
+    for i in tqdm(range(2, max_iterations)):
         rnsverify_time = rns_verify_query(h5_file, in_tensor, idx_max, other_idx, i, radius)
 
         start = timer()
@@ -102,4 +102,4 @@ if __name__ == "__main__":
         pickle_path = pickle_dir + "{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2], exp['n_iterations'])
         pickle.dump({'our' : our, 'rns' : rns, 'exp_name' : exp_name}, open(pickle_path, "wb"))
 
-        plot_results(our, rns, exp_name)
+        # plot_results(our, rns, exp_name)
