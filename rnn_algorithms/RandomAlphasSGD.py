@@ -1,6 +1,7 @@
 from maraboupy.MarabouRNNMultiDim import alpha_to_equation, double_list
 from maraboupy import MarabouCore
 import random
+random.seed(10)
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 
 sign = lambda x: 1 if x >= 0 else -1

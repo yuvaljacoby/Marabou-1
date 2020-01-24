@@ -787,13 +787,13 @@ if __name__ == "__main__":
     # df = run_random_experiment(network_path, algorithms_ptrs)
 
     # Create random points
-    mean = 0
+    mean = -3
     var = 2
     num_points = 200
-    # points = []
-    # for _ in range(num_points):
-    #     points.append(np.random.normal(mean, var, IN_SHAPE))
-    # pickle.dump(points, open("points_{}_{}_{}.pkl".format(mean, var, num_points), "wb"))
+    points = []
+    for _ in range(num_points):
+        points.append(np.random.normal(mean, var, IN_SHAPE))
+    pickle.dump(points, open("points_{}_{}_{}.pkl".format(mean, var, num_points), "wb"))
 
     # exp_name = 'controlled'
     # model_path = 'model_20classes_rnn4_fc32_epochs40.h5'

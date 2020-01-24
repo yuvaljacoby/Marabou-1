@@ -1,5 +1,5 @@
 import random
-
+random.seed(10)
 import numpy as np
 from gurobipy import *
 

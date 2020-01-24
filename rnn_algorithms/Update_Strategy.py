@@ -1,6 +1,6 @@
 import math
 import random
-
+random.seed(10)
 EPSILON_CHANCE = 0 #10**-3
 SAME_STEP_SIZE_IN_A_ROW = 20
 
