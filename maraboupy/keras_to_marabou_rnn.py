@@ -186,9 +186,10 @@ def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx
 
 
 def get_out_idx(x, n_iterations, h5_file_path):
-    out = get_output_vector(h5_file_path, x, n_iterations)
+    out = np.squeeze(get_output_vector(h5_file_path, x, n_iterations))
     other_idx = np.argmin(out)
     y_idx_max = np.argmax(out)
+    # assert np.argmax(out) == np.argsort(out)[-1]
     print(y_idx_max, other_idx)
     if y_idx_max == other_idx:
         # This means all the enteris in the out vector are equal...

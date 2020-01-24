@@ -9,7 +9,7 @@ from rnn_algorithms.Update_Strategy import Absolute_Step
 
 sign = lambda x: 1 if x >= 0 else -1
 
-SMALL =  10 ** -5
+SMALL = 10 ** -5
 LARGE = 10 ** 5
 
 RANDOM_THRESHOLD = 20  #
@@ -322,7 +322,7 @@ class AlphasGurobiBased:
 
         # gmodel.addConstr(alphas_l[0] * 1.994930978715582 <= 10.113458920777703, 'DEBUG_CONSTRAINT')
         gmodel.optimize()
-        gmodel.write("temp.lp")
+        # gmodel.write("temp.lp")
 
         if gmodel.status == GRB.CUTOFF or gmodel.status == GRB.INFEASIBLE:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))

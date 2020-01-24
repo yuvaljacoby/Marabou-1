@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 from maraboupy.MarabouRNNMultiDim import prove_multidim_property
 from maraboupy.keras_to_marabou_rnn import adversarial_query
@@ -7,6 +8,7 @@ from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation
 from maraboupy import MarabouCore
 from timeit import default_timer as timer
+import seaborn as sns
 from rns_verify.verify_keras import verify_query as rns_verify_query
 
 import matplotlib.pyplot as plt
@@ -37,8 +39,8 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iteration
 def plot_results(our_results, rnsverify_results, exp_name):
     assert len(our_results) == len(rnsverify_results)
     x_idx = range(2, len(our_results) + 2)
-    plt.plot(x_idx, our_results, 'o', color='r')
-    plt.plot(x_idx, rnsverify_results, 'o', color='g')
+    sns.plot(x_idx, our_results, 'o', color='blue')
+    sns.plot(x_idx, rnsverify_results, 'o', color='orange')
     plt.legend(['ours', 'rnsverify', ], loc='upper left')
     plt.title(exp_name)
     plt.tight_layout()
@@ -58,7 +60,8 @@ experiemnts = [
     #  'h5_path': "{}/model_classes20_1rnn4_0_2_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
     {'idx_max': 9, 'other_idx': 2,
      'in_tensor': [10] * 40, 'radius': 0.01,
-     'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
+     'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 5},
+
 ]
 
 if __name__ == "__main__":
@@ -74,4 +77,9 @@ if __name__ == "__main__":
                                   exp['h5_path'], max_iterations=exp['n_iterations'])
         rnn_dim = exp['h5_path'].split('/')[-1].split('_')[2].replace('1rnn', '')
         exp_name = 'verification time as a function of iterations, one rnn cell dimension: {}'.format(rnn_dim)
+
+        pickle_dir = "pickles/rns_verify_exp/"
+        pickle_path = pickle_dir + "{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2], exp['n_iterations'])
+        pickle.dump({'our' : our, 'rns' : rns, 'exp_name' : exp_name}, open(pickle_path, "wb"))
+
         plot_results(our, rns, exp_name)
