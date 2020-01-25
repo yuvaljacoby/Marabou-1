@@ -290,8 +290,8 @@ class AlphasGurobiBased:
             if strengthen and previous_alphas is not None:
                 for i, a in enumerate(previous_alphas):
                     # First half of previous_alphas is a_l, second a_u
-                    if i > len(previous_alphas) / 2:
-                        gmodel.addConstr(alphas_l[j] <= a, "ce_output_alpha_l")
+                    if i < len(previous_alphas) / 2:
+                        gmodel.addConstr(alphas_l[i] <= a, "ce_output_alpha_l")
                     else:
                         gmodel.addConstr(alphas_u[i // 2] >= a,  'ce_output_alpha_u')
 
