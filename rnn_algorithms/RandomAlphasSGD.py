@@ -61,7 +61,10 @@ class RandomAlphaSGDOneSideBound:
         self.first_call = True
         assert inv_type in [MarabouCore.Equation.LE, MarabouCore.Equation.GE]
 
-        self.alphas = [alpha_initial_value] * len(initial_values)
+        if isinstance(alpha_initial_value, list):
+            self.alphas = alpha_initial_value
+        else:
+            self.alphas = [alpha_initial_value] * len(initial_values)
         self.equations = [None] * len(self.alphas)
         for i in range(len(self.alphas)):
             self.update_equation(i)
@@ -70,7 +73,7 @@ class RandomAlphaSGDOneSideBound:
         self.next_idx_step = random.randint(0, len(self.alphas) - 1)
         return self.next_idx_step
 
-    def do_step(self, strengthen=True):
+    def do_step(self, strengthen=True, max_values=None, min_values=None):
         '''
         do a step in the one of the alphas
         :param strengthen: determines the direction of the step if True will return a stronger suggestion to invert, weaker otherwise
@@ -82,11 +85,20 @@ class RandomAlphaSGDOneSideBound:
         else:
             direction = 1
 
+        # if self.inv_type == MarabouCore.Equation.GE:
+        #     direction = -1 * direction
+
         i = self.next_idx_step
 
         self.prev_alpha = self.alphas[self.next_idx_step]
         self.prev_idx = self.next_idx_step
-        self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction)
+        candidate_alpha = self.update_strategy.do_step(self.alphas[i], direction)
+        if max_values is not None:
+            if candidate_alpha <= max_values[i]:
+                self.alphas[i] = candidate_alpha
+        if min_values is not None:
+            if candidate_alpha >= min_values[i]:
+                self.alphas[i] = candidate_alpha
 
         self.update_equation(i)
         self.update_next_idx_step()
@@ -126,11 +138,18 @@ class RandomAlphasSGD:
         initial_values = rnnModel.get_rnn_min_max_value_one_iteration(xlim)
 
         # The initial values are opposite to the intuition, for LE we use max_value
+        # self.min_invariants = RandomAlphaSGDOneSideBound([0] * len(initial_values[0]), rnn_start_idxs, rnn_output_idxs,
+        #                                                      MarabouCore.Equation.GE, alpha_initial_value,
+        #                                                  self.update_strategy)
+        # self.max_invariants = RandomAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
+        #                                                  MarabouCore.Equation.LE, alpha_initial_value,
+        #                                                  self.update_strategy)
+
         self.min_invariants = RandomAlphaSGDOneSideBound([0] * len(initial_values[0]), rnn_start_idxs, rnn_output_idxs,
-                                                         MarabouCore.Equation.GE, alpha_initial_value,
+                                                         MarabouCore.Equation.GE, [1770.7865001097273, 973.306117239916],
                                                          self.update_strategy)
         self.max_invariants = RandomAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
-                                                         MarabouCore.Equation.LE, alpha_initial_value,
+                                                         MarabouCore.Equation.LE, [2938.2838599597244, 6875.312697130332],
                                                          self.update_strategy)
         self.last_fail = None
         self.alpha_history= []
@@ -161,9 +180,11 @@ class RandomAlphasSGD:
         self.last_fail = strengthen
 
         if self.next_is_max:
-            res = self.min_invariants.get_equations() + self.max_invariants.do_step(strengthen)
+            min_values = self.min_invariants.alphas
+            res = self.min_invariants.get_equations() + self.max_invariants.do_step(strengthen, min_values=min_values)
         else:
-            res = self.min_invariants.do_step(strengthen) + self.max_invariants.get_equations()
+            max_values = self.max_invariants.alphas
+            res = self.min_invariants.do_step(strengthen, max_values=max_values) + self.max_invariants.get_equations()
 
         self.next_is_max = random.randint(0, 1)
         self.alpha_history.append(self.get_alphas())
@@ -179,7 +200,7 @@ class RandomAlphasSGD:
             self.max_invariants.revert_last_step()
 
     def get_equations(self):
-        return self.max_invariants.get_equations() + self.min_invariants.get_equations()
+        return self.min_invariants.get_equations() + self.max_invariants.get_equations()
 
     def get_alphas(self):
-        return self.max_invariants.get_alphas() + self.min_invariants.get_alphas()
+        return self.min_invariants.get_alphas() + self.max_invariants.get_alphas()

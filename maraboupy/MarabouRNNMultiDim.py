@@ -1,5 +1,7 @@
 from timeit import default_timer as timer
 
+import numpy as np
+
 from maraboupy import MarabouCore
 from maraboupy.MarabouRnnModel import RnnMarabouModel
 
@@ -141,14 +143,14 @@ def create_invariant_equations(loop_indices, invariant_eq):
 
     induction_base_equations = [induction_step] + loop_equations + zero_rnn_hidden
 
-    induction_hypothesis = create_induction_hypothesis_from_invariant_eq()
-    induction_step_equations = [induction_step] + [step_loop_eq]
+    induction_hypothesis = create_induction_hypothesis_from_invariant_eq() + [step_loop_eq]
+    induction_step_equations = [induction_step]
     # induction_step_equations = induction_step + step_loop_eq
 
     return induction_base_equations, induction_step_equations, induction_hypothesis
 
 
-def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_vars = False):
+def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_vars=False):
     '''
     Prove invariants where we need to assume multiple assumptions and conclude from them.
     For each of the invariant_equations creating 3 sets: base_equations, hyptosis_equations, step_equations
@@ -196,33 +198,36 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
         # eq.dump()
         network.addEquation(eq)
 
-    for i, steq_eq_ls in enumerate(step_eq):
-        for eq in steq_eq_ls:
-            # eq.dump()
-            network.addEquation(eq)
+    hypothesis_fail = False
+    marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
+    if marabou_result:
+        # UNSAT Conflict in the hypothesis
+        proved_invariants = [False] * len(proved_invariants)
+        hypothesis_fail = True
 
-        marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars= True)
-        # if not marabou_result:
-        #     network.dump()
-        #     print(cur_vars)
-        #     print("-------------------------- invariant : {}".format(i))
-        #     assert False
-        vars.append(cur_vars)
-        # print("Querying for induction step: {}".format(marabou_result))
-        # network.dump()
+    if not hypothesis_fail:
+        for i, steq_eq_ls in enumerate(step_eq):
+            for eq in steq_eq_ls:
+                # eq.dump()
+                network.addEquation(eq)
 
-        if not marabou_result:
-            # for eq in hypothesis_eq:
-            #     network.removeEquation(eq)
+            marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
+            vars.append(cur_vars)
+            # print("Querying for induction step: {}".format(marabou_result))
             # network.dump()
-            # print("induction step fail, on invariant:", i)
-            proved_invariants[i] = False
-        else:
-            proved_invariants[i] = True
-            # print("induction step work, on invariant:", i)
 
-        for eq in steq_eq_ls:
-            network.removeEquation(eq)
+            if not marabou_result:
+                # for eq in hypothesis_eq:
+                #     network.removeEquation(eq)
+                # network.dump()
+                # print("induction step fail, on invariant:", i)
+                proved_invariants[i] = False
+            else:
+                proved_invariants[i] = True
+                # print("induction step work, on invariant:", i)
+
+            for eq in steq_eq_ls:
+                network.removeEquation(eq)
     for eq in hypothesis_eq:
         network.removeEquation(eq)
 
@@ -230,6 +235,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
         return proved_invariants, vars
     else:
         return proved_invariants
+
 
 def alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, inv_type, alphas):
     '''
@@ -289,7 +295,7 @@ def double_list(ls):
     return new_ls
 
 
-def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars = False):
+def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=False):
     '''
     Creates a function that can verify invariants accodring to the network and rnn indcies
     :param network: Marabou format of a network
@@ -301,7 +307,7 @@ def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_
     def invariant_oracle(equations_to_verify):
         # assert len(alphas) == len(initial_values)
         # invariant_equations = alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, alphas)
-        return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify, return_vars =return_vars )
+        return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify, return_vars=return_vars)
 
     return invariant_oracle
 
@@ -338,12 +344,13 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
     rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
     network = rnnModel.network
     add_loop_indices_equations(network, rnn_start_idxs)
-    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars = True)
+    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
     property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
     equations = algorithm.get_equations()
     res = False
     invariant_times = []
     property_times = []
+    step_times = []
     for i in range(number_of_steps):
         start_invariant = timer()
         invariant_results, sat_vars = invariant_oracle(equations)
@@ -361,19 +368,22 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 res = True
                 break
             else:
+                start_step = timer()
                 # If the property failed no need to pass which invariants passed (of course)
                 if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
                     equations = algorithm.do_step(True, None, sat_vars)
                 else:
                     equations = algorithm.do_step(True, None)
+                end_step = timer()
+                step_times.append(end_step - start_step)
         else:
-            # print('fail to prove invariant: {}'.format(algorithm.get_alphas()))
+            start_step = timer()
             if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
                 equations = algorithm.do_step(False, invariant_results, sat_vars)
             else:
                 equations = algorithm.do_step(False, invariant_results)
-            # if i % 20 == 0:
-            #     print('fail, iteration {} alphas: {}'.format(i, algorithm.get_alphas()))
+            end_step = timer()
+            step_times.append(end_step - start_step)
 
         #  print progress for debug
         if debug:
@@ -381,22 +391,30 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()),
                                                                         algorithm.get_alphas()))
 
-
     if debug:
+        if len(property_times) != len(invariant_times):
+            print('What happed?')
         if len(property_times) > 0:
             print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
                 len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
-                sum(property_times) / len(property_times)))
+                                      sum(property_times) / len(property_times)))
         else:
             print("did {} invariant queries that took on avg: {}, and {} property".format(
                 len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times)))
     queries_stats = {}
     if return_queries_stats:
-        queries_stats['property_times'] = property_times
-        queries_stats['invariant_times'] = invariant_times
+        safe_percentile = lambda func, x: func(x) if len(x) > 0 else 0
+        queries_stats['property_times'] = {'avg': safe_percentile(np.mean, property_times),
+                                           'median': safe_percentile(np.median, property_times), 'raw': property_times}
+        queries_stats['invariant_times'] = {'avg': safe_percentile(np.mean, invariant_times),
+                                            'median': safe_percentile(np.median, invariant_times),
+                                            'raw': invariant_times}
+        queries_stats['step_times'] = {'avg': safe_percentile(np.mean, step_times),
+                                       'median': safe_percentile(np.median, step_times), 'raw': step_times}
+        queries_stats['step_queries'] = len(step_times)
         queries_stats['property_queries'] = len(property_times)
         queries_stats['invariant_queries'] = len(invariant_times)
-        queries_stats['number_of_updates'] = i
+        queries_stats['number_of_updates'] = i + 1  # one based counting
     if not return_alphas:
         if not return_queries_stats:
             return res

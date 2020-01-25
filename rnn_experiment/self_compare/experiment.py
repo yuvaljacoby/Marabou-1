@@ -60,8 +60,18 @@ def run_one_comparison(in_tensor, radius, idx_max, other_idx, h5_file, n_iterati
         print('starting algo:' + name)
         start = timer()
 
-        res, queries_stats, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file, algo_ptr,
-                                                              n_iterations, steps_num)
+        try:
+            res, queries_stats, alpha_history = adversarial_query(in_tensor, radius, idx_max, other_idx, h5_file,
+                                                                  algo_ptr, n_iterations, steps_num)
+        except ValueError as e:
+            # row_result = {'point': in_tensor, 'error': e, 'error_traceback': traceback.format_exc(), 'result' : False}
+            res = False
+            queries_stats = {}
+            queries_stats['invariant_queries'] = -1
+            queries_stats['property_queries'] = -1
+            queries_stats['invariant_times'] = []
+            queries_stats['property_times'] = []
+            queries_stats['number_of_updates'] = -1
         # res = False
         # iterations = 23
         end = timer()
@@ -493,7 +503,7 @@ def get_random_input(model_path, mean, var, n_iterations):
             return in_tensor, y_idx_max, other_idx
 
 
-def run_controlled_experiment(model_name, algorithms_ptrs, points, radius=0.01, n_iterations=50, start_idx=0):
+def run_controlled_experiment(model_name, algorithms_ptrs, points, radius=0.01, n_iterations=50, start_idx=0, steps_num=1500):
     '''
     Run a controled experiment, using the given points, start_idx will indicate from where to start iterating the points
     The return value is dicitionary of raw_results, and the key is the index in points
@@ -512,7 +522,7 @@ def run_controlled_experiment(model_name, algorithms_ptrs, points, radius=0.01, 
         y_idx_max, other_idx = get_out_idx(point, n_iterations, model_path)
         try:
             row_result = run_one_comparison(point, radius, y_idx_max, other_idx, model_path, n_iterations,
-                                            algorithms_ptrs, steps_num=1500, return_dict=True)
+                                            algorithms_ptrs, steps_num=steps_num, return_dict=True)
         except Exception as e:
             row_result = {'point': point, 'error': e, 'error_traceback': traceback.format_exc(), 'result' : False}
         results.update({i + start_idx: row_result})
@@ -520,7 +530,7 @@ def run_controlled_experiment(model_name, algorithms_ptrs, points, radius=0.01, 
     return results
 
 
-def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, var=3, radius=0.01, n_iterations=50):
+def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, var=3, radius=0.01, n_iterations=50, steps_num=1000):
     '''
     runs comperasion between all the given algorithms on num_points each pointed sampled from Normal(mean,var)
     :param model_name: h5 file in MODELS_FOLDER
@@ -545,14 +555,14 @@ def run_random_experiment(model_name, algorithms_ptrs, num_points=150, mean=10, 
 
         row_result = run_one_comparison(in_tensor, radius, y_idx_max, other_idx,
                                         model_path,
-                                        n_iterations, algorithms_ptrs, steps_num=1000)
+                                        n_iterations, algorithms_ptrs, steps_num=steps_num)
         if row_result is None:
             print("Got out vector with all entries equal")
             continue
         exp_name = model_path.split('.')[0].split('/')[-1] + '_' + str(n_iterations)
         df = df.append({cols[i]: ([exp_name] + row_result)[i] for i in range(len(row_result) + 1)}, ignore_index=True)
         print(df[[n for n in df.columns if "result" in n or 'queries' in n]])
-        pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
+        # pickle.dump(df, open("results_{}.pkl".format(pickle_path), "wb"))
     return df
 
 
@@ -692,9 +702,8 @@ def get_all_algorithms():
     # sigmoid = lambda x: 1 / (1 + np.exp(-x))
 
     algorithms_ptrs = OrderedDict({
-        'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
-                          use_relu=True, add_alpha_constraint=True, use_counter_example=True),
-        # 'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True, add_alpha_constraint=True, use_counter_example=True),
+        'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
 
         # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
@@ -787,13 +796,13 @@ if __name__ == "__main__":
     # df = run_random_experiment(network_path, algorithms_ptrs)
 
     # Create random points
-    mean = -3
-    var = 2
-    num_points = 200
-    points = []
-    for _ in range(num_points):
-        points.append(np.random.normal(mean, var, IN_SHAPE))
-    pickle.dump(points, open("points_{}_{}_{}.pkl".format(mean, var, num_points), "wb"))
+    # mean = -3
+    # var = 2
+    # num_points = 200
+    # points = []
+    # for _ in range(num_points):
+    #     points.append(np.random.normal(mean, var, IN_SHAPE))
+    # pickle.dump(points, open("points_{}_{}_{}.pkl".format(mean, var, num_points), "wb"))
 
     # exp_name = 'controlled'
     # model_path = 'model_20classes_rnn4_fc32_epochs40.h5'
@@ -814,14 +823,40 @@ if __name__ == "__main__":
                 start_idx = int(sys.argv[4])
             points = pickle.load(open(points_path, "rb"))
             algorithms_ptrs = get_all_algorithms()
-            n_iterations = 5
+            n_iterations = 12
             radius = 0.01
             results = run_controlled_experiment(model_path, algorithms_ptrs, points, radius, n_iterations, start_idx)
             exit(0)
 
+    model_path = "models/model_20classes_rnn2_fc32_epochs200.h5"
+    points = pickle.load(open("points.pkl", "rb"))
+    n_iterations = 12
+    radius = 0.01
+    algorithms_ptrs = get_all_algorithms()
+    results = run_controlled_experiment(model_path, algorithms_ptrs, points[:1], radius, n_iterations, 0, steps_num=5000)
+    exit(0)
+
     algorithms_ptrs, network_path = parse_input_strings()
-    # network_path = 'simple_model.h5'
+    network_path = 'simple_model.h5'
     # np.random.seed(10)
-    # algorithms_ptrs = {'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
-    #                       use_relu=True, add_alpha_constraint=True, use_counter_example=True)}
-    df = run_random_experiment(network_path, algorithms_ptrs,mean=1, var=1, n_iterations=3, radius=0.1)
+    algorithms_ptrs = {'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20,
+                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)}
+
+    # points = pickle.load(open("points.pkl", "rb"))
+    # run_controlled_experiment("models/model_20classes_rnn2_fc32_epochs200.h5",
+    #                           algorithms_ptrs, points, 0.01, 5, 350)
+
+    network_path = "model_20classes_rnn2_fc32_epochs200.h5"
+    algorithms_ptrs = {'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step)}
+    df = run_random_experiment(network_path, algorithms_ptrs, mean=-2, var=18, n_iterations=25, radius=0.1,
+                               steps_num=5000, num_points=1)
+    # for t in range(5,15):
+    #     counter = 0
+    #     for _ in range(5):
+    #         try:
+    #             df = run_random_experiment(network_path, algorithms_ptrs,mean=1, var=1, n_iterations=12, radius=0.1,
+    #                                        steps_num=2, num_points=1)
+    #             counter += 1
+    #         except ValueError as e:
+    #             pass
+    #     print("for t={} got {} fesiable  solutions".format(t, counter))

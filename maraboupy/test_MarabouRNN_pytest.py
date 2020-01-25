@@ -43,7 +43,7 @@ def define_zero_network(xlim, ylim, n_iterations):
     invariant_equation = MarabouCore.Equation(MarabouCore.Equation.LE)
     invariant_equation.addAddend(-1, z_i_f_idx)  # s_i f
     invariant_equation.addAddend(1, s_i_f_idx)  # s_i f
-    invariant_equation.setScalar(small)
+    invariant_equation.setScalar(SMALL)
 
     # y <= n * 0.01
     property_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
@@ -514,7 +514,7 @@ def test_negate_equation_GE():
     not_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
     not_eq.addAddend(1, 1)  # s_i b
     not_eq.addAddend(-1, 0)  # i
-    not_eq.setScalar(-small)
+    not_eq.setScalar(-SMALL)
     actual_not_eq = negate_equation(eq)
 
     assert actual_not_eq.equivalent(not_eq)
@@ -532,7 +532,7 @@ def test_negate_equation_LE():
     not_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
     not_eq.addAddend(1, 0)
     not_eq.addAddend(1, 1)
-    not_eq.setScalar(1 + small)
+    not_eq.setScalar(1 + SMALL)
     actual_not_eq = negate_equation(eq)
 
     assert actual_not_eq.equivalent(not_eq)

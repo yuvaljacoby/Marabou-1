@@ -185,12 +185,20 @@ def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx
                                    algorithm)
 
 
-def get_out_idx(x, n_iterations, h5_file_path):
+def get_out_idx(x, n_iterations, h5_file_path, other_index_func=lambda vec: np.argmin(vec)):
+    '''
+    Calcuate the output vector of h5_file for n_iterations repetations of x vector
+    :param x: input vector
+    :param n_iterations: how many times to repeat x
+    :param h5_file_path: model
+    :param other_index_func: function to pointer that gets the out vector (1d) and returns the other inedx
+    :return: max_idx, other_idx (None if they are the same)
+    '''
     out = np.squeeze(get_output_vector(h5_file_path, x, n_iterations))
-    other_idx = np.argsort(out)[-2] #np.argmin(out)
+    other_idx = other_index_func(out) #np.argsort(out)[-2]
     y_idx_max = np.argmax(out)
     # assert np.argmax(out) == np.argsort(out)[-1]
-    print(y_idx_max, other_idx)
+    # print(y_idx_max, other_idx)
     if y_idx_max == other_idx:
         # This means all the enteris in the out vector are equal...
         return None, None
