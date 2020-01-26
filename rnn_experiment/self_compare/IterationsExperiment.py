@@ -163,11 +163,11 @@ if __name__ == "__main__":
     # parse_results_file("gurobi2020-01-2615:39:22256652model_20classes_rnn4_fc32_epochs40.pkl")
     # exit(0)
     net_options = ['model_20classes_rnn2_fc32_epochs200.h5', 'model_20classes_rnn4_fc32_epochs40.h5',
-                   'model_classes20_1rnn8_1_32_4.h5']
+                   'model_classes20_1rnn8_1_32_4.h5', 'model_classes20_1rnn2_0_64_4.h5']
     other_idx_method = [lambda x: np.argmin(x)]
     gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    t_range = range(2, 15)
+    t_range = range(2, 20)
     points = pickle.load(open(POINTS_PATH, "rb"))
 
     # net = ['rnn4_try.h5']
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                 continue_pickle = sys.argv[3]
             else:
                 continue_pickle = ''
-            run_all_experiments(net, points, t_range, other_idx_method, gurobi_ptr, steps_num=100,
+            run_all_experiments(net, points[:5], t_range, other_idx_method, gurobi_ptr, steps_num=100,
                                 continue_pickle=continue_pickle)
         exit(0)
 
@@ -201,4 +201,4 @@ if __name__ == "__main__":
     # net = "model_classes20_1rnn8_1_32_4.h5"
     # t_range = [3]
     # # run_all_experiments([net_options[1]], points, t_range, other_idx_method, gurobi_ptr)
-    run_all_experiments([net_options[2]], [point], [5], other_idx_method, gurobi_ptr, save_results=0)
+    # run_all_experiments([net_options[2]], points[:5], , other_idx_method, gurobi_ptr, save_results=0)
