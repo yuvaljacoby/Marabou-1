@@ -10,7 +10,7 @@ from rnn_algorithms.Update_Strategy import Absolute_Step
 
 sign = lambda x: 1 if x >= 0 else -1
 
-SMALL = 10 ** -2
+SMALL = 10 ** -4
 LARGE = 10 ** 5
 
 RANDOM_THRESHOLD = 200  #
@@ -214,10 +214,6 @@ class AlphasGurobiBased:
             obj += alphas_u[-1]
             gmodel.addConstr(alphas_u[i] >= SMALL + alphas_l[i], "alpha_l{}<alpha_u{}".format(i, i))
 
-        # for i in range(len(self.xlim)):
-        #     in_vars.append(
-        #         gmodel.addVar(lb=self.xlim[i][0], ub=self.xlim[i][1], vtype=GRB.CONTINUOUS, name="in{}".format(i)))
-
         gmodel.setObjective(obj, GRB.MINIMIZE)
         # if alphas_sum:
         #     gmodel.addConstr(obj >= alphas_sum, "minimum_alpha_sum")
@@ -252,9 +248,8 @@ class AlphasGurobiBased:
                         cond_x_u += self.xlim[j][0] * self.w_in[j, i]
                         cond_x_l += self.xlim[j][1] * self.w_in[j, i]
 
-                # cond_x += self.b[i]
-                cond_u += cond_x_u + self.b[i]
-                cond_l += cond_x_l + self.b[i]
+                cond_u += cond_x_u + self.b[i] #+ SMALL
+                cond_l += cond_x_l + self.b[i] #- SMALL
 
                 if self.use_relu:
                     # Result of the relu of the over approximation of the memory cell
@@ -273,14 +268,11 @@ class AlphasGurobiBased:
                     gmodel.addConstr(cond_l_f[-1] <= cond_l + LARGE * delta_l[-1], "cond_l_relu1_i{}_t{}".format(i, t))
                     gmodel.addConstr(cond_l_f[-1] <= LARGE * (1 - delta_l[-1]), "cond_l_relu2_i{}_t{}".format(i, t))
 
-                    gmodel.addConstr(alphas_u[i] * (t + 1) >= cond_u_f[-1], "alpha_u{}_t{}".format(i, t))
-                    gmodel.addConstr(alphas_l[i] * (t + 1) <= cond_l_f[-1], "alpha_l{}_t{}".format(i, t))
-                    # gmodel.addConstr(alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
+                    gmodel.addConstr((alphas_u[i]) * (t + 1) >= cond_u_f[-1], "alpha_u{}_t{}".format(i, t))
+                    gmodel.addConstr((alphas_l[i]) * (t + 1) <= cond_l_f[-1], "alpha_l{}_t{}".format(i, t))
                 else:
                     gmodel.addConstr(alphas_u[i] * (t + 1) >= cond_u, "alpha_u{}_t{}".format(i, t))
                     gmodel.addConstr(alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
-
-                # gmodel.addConstr(alphas_vars[i] >= SMALL, "alpha{}_positive".format(i, t))
 
         if self.use_counter_example:
             outputs, time = counter_examples
@@ -302,16 +294,11 @@ class AlphasGurobiBased:
                     else:
                         gmodel.addConstr(alphas_u[i - len(alphas_u)] >= a,  'ce_output_alpha_u')
 
-        # hy_outputs, _ = hyptoesis_ce
-        # for i in range(len(time)):
-        #     for j in range(len(alphas_u)):
-        #         gmodel.addConstr(alphas_u[j] * (time[i] - 1) >= hy_outputs[i][j])
-        #         gmodel.addConstr(alphas_l[j] * (time[i] - 1) <= hy_outputs[i][j])
-
         if self.add_alpha_constraint and loop_detected:
             for j in range(len(alphas_u)):
                 gmodel.addConstr(alphas_u[j] >= self.alphas[j + len(alphas_u)] + SMALL, 'loop_constraint_u')
-                gmodel.addConstr(alphas_l[j] <= self.alphas[j] - SMALL, 'loop_constraint_l')
+                if self.alphas[j] > SMALL:
+                    gmodel.addConstr(alphas_l[j] <= self.alphas[j] - SMALL, 'loop_constraint_l')
 
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
@@ -328,8 +315,6 @@ class AlphasGurobiBased:
             raise ValueError("INFEASIBLE problem")
 
         # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
-
-        # for v in gmodel.getVars():
 
         # for v in alphas_l:
         #     print(v.varName, -1 * v.x)
@@ -366,7 +351,7 @@ class AlphasGurobiBased:
             # Next create alpha_u >= time * output \land alpha_l \le time * output
             # outputs.append([counter_example[i] for i in self.rnn_output_idxs])
             outputs.append(counter_example[self.rnn_output_idxs_double[i]])
-            assert counter_example[self.rnn_start_idxs[0]] == counter_example[self.rnn_start_idxs[1]]
+            # assert counter_example[self.rnn_start_idxs[0]] == counter_example[self.rnn_start_idxs[1]]
             times.append(counter_example[self.rnn_start_idxs[0]])
         return outputs, times
 
@@ -430,7 +415,8 @@ class AlphasGurobiBased:
 
             new_alphas = self.do_gurobi_step(strengthen, alphas_sum=new_min_sum, previous_alphas=self.alphas)
             if new_alphas == self.alphas:
-                new_alphas = self.do_gurobi_step(strengthen, alphas_sum=new_min_sum, counter_examples=counter_examples)
+                new_alphas = self.do_gurobi_step(strengthen, alphas_sum=new_min_sum, counter_examples=counter_examples,
+                                                 loop_detected=True)
 
             if new_alphas is None:
                 # No fesabile solution, maybe to much over approximation, improve at random

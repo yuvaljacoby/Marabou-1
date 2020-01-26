@@ -42,7 +42,8 @@ def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias
     for i in range(n):
         # i
         query.setLowerBound(cell_idx, 0)
-        query.setUpperBound(cell_idx, num_iterations)
+        # we bound the memory unit, and num_iterations is for the output which is doing one more calculation
+        query.setUpperBound(cell_idx, num_iterations - 1)
 
         # s_i-1 f
         query.setLowerBound(cell_idx + 1, 0)

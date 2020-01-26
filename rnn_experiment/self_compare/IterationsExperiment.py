@@ -38,11 +38,22 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n
 
 
 def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_ptr, radius=0.01, steps_num=1500,
-                        save_results=True):
-    assert len(points) > 20
+                        save_results=True, continue_pickle=None):
+    # assert len(points) > 20
     results = defaultdict(list)
-    pickle_path = 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + ".pkl"
-    pbar = tqdm(total = len(other_idx_method) * len(points) * len(net_options) * len(t_range))
+    if len(net_options) == 1:
+        net_name = ''.join(net_options[0].split('.')[:-1]).split('/')[-1]
+    else:
+        net_name = ''
+    pickle_path = 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(net_name)
+    print("#"*100, "\nwriting results to: {}".format(pickle_path), "\n", "#"*100)
+    if continue_pickle is not None and os.path.exists(continue_pickle):
+        partial_results = pickle.load(open(continue_pickle, "rb"))
+    else:
+        print("starting fresh experiment", "\n", "#"*100)
+        partial_results = {}
+
+    pbar = tqdm(total=len(other_idx_method) * len(points) * len(net_options) * len(t_range))
     for method in other_idx_method:
         for idx, point in enumerate(points):
             for path in net_options:
@@ -51,15 +62,26 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
                     if not os.path.exists(path):
                         raise FileNotFoundError(path)
                 for t in t_range:
+                    have_point = False
                     idx_max, other_idx = get_out_idx(point, t, path, method)
                     net_name = ''.join(path.split('.')[:-1]).split('/')[-1]
                     name = "{}_{}_{}_{}".format(net_name, radius, other_idx, t)
-                    result = run_experiment(point, radius, idx_max, other_idx, path, gurobi_ptr, t, steps=steps_num)
-                    result.update(
-                        {'h5_file': net_name, 't': t, 'other_idx': other_idx, 'in_tesnor': point,
-                         'steps_num': steps_num})
-                    results[name].append(result)
-                    pbar.update(1)
+                    if name in partial_results:
+                        for res in partial_results[name]:
+                            if not have_point and res['t'] == t and \
+                                    (('in_tensor' in res and np.all(res['in_tensor'] == point)) or
+                                     ('in_tesnor' in res and np.all(res['in_tesnor'] == point))):
+                                # already have this result
+                                pbar.update(1)
+                                results[name].append(res)
+                                have_point = True
+                    if not have_point:
+                        result = run_experiment(point, radius, idx_max, other_idx, path, gurobi_ptr, t, steps=steps_num)
+                        result.update(
+                            {'h5_file': net_name, 't': t, 'other_idx': other_idx, 'in_tensor': point,
+                             'steps_num': steps_num})
+                        results[name].append(result)
+                        pbar.update(1)
             if save_results:
                 pickle.dump(results, open(pickle_path, "wb"))
     return results
@@ -129,8 +151,8 @@ if __name__ == "__main__":
     net_options = ['model_20classes_rnn2_fc32_epochs200.h5', 'model_20classes_rnn4_fc32_epochs40.h5',
                    'model_classes20_1rnn8_1_32_4.h5']
     other_idx_method = [lambda x: np.argmin(x)]
-    default_gurobi = gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
+                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     t_range = range(2, 15)
     points = pickle.load(open(POINTS_PATH, "rb"))
 
@@ -144,8 +166,21 @@ if __name__ == "__main__":
                 net = [net_options[int(sys.argv[2])]]
             else:
                 net = [sys.argv[2]]
-            run_all_experiments(net, points, t_range, other_idx_method, gurobi_ptr, steps_num=100)
+            if len(sys.argv) > 3:
+                continue_pickle = sys.argv[3]
+            else:
+                continue_pickle = ''
+            run_all_experiments(net, points, t_range, other_idx_method, gurobi_ptr, steps_num=100, continue_pickle=continue_pickle)
         exit(0)
 
-    run_all_experiments([net_options[1]], points, t_range, other_idx_method, gurobi_ptr)
-
+    # point = np.array([1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775
+    #                      , -2.37340524, 3.94152213, 1.78206783, -0.37256191, 1.07329743, 0.02954765
+    #                      , 0.50143303, 3.98823161, -1.05437203, -1.98067338, 6.12760627, -2.53038902
+    #                      , -0.90698131, 4.40535622, -3.30067319, -1.60564116, 0.22373327, 0.43266462
+    #                      , 5.45421917, 4.11029858, -4.65444165, 0.50871269, 1.40619639, -0.7546163
+    #                      , 3.68131841, 1.18965503, 0.81459484, 2.36269942, -2.4609835, -1.14228611
+    #                      , -0.28604645, -6.39739288, 3.54854402, -3.21648808])
+    # net = "model_classes20_1rnn8_1_32_4.h5"
+    # t_range = [3]
+    # # run_all_experiments([net_options[1]], points, t_range, other_idx_method, gurobi_ptr)
+    # run_all_experiments([net], [point], t_range, other_idx_method, gurobi_ptr)

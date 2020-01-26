@@ -241,6 +241,9 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
 
     res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
                                            return_queries_stats=True, number_of_steps=steps_num)
+    if 'invariant_queries' in queries_stats and 'property_queries' in queries_stats and \
+            queries_stats['property_queries'] != queries_stats['invariant_queries']:
+        print("What happened?\n", x)
     return res, queries_stats, algorithm.alpha_history
 
 
