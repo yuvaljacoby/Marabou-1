@@ -46,13 +46,14 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
     else:
         net_name = ''
     pickle_path = 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(net_name)
-    print("#"*100, "\nwriting results to: {}".format(pickle_path), "\n", "#"*100)
     if continue_pickle is not None and os.path.exists(continue_pickle):
         partial_results = pickle.load(open(continue_pickle, "rb"))
+        pickle_path = continue_pickle
     else:
         print("starting fresh experiment", "\n", "#"*100)
         partial_results = {}
 
+    print("#"*100, "\nwriting results to: {}".format(pickle_path), "\n", "#"*100)
     pbar = tqdm(total=len(other_idx_method) * len(points) * len(net_options) * len(t_range))
     for method in other_idx_method:
         for idx, point in enumerate(points):
@@ -65,7 +66,7 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
                     have_point = False
                     idx_max, other_idx = get_out_idx(point, t, path, method)
                     net_name = ''.join(path.split('.')[:-1]).split('/')[-1]
-                    name = "{}_{}_{}_{}".format(net_name, radius, other_idx, t)
+                    name = "{}_{}_{}".format(net_name, radius, t)
                     if name in partial_results:
                         for res in partial_results[name]:
                             if not have_point and res['t'] == t and \
@@ -155,6 +156,9 @@ if __name__ == "__main__":
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     t_range = range(2, 15)
     points = pickle.load(open(POINTS_PATH, "rb"))
+
+    # net = ['rnn4_try.h5']
+    # run_all_experiments(net, points, range(12,20), other_idx_method, gurobi_ptr, steps_num=100, save_results=False)
 
     if len(sys.argv) > 1:
         if sys.argv[1] == 'generate':
