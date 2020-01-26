@@ -10,10 +10,10 @@ from rnn_algorithms.Update_Strategy import Absolute_Step
 
 sign = lambda x: 1 if x >= 0 else -1
 
-SMALL = 10 ** -5
+SMALL = 10 ** -2
 LARGE = 10 ** 5
 
-RANDOM_THRESHOLD = 20  #
+RANDOM_THRESHOLD = 200  #
 PRINT_GUROBI = False
 
 
@@ -129,7 +129,7 @@ class AlphasGurobiBased:
         self.use_counter_example = use_counter_example
         self.use_relu = use_relu
         self.return_vars = True
-
+        self.is_infesiable = False
         self.xlim = xlim
         self.random_threshold = random_threshold
         self.w_in, self.w_h, self.b = rnnModel.get_weights()[0]
@@ -194,6 +194,9 @@ class AlphasGurobiBased:
 
     def do_gurobi_step(self, strengthen, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
                        loop_detected=False, previous_alphas=None):
+        # Note that if we someday remove constraints and not only add we need to change this
+        if self.is_infesiable:
+            return None
 
         gmodel = Model("test")
         # add the alphas variables
@@ -281,23 +284,23 @@ class AlphasGurobiBased:
 
         if self.use_counter_example:
             outputs, time = counter_examples
-            for i in range(len(time)):
+            for i, t in enumerate(time):
                 # for j in range(len(alphas_u)):
                 if not strengthen:
                     # Invariant failed, need larger alphas
-                    if i < len(time) / 2:
-                        gmodel.addConstr(alphas_l[i] * time[i] <= outputs[i], "ce_alpha_l")
-                    else:
-                        idx = i // 2
-                        gmodel.addConstr(alphas_u[idx] * time[idx] >= outputs[idx], 'ce_alpha_u')
+                    if t is not None:
+                        if i < len(time) / 2:
+                            gmodel.addConstr(alphas_l[i] * t <= outputs[i], "ce_alpha_l")
+                        else:
+                            idx = i - len(alphas_u)
+                            gmodel.addConstr(alphas_u[idx] * t >= outputs[i], 'ce_alpha_u')
             if strengthen and previous_alphas is not None:
                 for i, a in enumerate(previous_alphas):
                     # First half of previous_alphas is a_l, second a_u
-                    # if i < len(previous_alphas) / 2:
-                    #     gmodel.addConstr(alphas_l[i] <= a, "ce_output_alpha_l")
-                    # else:
-                    #     gmodel.addConstr(alphas_u[i // 2] >= a,  'ce_output_alpha_u')
-                    continue
+                    if i < len(previous_alphas) / 2:
+                        gmodel.addConstr(alphas_l[i] <= a, "ce_output_alpha_l")
+                    else:
+                        gmodel.addConstr(alphas_u[i - len(alphas_u)] >= a,  'ce_output_alpha_u')
 
         # hy_outputs, _ = hyptoesis_ce
         # for i in range(len(time)):
@@ -313,7 +316,6 @@ class AlphasGurobiBased:
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
-        # gmodel.addConstr(alphas_l[0] * 1.994930978715582 <= 10.113458920777703, 'DEBUG_CONSTRAINT')
         gmodel.optimize()
         # gmodel.write("temp.lp")
 
@@ -322,6 +324,7 @@ class AlphasGurobiBased:
             raise ValueError("CUTOFF problem")
         if gmodel.status == GRB.INFEASIBLE:
             print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
+            self.is_infesiable = True
             raise ValueError("INFEASIBLE problem")
 
         # print("FEASIBLE sum_alpahs = {}".format(alphas_sum))
@@ -355,6 +358,9 @@ class AlphasGurobiBased:
         times = []
         for i, counter_example in enumerate(counter_examples):
             if counter_example == {}:
+                # We late user the index to update the correct invariant, so need to keep same length
+                outputs.append(None)
+                times.append(None)
                 continue
             # We need to extract the time, and the values of all output indcies
             # Next create alpha_u >= time * output \land alpha_l \le time * output

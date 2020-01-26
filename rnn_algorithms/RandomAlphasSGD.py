@@ -146,10 +146,10 @@ class RandomAlphasSGD:
         #                                                  self.update_strategy)
 
         self.min_invariants = RandomAlphaSGDOneSideBound([0] * len(initial_values[0]), rnn_start_idxs, rnn_output_idxs,
-                                                         MarabouCore.Equation.GE, [1770.7865001097273, 973.306117239916],
+                                                         MarabouCore.Equation.GE, alpha_initial_value,
                                                          self.update_strategy)
         self.max_invariants = RandomAlphaSGDOneSideBound(initial_values[1], rnn_start_idxs, rnn_output_idxs,
-                                                         MarabouCore.Equation.LE, [2938.2838599597244, 6875.312697130332],
+                                                         MarabouCore.Equation.LE, alpha_initial_value,
                                                          self.update_strategy)
         self.last_fail = None
         self.alpha_history= []
