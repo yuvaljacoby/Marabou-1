@@ -236,11 +236,19 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
     adv_eq.setScalar(0)
 
+    start_initial_alg = timer()
     algorithm = algorithm_ptr(rnn_model, xlim)
+    end_initial_alg = timer()
     # rnn_model.network.dump()
 
     res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
                                            return_queries_stats=True, number_of_steps=steps_num)
+    if queries_stats:
+        step_times = queries_stats['step_times']['raw']
+        step_times.insert(0, end_initial_alg - start_initial_alg)
+        queries_stats['step_times'] = {'avg': np.mean(step_times), 'median': np.median(step_times), 'raw': step_times}
+        queries_stats['step_queries'] = len(step_times)
+
     if 'invariant_queries' in queries_stats and 'property_queries' in queries_stats and \
             queries_stats['property_queries'] != queries_stats['invariant_queries']:
         print("What happened?\n", x)
