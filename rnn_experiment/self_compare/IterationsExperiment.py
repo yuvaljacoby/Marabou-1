@@ -17,7 +17,7 @@ from rnn_algorithms.Update_Strategy import Relative_Step
 BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 
-POINTS_PATH = "temp_points.pkl"
+POINTS_PATH = "points.pkl"
 IN_SHAPE = (40,)
 
 
