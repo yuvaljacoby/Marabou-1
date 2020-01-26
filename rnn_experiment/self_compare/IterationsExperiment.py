@@ -160,8 +160,8 @@ def parse_dictionary(exp):
 
 
 if __name__ == "__main__":
-    parse_results_file("gurobi2020-01-2615:39:22256652model_20classes_rnn4_fc32_epochs40.pkl")
-    exit(0)
+    # parse_results_file("gurobi2020-01-2615:39:22256652model_20classes_rnn4_fc32_epochs40.pkl")
+    # exit(0)
     net_options = ['model_20classes_rnn2_fc32_epochs200.h5', 'model_20classes_rnn4_fc32_epochs40.h5',
                    'model_classes20_1rnn8_1_32_4.h5']
     other_idx_method = [lambda x: np.argmin(x)]
