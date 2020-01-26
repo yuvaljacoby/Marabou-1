@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 net = [net_options[int(sys.argv[2])]]
             else:
                 net = [sys.argv[2]]
-            run_all_experiments(net, points, t_range, other_idx_method, gurobi_ptr)
+            run_all_experiments(net, points, t_range, other_idx_method, gurobi_ptr, steps_num=100)
         exit(0)
 
     run_all_experiments([net_options[1]], points, t_range, other_idx_method, gurobi_ptr)
