@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
 FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
+# FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
 
 from functools import partial
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
@@ -49,15 +50,22 @@ def plot_results(our_results, rnsverify_results, exp_name):
     x_idx = range(2, len(our_results) + 2)
     # plt.plot(x_idx, our_results, 'o', color='blue')
     # plt.plot(x_idx, rnsverify_results, 'o', color='orange')
-    sns.scatterplot(x_idx, our_results)
-    sns.scatterplot(x_idx, rnsverify_results)
-    plt.legend(['ours', 'rnsverify', ], loc='upper left')
-    plt.title(exp_name)
-    plt.tight_layout()
-    plt.xlabel('number of iterations')
-    plt.ylabel('time(sec)')
-    plt.savefig((FIGUERS_FOLDER + exp_name + ".pdf").replace(' ', '_'))
-    plt.show()
+    plt.figure(figsize=(12, 8))
+    # plt.rcParams['axes.labelweight'] = 'heavy'
+
+    sns.scatterplot(x_idx, our_results, s=200)
+    sns.scatterplot(x_idx, rnsverify_results , s=200)
+    # plt.plot(x_idx, our_results, 'o', color='r')
+    # plt.plot(x_idx, rnsverify_results, 'o', color='g')
+    plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=32)
+    # plt.title(exp_name)
+    # plt.tight_layout()
+    plt.xlabel('number of iterations', fontsize=36)
+    plt.ylabel('time (sec)', fontsize=36)
+    plt.xticks(fontsize=26)
+    plt.yticks(fontsize=26)
+    plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
+    # plt.show()
 
 
 experiemnts = [
@@ -109,6 +117,10 @@ if __name__ == "__main__":
     # n_iterations = 20  # 1000?
     # r = 0
     # model_path = 'models/model_classes5_1rnn2_0_64_4.h5'
+    results_path = "pickles/rns_verify_exp/model_classes20_1rnn2_0_64_4_25.pkl"
+    d = pickle.load(open(results_path, "rb"))
+    plot_results(d['our'], d['rns'], d['exp_name'])
+    exit(0)
 
     for exp in experiemnts:
         if exp['idx_max'] is None:
