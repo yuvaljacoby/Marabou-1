@@ -236,12 +236,16 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])
     adv_eq.setScalar(0)
 
+    time_eq = MarabouCore.Equation()
+    time_eq.addAddend(1, rnn_model.get_start_end_idxs(0)[0][0])
+    time_eq.setScalar(n_iterations)
+
     start_initial_alg = timer()
     algorithm = algorithm_ptr(rnn_model, xlim)
     end_initial_alg = timer()
     # rnn_model.network.dump()
 
-    res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq)], algorithm, debug=1,
+    res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq), time_eq], algorithm, debug=1,
                                            return_queries_stats=True, number_of_steps=steps_num)
     if queries_stats:
         step_times = queries_stats['step_times']['raw']
