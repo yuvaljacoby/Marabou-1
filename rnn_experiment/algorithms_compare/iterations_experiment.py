@@ -14,8 +14,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
-FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
-# FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
+# FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
+FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
 
 from functools import partial
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
@@ -48,23 +48,31 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iteration
 def plot_results(our_results, rnsverify_results, exp_name):
     assert len(our_results) == len(rnsverify_results)
     x_idx = range(2, len(our_results) + 2)
-    # plt.plot(x_idx, our_results, 'o', color='blue')
-    # plt.plot(x_idx, rnsverify_results, 'o', color='orange')
-    plt.figure(figsize=(12, 8))
-    # plt.rcParams['axes.labelweight'] = 'heavy'
 
+    plt.figure(figsize=(12.5, 9))
     sns.scatterplot(x_idx, our_results, s=200)
     sns.scatterplot(x_idx, rnsverify_results , s=200)
-    # plt.plot(x_idx, our_results, 'o', color='r')
-    # plt.plot(x_idx, rnsverify_results, 'o', color='g')
+
     plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=32)
-    # plt.title(exp_name)
-    # plt.tight_layout()
-    plt.xlabel('number of iterations', fontsize=36)
-    plt.ylabel('time (sec)', fontsize=36)
+
+    plt.xlabel('Number of Iterations ($T_{max}$)', fontsize=36)
+    plt.ylabel('Time (seconds)', fontsize=36)
     plt.xticks(fontsize=26)
     plt.yticks(fontsize=26)
     plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
+
+    # small version:
+    # plt.figure(figsize=(14, 11))
+    # sns.scatterplot(x_idx, our_results, s=220)
+    # sns.scatterplot(x_idx, rnsverify_results , s=220)
+
+    # plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=42)
+
+    # plt.xlabel('Number of Iterations ($T_{max}$)', fontsize=48)
+    # plt.ylabel('Time (seconds)', fontsize=48)
+    # plt.xticks(fontsize=30)
+    # plt.yticks(fontsize=30)
+    # plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0_03.pdf").replace(' ', '_'), dpi=100)
     # plt.show()
 
 
