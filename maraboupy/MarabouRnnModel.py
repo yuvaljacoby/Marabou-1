@@ -108,7 +108,7 @@ class RnnMarabouModel():
         for layer in self.model.layers:
             if type(layer) == tf.keras.layers.SimpleRNN:
                 prev_layer_idx = self.add_rnn_simple_layer(layer, prev_layer_idx)
-                self.rnn_out_idx += prev_layer_idx
+                self.rnn_out_idx.append(prev_layer_idx)
             elif type(layer) == tf.keras.layers.Dense:
                 prev_layer_idx = self.add_dense_layer(layer, prev_layer_idx)
             else:
@@ -117,17 +117,23 @@ class RnnMarabouModel():
 
         # Save the last layer output indcies
         self.output_idx = list(range(*prev_layer_idx))
-        self._rnn_loop_idx = [i - 3 for i in self.rnn_out_idx]
-        self._rnn_prev_iteration_idx = [i - 2 for i in self.rnn_out_idx]
+        self._rnn_loop_idx = []
+        self._rnn_prev_iteration_idx = []
+        for layer_out_idx in self.rnn_out_idx:
+            self._rnn_loop_idx.append([i - 3 for i in layer_out_idx])
+            self._rnn_prev_iteration_idx.append([i - 2 for i in layer_out_idx])
 
+        self.num_rnn_layers = len(self.rnn_out_idx)
 
-    def get_start_end_idxs(self):
-        rnn_start_idxs = [i - 3 for i in self.rnn_out_idx]
-        return rnn_start_idxs, self.rnn_out_idx
+    def get_start_end_idxs(self, rnn_layer=0):
+        # rnn_start_idxs = []
+        # rnn_start_idxs = [i - 3 for i in self.rnn_out_idx]
+        if rnn_layer is None:
+            return self._rnn_loop_idx, self.rnn_out_idx
+        return self._rnn_loop_idx[rnn_layer], self.rnn_out_idx[rnn_layer]
 
     def _get_value_by_layer(self, layer, input_tensor):
-        intermediate_layer_model = Model(inputs=self.model.input,
-                                         outputs=layer.output)
+        intermediate_layer_model = Model(inputs=self.model.input, outputs=layer.output)
         intermediate_output = intermediate_layer_model.predict(input_tensor)
 
         # assert len(input_tensor.shape) == len(self.model.input_shape)
@@ -170,56 +176,131 @@ class RnnMarabouModel():
             if type(layer) == tf.keras.layers.SimpleRNN:
                 w_in, w_h, b = layer.get_weights()
                 all_weights.append((w_in, w_h, b))
-        return  all_weights
+        return all_weights
 
-    def get_rnn_min_max_value_one_iteration(self, xlim):
-        for i, layer in enumerate(self.model.layers):
-            initial_values = []
-            if type(layer) == tf.keras.layers.SimpleRNN:
-                if i == 0:
-                    # There is no non linarity and the constraints are simple just take upper bound if weight is positive
-                    #  and lower otherwise
+    # def get_rnn_min_max_value_one_iteration(self, xlim, layer_idx=0):
+    #     for i, layer in enumerate(self.model.layers[:layer_idx + 1]):
+    #         initial_values = []
+    #         if type(layer) == tf.keras.layers.SimpleRNN:
+    #             if i == 0:
+    #                 # There is no non linarity and the constraints are simple just take upper bound if weight is positive
+    #                 #  and lower otherwise
+    #
+    #                 # It's only one iteration so the hidden weights  is zeroed
+    #                 in_w, _, b = layer.get_weights()
+    #                 for i, rnn_dim_weights in enumerate(in_w.T):
+    #                     max_val = 0
+    #                     min_val = 0
+    #                     for j, w in enumerate(rnn_dim_weights):
+    #                         w = round(w, 6)
+    #                         v1 = w * xlim[j][1]
+    #                         v2 = w * xlim[j][0]
+    #                         if v1 > v2:
+    #                             max_val += v1
+    #                             min_val += v2
+    #                         else:
+    #                             max_val += v2
+    #                             min_val += v1
+    #                     min_val += b[i]
+    #                     max_val += b[i]
+    #                     # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
+    #                     # min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
+    #
+    #                     initial_values.append((relu(min_val), relu(max_val)))
+    #                 # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
+    #                 self.query_marabou_to_improve_values(initial_values)
+    #             else:
+    #                 # Need to query gurobi here...
+    #                 raise NotImplementedError()
+    #         # print('initial_values:', initial_values)
+    #         # return initial_values
+    #         rnn_max_values = [val[1] for val in initial_values]
+    #         rnn_min_values = [val[0] for val in initial_values]
+    #         # DEBUG
+    #         assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
+    #         return (rnn_min_values, rnn_max_values)
 
-                    # It's only one iteration so the hidden weights (and bias) is zeroed
-                    # TODO: Is the bias zero?
-                    # TODO: Add b
-                    in_w, _, b = layer.get_weights()
-                    for rnn_dim_weights in in_w.T:
-                        max_val = 0
-                        min_val = 0
-                        for j, w in enumerate(rnn_dim_weights):
-                            w = round(w, 6)
-                            v1 = w * xlim[j][1]
-                            v2 = w * xlim[j][0]
-                            if v1 > v2:
-                                max_val += v1
-                                min_val += v2
-                            else:
-                                max_val += v2
-                                min_val += v1
-                            # if w > 0:
-                            #     max_val += w * xlim[j][1]
-                            #     min_val += w * xlim[j][0]
-                            # else:
-                            #     max_val += w * xlim[j][0]
-                            #     min_val += w * xlim[j][1]
-                        # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
-                        min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
-                        initial_values.append((relu(min_val), relu(max_val)))
-                    # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
-                    self.query_marabou_to_improve_values(initial_values)
+    def get_rnn_min_max_value_one_iteration(self, prev_layer_alpha, layer_idx=0, prev_layer_beta=None):
+        '''
+        calculate the first iteration value of recurrent layer layer_idx using the bounds from the previous layer
+        the previous layers bound is alpha*t + beta
+        :param prev_layer_alpha:
+        :param prev_layer_scalar:
+        :param layer_idx:
+        :return:
+        '''
+        layer = self.model.layers[layer_idx]
+        initial_values = []
+        # There is no non linarity and the constraints are simple just take upper bound if weight is positive
+        #  and lower otherwise
+
+        # It's only one iteration so the hidden weights  is zeroed
+        in_w, _, b = layer.get_weights()
+        if prev_layer_beta is None:
+            prev_layer_beta = ([0] * len(prev_layer_alpha), [0] * len(prev_layer_alpha))
+
+        for i, rnn_dim_weights in enumerate(in_w.T):
+            max_val = 0
+            min_val = 0
+            for j, w in enumerate(rnn_dim_weights):
+                w = round(w, 6)
+                v1 = w * (prev_layer_alpha[j][1] + prev_layer_beta[1][j])
+                v2 = w * (prev_layer_alpha[j][0] + prev_layer_beta[0][j])
+                if layer_idx > 0 and w < 0:
+                    # The invariant (prev_layer_bounds[j] is as a function of time, and here we are intrested in the first iteration where i=0
+                    min_val += v2
+                    max_val += 0
+                    continue
+                if v1 > v2:
+                    max_val += v1
+                    min_val += v2
                 else:
-                    # Need to query gurobi here...
-                    raise NotImplementedError()
-            # print('initial_values:', initial_values)
-            # return initial_values
-            rnn_max_values = [val[1] for val in initial_values]
-            rnn_min_values = [val[0] for val in initial_values]
-            # DEBUG
-            assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-            return (rnn_min_values, rnn_max_values)
+                    max_val += v2
+                    min_val += v1
+            min_val += b[i]
+            max_val += b[i]
+            # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
+            # min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
 
-    def query_marabou_to_improve_values(self, initial_values):
+            initial_values.append((relu(min_val), relu(max_val)))
+            assert initial_values[-1][0] >= 0 and initial_values[-1][1] >= 0
+
+
+            # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
+            # Need to add bounds on the previous layer
+            if layer_idx == 0:
+                prev_layer_idx = self.input_idx
+            else:
+                prev_layer_idx = self.rnn_out_idx[layer_idx - 1]
+
+            prev_layer_eqautions = []
+            for i in range(len(prev_layer_alpha)):
+                le_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+                le_eq.addAddend(1, prev_layer_idx[i])
+                le_eq.setScalar(prev_layer_alpha[i][1])
+                prev_layer_eqautions.append(le_eq)
+                self.network.addEquation(le_eq)
+
+                ge_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
+                ge_eq.addAddend(1, prev_layer_idx[i])
+                ge_eq.setScalar(prev_layer_alpha[i][0])
+                prev_layer_eqautions.append(ge_eq)
+                self.network.addEquation(ge_eq)
+
+            self.query_marabou_to_improve_values(initial_values, layer_idx)
+
+            for eq in prev_layer_eqautions:
+                self.network.removeEquation(eq)
+
+        # print('initial_values:', initial_values)
+        # return initial_values
+        rnn_max_values = [val[1] for val in initial_values]
+        rnn_min_values = [val[0] for val in initial_values]
+        # DEBUG
+        assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
+        return (rnn_min_values, rnn_max_values)
+
+    def query_marabou_to_improve_values(self, initial_values, layer_idx=0):
         def create_initial_run_equations(loop_indices, rnn_prev_iteration_idx):
             '''
             Zero the loop indcies and the rnn hidden values (the previous iteration output)
@@ -275,21 +356,26 @@ class RnnMarabouModel():
                 self.network.removeEquation(eq)
             return beta
 
-        initial_run_eq = create_initial_run_equations(self._rnn_loop_idx, self._rnn_prev_iteration_idx)
+        all_loop_indcies = [i for layer in self._rnn_loop_idx for i in layer]
+        initial_run_eq = create_initial_run_equations(all_loop_indcies, self._rnn_prev_iteration_idx[layer_idx])
         for init_eq in initial_run_eq:
             self.network.addEquation(init_eq)
 
         # not(R_i_f >= beta) <-> R_i_f <>= beta - epsilon
         for i in range(len(initial_values)):
+
             beta_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
-            beta_eq.addAddend(1, self.rnn_out_idx[i])
+            beta_eq.addAddend(1, self.rnn_out_idx[layer_idx][i])
             beta_eq.setScalar(initial_values[i][0] - SMALL)
             min_val = improve_beta(beta_eq, False)
 
             beta_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-            beta_eq.addAddend(1, self.rnn_out_idx[i])
+            beta_eq.addAddend(1, self.rnn_out_idx[layer_idx][i])
             beta_eq.setScalar(initial_values[i][1] + SMALL)
             max_val = improve_beta(beta_eq, True)
+
+            if min_val < 0:
+                min_val = 0
 
             initial_values[i] = (min_val, max_val)
 
@@ -308,9 +394,9 @@ class RnnMarabouModel():
         initial_values = []
         for i in range(len(max_values)):
             if max_values[i] >= min_values[i]:
-                initial_values.append((min_values[i], max_values[i]))
+                initial_values.append((min_values[i], max_values[i] ))
             else:
-                initial_values.append((max_values[i], min_values[i]))
+                initial_values.append((max_values[i], min_values[i] ))
 
         # query_marabou_to_improve_values()
         return initial_values
@@ -441,3 +527,8 @@ class RnnMarabouModel():
             lb_eq.addAddend(-l_r * alpha, i_idx)
             lb_eq.setScalar(l_r * beta)
             self.network.addEquation(lb_eq)
+
+
+if __name__ == "__main__":
+    r = RnnMarabouModel("models/model_20classes_rnn4_rnn2_fc16_epochs3.h5", 3)
+    print(r.rnn_out_idx)

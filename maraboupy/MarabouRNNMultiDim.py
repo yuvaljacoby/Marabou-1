@@ -69,6 +69,8 @@ def add_loop_indices_equations(network, loop_indices):
     # Make sure all the iterators are in the same iteration, we create every equation twice
     step_loop_eq = []
     # for idx in loop_indices:
+    if isinstance(loop_indices, list):
+        loop_indices = [i for ls in loop_indices for i in ls]
     idx = loop_indices[0]
     for idx2 in loop_indices[1:]:
         if idx < idx2:
@@ -199,6 +201,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
         network.addEquation(eq)
 
     hypothesis_fail = False
+    # only for debug
     marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
     if marabou_result:
         # UNSAT Conflict in the hypothesis
@@ -273,7 +276,9 @@ def alpha_to_equation(start_idx, output_idx, initial_val, new_alpha, inv_type):
     if inv_type == MarabouCore.Equation.LE:
         ge_better = -1
     else:
+        # TODO: I don't like this either
         ge_better = 1
+        # ge_better = -1
 
     invariant_equation.addAddend(new_alpha * ge_better, start_idx)  # i
     # TODO: Why isn't it ge_better * initial_val? if it's LE we want:
@@ -305,14 +310,19 @@ def invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_
     '''
 
     def invariant_oracle(equations_to_verify):
-        # assert len(alphas) == len(initial_values)
-        # invariant_equations = alphas_to_equations(rnn_start_idxs, rnn_output_idxs, initial_values, alphas)
+
+        # if isinstance(rnn_start_idxs, list):
+        #     invariant_results = []
+        #     for start_idxs in rnn_start_idxs:
+        #         invariant_results.append(prove_invariant_multi(network, start_idxs, equations_to_verify, return_vars=return_vars))
+        #     return invariant_results
+        # else:
         return prove_invariant_multi(network, rnn_start_idxs, equations_to_verify, return_vars=return_vars)
 
     return invariant_oracle
 
 
-def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations):
+def property_oracle_generator(network, property_equations):
     def property_oracle(invariant_equations):
 
         for eq in invariant_equations:
@@ -322,7 +332,7 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
         # TODO: This is only for debug
         # before we prove the property, make sure the invariants does not contradict each other, expect SAT from marabou
         # network.dump()
-        assert not marabou_solve_negate_eq(network, False, False)
+        # assert not marabou_solve_negate_eq(network, False, False)
 
         for eq in property_equations:
             if eq is not None:
@@ -339,28 +349,51 @@ def property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property
     return property_oracle
 
 
-def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm,
-                            return_alphas=False, number_of_steps=5000, debug=False, return_queries_stats=False):
-    rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs()
+def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm,return_alphas=False,
+                             number_of_steps=5000, debug=False, return_queries_stats=False):
     network = rnnModel.network
+    rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(rnn_layer=None)
     add_loop_indices_equations(network, rnn_start_idxs)
-    invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
-    property_oracle = property_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, property_equations)
-    equations = algorithm.get_equations()
+    # invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
+    property_oracle = property_oracle_generator(network, property_equations)
+
     res = False
     invariant_times = []
     property_times = []
     step_times = []
     for i in range(number_of_steps):
         start_invariant = timer()
-        invariant_results, sat_vars = invariant_oracle(equations)
+        invariant_results = []
+        proved_equations = []
+        for l in range(rnnModel.num_rnn_layers):
+            if hasattr(algorithm, 'support_multi_layer') and algorithm.support_multi_layer:
+                rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(rnn_layer=l)
+                equations = algorithm.get_equations(layer_idx= l)
+            else:
+                equations = algorithm.get_equations()
+                rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(rnn_layer=None)
+            invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
+            layer_invariant_results, sat_vars = invariant_oracle(equations)
+            invariant_results += layer_invariant_results
+            if all(layer_invariant_results) and hasattr(algorithm, 'proved_invariant'):
+                algorithm.proved_invariant(l, equations)
+                # When we prove layer l+1 we need to proved equations on layer l
+                proved_equations += equations
+                for eq in proved_equations:
+                    network.addEquation(eq)
+            else:
+                # TODO: DELETE
+                # assert False
+                break
         end_invariant = timer()
+        for eq in proved_equations:
+            network.removeEquation(eq)
         # print(invariant_results)
         invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
             start_property = timer()
-            prop_res = property_oracle(equations)
+            prop_res = property_oracle(proved_equations)
             end_property = timer()
             property_times.append(end_property - start_property)
             if prop_res:
@@ -371,17 +404,20 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 start_step = timer()
                 # If the property failed no need to pass which invariants passed (of course)
                 if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
-                    equations = algorithm.do_step(True, None, sat_vars)
+                    algorithm.do_step(True, None, sat_vars)
                 else:
-                    equations = algorithm.do_step(True, None)
+                    algorithm.do_step(True, None)
                 end_step = timer()
                 step_times.append(end_step - start_step)
         else:
             start_step = timer()
             if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
-                equations = algorithm.do_step(False, invariant_results, sat_vars)
+                # Invariant failed in gurobi based search, does not suppose to happen
+                assert False, invariant_results
+
+                algorithm.do_step(False, invariant_results, sat_vars)
             else:
-                equations = algorithm.do_step(False, invariant_results)
+                algorithm.do_step(False, invariant_results)
             end_step = timer()
             step_times.append(end_step - start_step)
 
