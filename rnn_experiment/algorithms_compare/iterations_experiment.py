@@ -125,10 +125,10 @@ if __name__ == "__main__":
     # n_iterations = 20  # 1000?
     # r = 0
     # model_path = 'models/model_classes5_1rnn2_0_64_4.h5'
-    results_path = "pickles/rns_verify_exp/model_classes20_1rnn2_0_64_4_25.pkl"
-    d = pickle.load(open(results_path, "rb"))
-    plot_results(d['our'], d['rns'], d['exp_name'])
-    exit(0)
+    # results_path = "pickles/rns_verify_exp/model_classes20_1rnn2_0_64_4_25.pkl"
+    # d = pickle.load(open(results_path, "rb"))
+    # plot_results(d['our'], d['rns'], d['exp_name'])
+    # exit(0)
 
     for exp in experiemnts:
         if exp['idx_max'] is None:
@@ -142,6 +142,6 @@ if __name__ == "__main__":
         pickle_dir = "pickles/rns_verify_exp/"
         pickle_path = pickle_dir + "ONLYOURS_{}_{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2], exp['n_iterations'],
                                                                   hash(str(exp['in_tensor'])))
-        pickle.dump({'our' : our, 'rns' : rns, 'exp_name' : exp_name}, open(pickle_path, "wb"))
+        # pickle.dump({'our' : our, 'rns' : rns, 'exp_name' : exp_name}, open(pickle_path, "wb"))
 
         # plot_results(our, rns, exp_name)

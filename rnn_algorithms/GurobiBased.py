@@ -318,7 +318,7 @@ class AlphasGurobiBased:
             print("CUTOFF")
             raise ValueError("CUTOFF problem")
         if gmodel.status == GRB.INFEASIBLE:
-            # print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
+            print("INFEASIBLE sum_alpahs = {} constraint_type={}".format(alphas_sum, ''))
             self.is_infesiable = True
             raise ValueError("INFEASIBLE problem")
 

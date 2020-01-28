@@ -111,8 +111,12 @@ def create_invariant_equations(loop_indices, invariant_eq):
         hypothesis_eq.append(cur_temp_eq)
         return hypothesis_eq
 
-    rnn_input_indices = [idx + 1 for idx in loop_indices]
-    rnn_output_indices = [idx + 3 for idx in loop_indices]
+    if isinstance(loop_indices[0], list):
+        rnn_input_indices = [idx + 1 for ls in loop_indices for idx in ls]
+        rnn_output_indices = [idx + 3 for ls in loop_indices for idx in ls]
+    else:
+        rnn_input_indices = [idx + 1 for idx in loop_indices]
+        rnn_output_indices = [idx + 3 for idx in loop_indices]
 
     # equations for induction step
     if isinstance(invariant_eq, list):
@@ -124,6 +128,8 @@ def create_invariant_equations(loop_indices, invariant_eq):
 
     # make sure i == 0 (for induction base)
     loop_equations = []
+    if isinstance(loop_indices[0], list):
+        loop_indices = [i for ls in loop_indices for i in ls]
     for i in loop_indices:
         loop_eq = MarabouCore.Equation()
         loop_eq.addAddend(1, i)

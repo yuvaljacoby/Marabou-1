@@ -222,16 +222,28 @@ def parse_dictionary(exp):
 
 
 if __name__ == "__main__":
-    parse_results_file([
-        ('rnn2_fc0', "final_gurobi_exps/rnn2_fc0.pkl"),
-        ('rnn2_fc1', "final_gurobi_exps/rnn2_fc1.pkl"),
-        ('rnn4_fc1', "final_gurobi_exps/rnn4_fc1.pkl"),
-        ('rnn4_fc2', "final_gurobi_exps/rnn4_fc2.pkl"),
-        ('rnn4_rnn2', "final_gurobi_exps/rnn4_rnn2.pkl")
-        ('rnn8_fc1', "final_gurobi_exps/rnn8_fc1.pkl"),
-        # ('rnn4_rnn2_1', "final_gurobi_exps/runnerup/rnn4_rnn2.pkl"),
-    ])
-    exit(0)
+    # parse_results_file([
+    #     ('rnn2_fc0', "final_gurobi_exps/rnn2_fc0.pkl"),
+    #     ('rnn2_fc1', "final_gurobi_exps/rnn2_fc1.pkl"),
+    #     ('rnn4_fc1', "final_gurobi_exps/rnn4_fc1.pkl"),
+    #     ('rnn4_fc2', "final_gurobi_exps/rnn4_fc2.pkl"),
+    #     ('rnn4_rnn2', "final_gurobi_exps/rnn4_rnn2.pkl"),
+    #     ('rnn8_fc1', "final_gurobi_exps/rnn8_fc1.pkl"),
+    #
+    # ])
+    # parse_results_file([
+    #    # ('rnn2_fc0_min', "final_gurobi_exps/rnn2_fc0.pkl"),
+    #     ('rnn2_fc1', "final_gurobi_exps/runnerup/rnn2_fc1.pkl"),
+    #     ('rnn2_fc1_min', "final_gurobi_exps/rnn2_fc1.pkl"),
+    #     ('rnn4_fc1', "final_gurobi_exps/runnerup/rnn4_fc1.pkl"),
+    #     ('rnn4_fc1_min', "final_gurobi_exps/rnn4_fc1.pkl"),
+    #     # ('rnn4_fc2', "final_gurobi_exps/rnn4_fc2.pkl"),
+    #     ('rnn4_rnn2', "final_gurobi_exps/runnerup/rnn4_rnn2.pkl"),
+    #     ('rnn4_rnn2_min', "final_gurobi_exps/rnn4_rnn2.pkl"),
+    #     ('rnn8_fc1', "final_gurobi_exps/runnerup/rnn8_fc1.pkl"),
+    #     ('rnn8_fc1_min', "final_gurobi_exps/rnn8_fc1.pkl"),
+    # ])
+    # exit(0)
 
 
     # import time
@@ -245,8 +257,8 @@ if __name__ == "__main__":
                    'model_classes20_1rnn8_1_32_4.h5', 'model_classes20_1rnn2_0_64_4.h5',
                    'model_20classes_rnn4_fc16_fc32_epochs3.h5', 'model_20classes_rnn4_rnn2_fc16_epochs3.h5']
 
-    other_idx_method = [lambda x: np.argmin(x)]
-    # other_idx_method = [lambda x: np.argsort(x)[-2]]
+    # other_idx_method = [lambda x: np.argmin(x)]
+    other_idx_method = [lambda x: np.argsort(x)[-2]]
     # gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
     #                      use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     gurobi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
@@ -310,6 +322,7 @@ if __name__ == "__main__":
                                         continue_pickle='')
         exit(0)
 
+    # other_idx_method = [lambda x: np.argmin(x)]
     point = np.array([-1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775,
                       -2.37340524, -3.94152213, 1.78206783, -0.37256191, 1.07329743, 0.02954765,
                       0.50143303, -3.98823161, -1.05437203, -1.98067338, 6.12760627, -2.53038902,
@@ -318,8 +331,10 @@ if __name__ == "__main__":
                       3.68131841, 1.18965503, 0.81459484, 2.36269942, -2.4609835, -1.14228611,
                       -0.28604645, -6.39739288, -3.54854402, -3.21648808])
     net = "model_20classes_rnn4_rnn2_fc16_epochs3.h5"
-    t_range = range(2,4)
+    t_range = range(8,10)
     gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
-    # run_all_experiments([net_options[2]], points[:5], t_range, other_idx_method, gurobi_ptr, save_results=0)
+    gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
+                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    # run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
+    run_all_experiments([net_options[3]], points[:5], t_range, other_idx_method, gurobi_ptr, save_results=0, steps_num=2)
