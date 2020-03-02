@@ -96,6 +96,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
     if ( _verbosity > 0 )
     {
+        printf("\nOptimizing: %s \n", _optimize ? "True" : "False");
         printf( "\nEngine::solve: Initial statistics\n" );
         mainLoopStatistics();
         printf( "\n---\n" );
@@ -1043,6 +1044,8 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
     log( "processInputQuery starting\n" );
 
     struct timespec start = TimeUtils::sampleMicro();
+
+    _optimize = inputQuery.getOptimize();
 
     try
     {

@@ -46,6 +46,15 @@ void InputQuery::setNumberOfVariables( unsigned numberOfVariables )
 {
     _numberOfVariables = numberOfVariables;
 }
+void InputQuery::setOptimize( bool optimize )
+{
+    _optimize = optimize;
+}
+bool InputQuery::getOptimize()
+{
+    return _optimize;
+}
+
 
 void InputQuery::setLowerBound( unsigned variable, double bound )
 {

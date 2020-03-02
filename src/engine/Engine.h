@@ -148,6 +148,7 @@ private:
         PERFORMED_WEAK_RESTORATION = 2,
     };
 
+    bool _optimize = false;
 
     /*
       Perform bound tightening operations that require

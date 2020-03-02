@@ -34,6 +34,9 @@ public:
       Methods for setting and getting the input part of the query
     */
     void setNumberOfVariables( unsigned numberOfVariables );
+    void setOptimize( bool optimize );
+    bool getOptimize();
+
     void setLowerBound( unsigned variable, double bound );
     void setUpperBound( unsigned variable, double bound );
 
@@ -134,6 +137,8 @@ public:
 
 private:
     unsigned _numberOfVariables;
+    bool _optimize;
+
     List<Equation> _equations;
     Map<unsigned, double> _lowerBounds;
     Map<unsigned, double> _upperBounds;

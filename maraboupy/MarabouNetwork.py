@@ -128,7 +128,7 @@ class MarabouNetwork:
         # ReLUs
         return x in self.varsParticipatingInConstraints
 
-    def getMarabouQuery(self):
+    def getMarabouQuery(self, optimize = False):
         """
         Function to convert network into Marabou Query
         Returns:
@@ -136,6 +136,7 @@ class MarabouNetwork:
         """
         ipq = MarabouCore.InputQuery()
         ipq.setNumberOfVariables(self.numVars)
+        ipq.setOptimize(optimize)
 
         i = 0
         for inputVarArray in self.inputVars:
@@ -193,7 +194,7 @@ class MarabouNetwork:
                     it has multiple methods that provide information related
                     to how an input query was solved.
         """
-        ipq = self.getMarabouQuery()
+        ipq = self.getMarabouQuery(options._optimize)
         if options == None:
             options = MarabouCore.Options()
         vals, stats = MarabouCore.solve(ipq, options, filename)

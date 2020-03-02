@@ -119,6 +119,7 @@ struct MarabouOptions {
         , _timeoutFactor( 1.5 )
         , _verbosity( 2 )
         , _dnc( false )
+        , _optimize( false )
     {};
 
     unsigned _numWorkers;
@@ -129,6 +130,7 @@ struct MarabouOptions {
     float _timeoutFactor;
     unsigned _verbosity;
     bool _dnc;
+    bool _optimize;
 };
 
 /* The default parameters here are just for readability, you should specify
@@ -228,6 +230,8 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def("getLowerBound", &InputQuery::getLowerBound)
         .def("dump", &InputQuery::dump)
         .def("setNumberOfVariables", &InputQuery::setNumberOfVariables)
+        .def("setOptimize", &InputQuery::setOptimize)
+
         .def("addEquation", &InputQuery::addEquation)
         .def("getSolutionValue", &InputQuery::getSolutionValue)
         .def("getNumberOfVariables", &InputQuery::getNumberOfVariables)
@@ -247,7 +251,8 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def_readwrite("_timeoutInSeconds", &MarabouOptions::_timeoutInSeconds)
         .def_readwrite("_timeoutFactor", &MarabouOptions::_timeoutFactor)
         .def_readwrite("_verbosity", &MarabouOptions::_verbosity)
-        .def_readwrite("_dnc", &MarabouOptions::_dnc);
+        .def_readwrite("_dnc", &MarabouOptions::_dnc)
+        .def_readwrite("_optimize", &MarabouOptions::_optimize);
     py::class_<SymbolicBoundTightener, std::unique_ptr<SymbolicBoundTightener,py::nodelete>>(m, "SymbolicBoundTightener")
         .def(py::init())
         .def("setNumberOfLayers", &SymbolicBoundTightener::setNumberOfLayers)
