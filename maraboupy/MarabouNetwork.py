@@ -43,6 +43,7 @@ class MarabouNetwork:
         self.upperBounds = dict()
         self.inputVars = []
         self.outputVars = np.array([])
+        self.optimizationVariable = -1
 
     def getNewVariable(self):
         """
@@ -61,6 +62,9 @@ class MarabouNetwork:
             x: (MarabouUtils.Equation) representing new equation
         """
         self.equList += [x]
+
+    def setOptimizationVariable(self, var):
+        self.optimizationVariable = var
 
     def setLowerBound(self, x, v):
         """
@@ -137,6 +141,10 @@ class MarabouNetwork:
         ipq = MarabouCore.InputQuery()
         ipq.setNumberOfVariables(self.numVars)
         ipq.setOptimize(optimize)
+        # Only mark the variable that corresponds to the objective function if we're optimizing
+        if (optimize):
+            ipq.markOptimizationVariable(self.optimizationVariable)
+
 
         i = 0
         for inputVarArray in self.inputVars:

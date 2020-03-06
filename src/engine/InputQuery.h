@@ -61,12 +61,15 @@ public:
     */
     void markInputVariable( unsigned variable, unsigned inputIndex );
     void markOutputVariable( unsigned variable, unsigned inputIndex );
+    void markOptimizationVariable( unsigned variable );
     unsigned inputVariableByIndex( unsigned index ) const;
     unsigned outputVariableByIndex( unsigned index ) const;
     unsigned getNumInputVariables() const;
     unsigned getNumOutputVariables() const;
     List<unsigned> getInputVariables() const;
     List<unsigned> getOutputVariables() const;
+    unsigned getOptimizationVariable() const;
+
 
     /*
       Methods for setting and getting the solution.
@@ -160,6 +163,7 @@ public:
     Map<unsigned, unsigned> _inputIndexToVariable;
     Map<unsigned, unsigned> _variableToOutputIndex;
     Map<unsigned, unsigned> _outputIndexToVariable;
+    unsigned _optimizationVariable;
 
     /*
       An object that knows the topology of the network being checked,

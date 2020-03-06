@@ -400,6 +400,11 @@ void InputQuery::markOutputVariable( unsigned variable, unsigned outputIndex )
     _outputIndexToVariable[outputIndex] = variable;
 }
 
+void InputQuery::markOptimizationVariable( unsigned variable )
+{
+    _optimizationVariable = variable;
+}
+
 unsigned InputQuery::inputVariableByIndex( unsigned index ) const
 {
     ASSERT( _inputIndexToVariable.exists( index ) );
@@ -438,6 +443,11 @@ List<unsigned> InputQuery::getOutputVariables() const
         result.append( pair.first );
 
     return result;
+}
+
+unsigned InputQuery::getOptimizationVariable() const
+{
+    return _optimizationVariable;
 }
 
 void InputQuery::printInputOutputBounds() const
@@ -540,6 +550,21 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     _variableToOutputIndex.clear();
     for ( auto it : _outputIndexToVariable )
         _variableToOutputIndex[it.second] = it.first;
+
+    // Optimization variable
+    if (_optimize)
+    {
+        if ( mergedVariables.exists( _optimizationVariable ) )
+        {
+        throw MarabouError( MarabouError::MERGED_INPUT_VARIABLE,
+                                 Stringf( "Optimization variable %u has been merged\n", _optimizationVariable ).ascii() );
+        }
+        if ( oldIndexToNewIndex.exists( _optimizationVariable ) )
+        {
+            printf("\n!!!!!!!!!!!Merging optimization variable!!!!!!!!!!\n");
+            _optimizationVariable = oldIndexToNewIndex[_optimizationVariable];
+        }
+    }
 }
 
 void InputQuery::setNetworkLevelReasoner( NetworkLevelReasoner *nlr )

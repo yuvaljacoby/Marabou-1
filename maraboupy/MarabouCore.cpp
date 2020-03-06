@@ -240,6 +240,7 @@ PYBIND11_MODULE(MarabouCore, m) {
         .def("inputVariableByIndex", &InputQuery::inputVariableByIndex)
         .def("markInputVariable", &InputQuery::markInputVariable)
         .def("markOutputVariable", &InputQuery::markOutputVariable)
+        .def("markOptimizationVariable", &InputQuery::markOptimizationVariable)
         .def("outputVariableByIndex", &InputQuery::outputVariableByIndex)
         .def("setSymbolicBoundTightener", &InputQuery::setSymbolicBoundTightener);
     py::class_<MarabouOptions>(m, "Options")

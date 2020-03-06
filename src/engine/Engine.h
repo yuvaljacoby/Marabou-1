@@ -57,6 +57,12 @@ public:
     bool solve( unsigned timeoutInSeconds = 0 );
 
     /*
+      Attempt to optimize the input.
+      (a timeout of 0 means no time limit). Returns true if found, false if infeasible.
+    */
+    bool optimize( unsigned timeoutInSeconds );
+
+    /*
       Process the input query and pass the needed information to the
       underlying tableau. Return false if query is found to be infeasible,
       true otherwise.
