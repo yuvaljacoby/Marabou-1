@@ -513,9 +513,22 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     // Input variables
     for ( const auto &it : _inputIndexToVariable )
     {
-        if ( mergedVariables.exists( it.second ) )
-            throw MarabouError( MarabouError::MERGED_INPUT_VARIABLE,
-                                 Stringf( "Input variable %u has been merged\n", it.second ).ascii() );
+        if ( mergedVariables.exists( it.second ) ) 
+        {
+            // WHY SHOULD IT BE AN ERROR HERE?
+            //throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+                                    //Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+            // Why do we need the count?
+            printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
+
+            // In case of a chained merging, go all the way to the final target
+            unsigned finalMergeTarget = mergedVariables[it.second];
+            while ( mergedVariables.exists( finalMergeTarget ) )
+                finalMergeTarget = mergedVariables[finalMergeTarget];
+            printf("Final merge target is: %d \n", finalMergeTarget);
+            newOutputIndexToVariable[it.first] = mergedVariables[it.second]; 
+            ++currentIndex;
+        }
 
         if ( oldIndexToNewIndex.exists( it.second ) )
         {
@@ -535,13 +548,31 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     // Output variables
     for ( const auto &it : _outputIndexToVariable )
     {
+        printf("\n it.first: %d, it.second: %d, current index: %d\n", it.first, it.second, currentIndex);
+
         if ( mergedVariables.exists( it.second ) )
-            throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE,
-                                 Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+        {
+
+            //throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+                                    //Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+            // Why do we need the count?
+            printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
+
+            // In case of a chained merging, go all the way to the final target
+            unsigned finalMergeTarget = mergedVariables[it.second];
+            while ( mergedVariables.exists( finalMergeTarget ) )
+                finalMergeTarget = mergedVariables[finalMergeTarget];
+            printf("Final merge target is: %d \n", finalMergeTarget);
+            newOutputIndexToVariable[it.first] = mergedVariables[it.second]; 
+            ++currentIndex;
+        }
 
         if ( oldIndexToNewIndex.exists( it.second ) )
         {
+            // Could lthis be it.first instead of currentIndex?
             newOutputIndexToVariable[currentIndex] = oldIndexToNewIndex[it.second];
+            // why was current index only incrementing here??? What do we expect newOutputIndexToVariable to hold?
+            // Indices for all of the output variables? or just the changed ones?
             ++currentIndex;
         }
     }
