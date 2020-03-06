@@ -310,6 +310,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     SignalHandler::getInstance()->initialize();
     SignalHandler::getInstance()->registerClient( this );
 
+    updateDirections();
     storeInitialEngineState();
 
     printf("Engine::Solving Optimization Problem");
@@ -322,6 +323,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
         printf( "\n---\n" );
     }
 
+    bool splitJustPerformed = true;
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
     {
@@ -398,16 +400,21 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             if ( _tableau->basisMatrixAvailable() )
                 explicitBasisBoundTightening();
 
-            // Perform any SmtCore-initiated case splits
-            if ( _smtCore.needToSplit() )
+            if ( splitJustPerformed )
             {
-                _smtCore.performSplit();
-
                 do
                 {
                     performSymbolicBoundTightening();
                 }
                 while ( applyAllValidConstraintCaseSplits() );
+                splitJustPerformed = false;
+            }
+
+            // Perform any SmtCore-initiated case splits
+            if ( _smtCore.needToSplit() )
+            {
+                _smtCore.performSplit();
+                splitJustPerformed = true;
                 continue;
             }
 
@@ -507,6 +514,11 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 _exitCode = Engine::UNSAT;
                 return false;
             }
+            else
+            {
+                splitJustPerformed = true;
+            }
+
         }
         catch ( ... )
         {
@@ -2146,6 +2158,41 @@ void Engine::checkOverallProgress()
             _lastIterationWithProgress = currentIteration;
         }
     }
+}
+
+void Engine::updateDirections()
+{
+    if ( GlobalConfiguration::USE_POLARITY_BASED_DIRECTION_HEURISTICS )
+        for ( const auto &constraint : _plConstraints )
+            if ( constraint->supportPolarity() &&
+                 constraint->isActive() && !constraint->phaseFixed() )
+                constraint->updateDirection();
+}
+
+void Engine::updateScores()
+{
+    _candidatePlConstraints.clear();
+    for ( const auto plConstraint : _plConstraints )
+    {
+        if ( plConstraint->isActive() && !plConstraint->phaseFixed() )
+        {
+            plConstraint->updateScore();
+            _candidatePlConstraints.insert( plConstraint );
+        }
+    }
+}
+
+PiecewiseLinearConstraint *Engine::pickSplitPLConstraint()
+{
+    updateScores();
+    auto constraint = *_candidatePlConstraints.begin();
+    _candidatePlConstraints.erase( constraint );
+    return constraint;
+}
+
+void Engine::setConstraintViolationThreshold( unsigned threshold )
+{
+    _smtCore.setConstraintViolationThreshold( threshold );
 }
 
 //
