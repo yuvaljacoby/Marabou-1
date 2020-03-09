@@ -89,7 +89,7 @@ void Engine::adjustWorkMemorySize()
 
 bool Engine::solve( unsigned timeoutInSeconds )
 {
-    if (_optimize)
+    if (_costFunctionManager->getOptimize())
     {
         return optimize(timeoutInSeconds);
     }
@@ -251,6 +251,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
             // We have out-of-bounds variables.
             performSimplexStep();
+
             continue;
         }
         catch ( const MalformedBasisException & )
@@ -327,6 +328,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
     {
+        printf("\n Starting main loop :D \n");
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
         mainLoopStart = mainLoopEnd;
@@ -371,6 +373,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // If the basis has become malformed, we need to restore it
             if ( basisRestorationNeeded() )
             {
+                printf("Restoring basis\n");
                 if ( _basisRestorationRequired == Engine::STRONG_RESTORATION_NEEDED )
                 {
                     performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
@@ -393,6 +396,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // Possible restoration due to preceision degradation
             if ( shouldCheckDegradation() && highDegradation() )
             {
+               printf("Performing precision restoration\n");
+
                 performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
                 continue;
             }
@@ -413,6 +418,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
+                printf("Splitting \n");
+
                 _smtCore.performSplit();
                 splitJustPerformed = true;
                 continue;
@@ -471,6 +478,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
 
             // We have out-of-bounds variables.
             performSimplexStep();
+
             continue;
         }
         catch ( const MalformedBasisException & )
@@ -853,7 +861,6 @@ void Engine::fixViolatedPlConstraintIfPossible()
 
 bool Engine::processInputQuery( InputQuery &inputQuery )
 {
-    printf("\n Optimization Variable: %d \n", inputQuery.getOptimizationVariable());
     return processInputQuery( inputQuery, GlobalConfiguration::PREPROCESS_INPUT_QUERY );
 }
 
@@ -1165,6 +1172,21 @@ void Engine::selectInitialVariablesForBasis( const double *constraintMatrix, Lis
         basicRows.append( rowOrdering[i] );
     }
 
+    // If optimizing, make sure that the optimization variable starts in the basis
+    if (_costFunctionManager->getOptimize())
+    {
+        // If it isn't already in the basis, check if the basis is full.
+        // If it is, remove the last element of the basis
+        // Then, add in the optimization variable
+        if (!initialBasis.exists(_costFunctionManager->getOptimizationVariable()))
+        {
+            if (initialBasis.size() == m)
+                initialBasis.popBack();
+
+            initialBasis.append(_costFunctionManager->getOptimizationVariable());
+        }
+    }
+
     // Cleanup
     delete[] nnzInRow;
     delete[] nnzInColumn;
@@ -1278,7 +1300,8 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
 
     struct timespec start = TimeUtils::sampleMicro();
 
-    _optimize = inputQuery.getOptimize();
+    _costFunctionManager->setOptimize(inputQuery.getOptimize());
+    _costFunctionManager->setOptimizationVariable(inputQuery.getOptimizationVariable());
 
     try
     {

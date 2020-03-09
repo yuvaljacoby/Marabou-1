@@ -151,6 +151,15 @@ void CostFunctionManager::computeCoreCostFunction()
     computeMultipliers();
     computeReducedCosts();
 
+    if (_optimize)
+    {
+      printf("\nIN COMPUTE COR COST FUNCTION \n");
+      printf("Opt variable is: %d \n", _optimizationVariable);
+      printf("n - m is: %d\n", _n - _m);
+      _costFunction[_optimizationVariable-1] = 1.0;
+      dumpCostFunction();
+    }
+
     _costFunctionStatus = ICostFunctionManager::COST_FUNCTION_JUST_COMPUTED;
 }
 
@@ -303,6 +312,25 @@ const double *CostFunctionManager::getCostFunction() const
 {
     return _costFunction;
 }
+
+void CostFunctionManager::setOptimize( bool optimize )
+{
+    _optimize = optimize;
+}
+
+void CostFunctionManager::setOptimizationVariable( unsigned variable )
+{
+    _optimizationVariable = variable;
+}
+bool CostFunctionManager::getOptimize()
+{
+    return _optimize;
+}
+unsigned CostFunctionManager::getOptimizationVariable()
+{
+    return _optimizationVariable;
+}
+
 
 double CostFunctionManager::updateCostFunctionForPivot( unsigned enteringVariableIndex,
                                                         unsigned leavingVariableIndex,

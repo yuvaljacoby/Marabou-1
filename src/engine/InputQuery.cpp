@@ -515,9 +515,15 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     {
         if ( mergedVariables.exists( it.second ) ) 
         {
-            // WHY SHOULD IT BE AN ERROR HERE?
-            //throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
-                                    //Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+            if (!_optimize) 
+            {
+            
+                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+                                        Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+            }
+            else
+            {
+            
             // Why do we need the count?
             printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
 
@@ -526,8 +532,10 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             while ( mergedVariables.exists( finalMergeTarget ) )
                 finalMergeTarget = mergedVariables[finalMergeTarget];
             printf("Final merge target is: %d \n", finalMergeTarget);
-            newOutputIndexToVariable[it.first] = mergedVariables[it.second]; 
+            newInputIndexToVariable[it.first] = finalMergeTarget; 
             ++currentIndex;
+            
+            }
         }
 
         if ( oldIndexToNewIndex.exists( it.second ) )
@@ -552,10 +560,16 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
 
         if ( mergedVariables.exists( it.second ) )
         {
-
-            //throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
-                                    //Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
-            // Why do we need the count?
+            if (!_optimize) 
+            {
+            
+                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+                                        Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
+            }
+            else
+            {
+            
+            // Why do we need the count? INDEXING FEELS WRONG HERE?????
             printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
 
             // In case of a chained merging, go all the way to the final target
@@ -563,8 +577,10 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             while ( mergedVariables.exists( finalMergeTarget ) )
                 finalMergeTarget = mergedVariables[finalMergeTarget];
             printf("Final merge target is: %d \n", finalMergeTarget);
-            newOutputIndexToVariable[it.first] = mergedVariables[it.second]; 
+            newOutputIndexToVariable[it.first] = finalMergeTarget; 
             ++currentIndex;
+
+            }
         }
 
         if ( oldIndexToNewIndex.exists( it.second ) )
@@ -587,12 +603,22 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     {
         if ( mergedVariables.exists( _optimizationVariable ) )
         {
-        throw MarabouError( MarabouError::MERGED_INPUT_VARIABLE,
-                                 Stringf( "Optimization variable %u has been merged\n", _optimizationVariable ).ascii() );
+            printf("\n!!!!!!!!!!!Merging optimization variable!!!!!!!!!!\n");
+
+            // Why do we need the count?
+            printf("merged var at optimvar: %d is %d \n", _optimizationVariable, mergedVariables[_optimizationVariable]);
+
+            // In case of a chained merging, go all the way to the final target
+            unsigned finalMergeTarget = mergedVariables[_optimizationVariable];
+            while ( mergedVariables.exists( finalMergeTarget ) )
+                finalMergeTarget = mergedVariables[finalMergeTarget];
+            printf("Final merge target is: %d \n", finalMergeTarget);
+            _optimizationVariable = finalMergeTarget; 
         }
         if ( oldIndexToNewIndex.exists( _optimizationVariable ) )
         {
-            printf("\n!!!!!!!!!!!Merging optimization variable!!!!!!!!!!\n");
+            printf("\n!!!!!!!!!!!Reindexing optimization variable!!!!!!!!!!\n");
+
             _optimizationVariable = oldIndexToNewIndex[_optimizationVariable];
         }
     }

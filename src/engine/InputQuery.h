@@ -141,6 +141,7 @@ public:
 private:
     unsigned _numberOfVariables;
     bool _optimize;
+    unsigned _optimizationVariable;
 
     List<Equation> _equations;
     Map<unsigned, double> _lowerBounds;
@@ -163,7 +164,7 @@ public:
     Map<unsigned, unsigned> _inputIndexToVariable;
     Map<unsigned, unsigned> _variableToOutputIndex;
     Map<unsigned, unsigned> _outputIndexToVariable;
-    unsigned _optimizationVariable;
+
 
     /*
       An object that knows the topology of the network being checked,
