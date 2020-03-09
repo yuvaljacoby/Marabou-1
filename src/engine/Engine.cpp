@@ -209,7 +209,6 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 // The linear portion of the problem has been solved.
                 // Check the status of the PL constraints
                 collectViolatedPlConstraints();
-
                 // If all constraints are satisfied, we are possibly done
                 if ( allPlConstraintsHold() )
                 {
@@ -418,7 +417,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
-                printf("Splitting \n");
+                printf("Splitting Cases\n");
 
                 _smtCore.performSplit();
                 splitJustPerformed = true;
@@ -427,12 +426,19 @@ bool Engine::optimize( unsigned timeoutInSeconds )
 
             if ( !_tableau->allBoundsValid() )
             {
+                printf("Variable Bounds invalid, so unsat query\n");
+
                 // Some variable bounds are invalid, so the query is unsat
                 throw InfeasibleQueryException();
             }
 
             if ( allVarsWithinBounds() )
             {
+                printf("Linear Portion Solved\n");
+                _costFunctionManager->computeCoreCostFunction();
+
+                _costFunctionManager->dumpCostFunction();
+
                 // The linear portion of the problem has been solved.
                 // Check the status of the PL constraints
                 collectViolatedPlConstraints();
@@ -440,6 +446,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 // If all constraints are satisfied, we are possibly done
                 if ( allPlConstraintsHold() )
                 {
+                    printf("Piecewise linear solved\n");
+
                     if ( _tableau->getBasicAssignmentStatus() !=
                          ITableau::BASIC_ASSIGNMENT_JUST_COMPUTED )
                     {
@@ -573,7 +581,7 @@ void Engine::performConstraintFixingStep()
     reportPlViolation();
 
     // Attempt to fix the constraint
-    fixViolatedPlConstraintIfPossible();
+    //fixViolatedPlConstraintIfPossible();
 
     struct timespec end = TimeUtils::sampleMicro();
     _statistics.addTimeConstraintFixingSteps( TimeUtils::timePassed( start, end ) );
