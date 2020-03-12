@@ -2,6 +2,7 @@ import os
 import pickle
 from functools import partial
 from timeit import default_timer as timer
+from typing import List, Tuple, Optional
 
 import numpy as np
 import tensorflow as tf
@@ -195,7 +196,7 @@ def get_out_idx(x, n_iterations, h5_file_path, other_index_func=lambda vec: np.a
     :return: max_idx, other_idx (None if they are the same)
     '''
     out = np.squeeze(get_output_vector(h5_file_path, x, n_iterations))
-    other_idx = other_index_func(out) #np.argsort(out)[-2]
+    other_idx = other_index_func(out)  # np.argsort(out)[-2]
     y_idx_max = np.argmax(out)
     # assert np.argmax(out) == np.argsort(out)[-1]
     # print(y_idx_max, other_idx)
@@ -203,6 +204,75 @@ def get_out_idx(x, n_iterations, h5_file_path, other_index_func=lambda vec: np.a
         # This means all the enteris in the out vector are equal...
         return None, None
     return y_idx_max, other_idx
+
+
+class Predicate:
+    def __init__(self, vars_coefficients: List[Tuple[int, float]], scalar: float, on_input: bool,
+                 eq_type=MarabouCore.Equation.GE):
+        self.vars_coefficients = vars_coefficients
+        self.scalar = scalar
+        self.on_input = on_input
+        self.eq_type = eq_type
+
+    def get_equation(self, rnn_model: RnnMarabouModel) -> MarabouCore.Equation:
+        eq = MarabouCore.Equation(self.eq_type)
+        for (v, c) in self.vars_coefficients:
+            if self.on_input:
+                eq.addAddend(c, rnn_model.input_idx[v])
+            else:
+                eq.addAddend(c, rnn_model.output_idx[v])
+            eq.setScalar(self.scalar)
+        return eq
+
+
+def add_predicates(rnn_model: RnnMarabouModel, P: Optional[List[Predicate]], n_iterations: int) -> None:
+    '''
+    Adds all the predicates and limits the i variable to be maximum n_iterations
+    '''
+    if P is None:
+        P = []
+    P = [p.get_equation() for p in P]
+
+    time_eq = MarabouCore.Equation(MarabouCore.Equation.LE)
+    time_eq.addAddend(1, rnn_model.get_start_end_idxs(0)[0][0])
+    time_eq.setScalar(n_iterations)
+    P.append(time_eq)
+    for con in P:
+        rnn_model.network.addEquation(con)
+
+
+def query(xlim: List[Tuple[float, float]], P: Optional[List[Predicate]], Q: List[Predicate], h5_file_path: str,
+          algorithm_ptr, n_iterations=10, steps_num=5000):
+    '''
+    :param xlim:  list of tuples each tuple is (lower_bound, upper_bound), input bounds
+    :param P: predicates on the input (linear constraints), besides the bounds on the input (xlim)
+    :param Q: conditions on the output (linear constraints), not negated
+    :param h5_file_path: path to keras model which we will check on
+    :param n_iterations: number of iterations to run
+    :return: True / False, and queries_stats
+    '''
+    rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
+    rnn_model.set_input_bounds(xlim)
+
+    add_predicates(rnn_model, P, n_iterations)
+
+    start_initial_alg = timer()
+    algorithm = algorithm_ptr(rnn_model, xlim)
+    end_initial_alg = timer()
+    Q_negate = []
+    for q in Q:
+        Q_negate.append(negate_equation(q.get_equation(rnn_model)))
+
+    res, queries_stats = prove_multidim_property(rnn_model, Q_negate, algorithm, debug=1, return_queries_stats=True,
+                                                 number_of_steps=steps_num)
+
+    if queries_stats:
+        step_times = queries_stats['step_times']['raw']
+        step_times.insert(0, end_initial_alg - start_initial_alg)
+        queries_stats['step_times'] = {'avg': np.mean(step_times), 'median': np.median(step_times), 'raw': step_times}
+        queries_stats['step_queries'] = len(step_times)
+
+    return res, queries_stats, algorithm.alpha_history
 
 
 def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str, algorithm_ptr,
@@ -225,9 +295,8 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
             # This means all the enteris in the out vector are equal...
             return False, None, None
 
-    # assert_adversarial_query_wrapper(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
-    rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
     xlim = calc_min_max_by_radius(x, radius)
+    rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
     rnn_model.set_input_bounds(xlim)
 
     # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
@@ -246,7 +315,7 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     # rnn_model.network.dump()
 
     res, queries_stats = prove_multidim_property(rnn_model, [negate_equation(adv_eq), time_eq], algorithm, debug=1,
-                                           return_queries_stats=True, number_of_steps=steps_num)
+                                                 return_queries_stats=True, number_of_steps=steps_num)
     if queries_stats:
         step_times = queries_stats['step_times']['raw']
         step_times.insert(0, end_initial_alg - start_initial_alg)
@@ -568,7 +637,8 @@ def search_for_input_multiple(path, algorithm_ptr, radius=0.01, mean=10, var=3):
                 pickle.dump(examples, f)
 
             print("###### found example {}: {} ### \n {} \n ############".format(examples_found, net_name,
-                                                                                 str(example['in_tensor']).replace(' ', ', ')))
+                                                                                 str(example['in_tensor']).replace(' ',
+                                                                                                                   ', ')))
             examples_found += 1
             # for i in range(len(out[0])):
             #     if i != other_idx and i != y_idx_max:
@@ -625,15 +695,15 @@ if __name__ == "__main__":
     # IterateAlphasSGD_absolute_step = partial(IterateAlphasSGD, update_strategy_ptr=Absolute_Step)
     gurobi_relative_step = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step)
 
-    res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'], exp['other_idx'], exp['h5_path'],
-                                        gurobi_relative_step, exp['n_iterations'], steps_num=1000)
+    res, iterations, alpha_history = adversarial_query(exp['in_tensor'], exp['radius'], exp['idx_max'],
+                                                       exp['other_idx'], exp['h5_path'],
+                                                       gurobi_relative_step, exp['n_iterations'], steps_num=1000)
     #
     # max_alphas_history = [a[-2:] for a in alpha_history]
     # from maraboupy.draw_rnn import draw_2d_from_h5
     #
     # draw_2d_from_h5(exp['h5_path'], exp['in_tensor'], exp['n_iterations'], max_alphas_history)
     # exit(0)
-
 
     # NOTE TO YUVAL - When running this, disabled the assert inside property_oracle to make things run faster
     # search_for_input_multiple("{}/model_20classes_rnn4_fc16_fc32_epochs3.h5".format(MODELS_FOLDER), weighted_relative_step)

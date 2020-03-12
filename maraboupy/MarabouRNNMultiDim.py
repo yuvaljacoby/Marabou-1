@@ -25,7 +25,7 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
     if len(vars1) > 0:
         if print_vars:
             print("SAT")
-            print(vars1)
+            print(vars1[29])
         res = False
     else:
         # print("UNSAT")
@@ -211,6 +211,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
     marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
     if marabou_result:
         # UNSAT Conflict in the hypothesis
+        assert False
         proved_invariants = [False] * len(proved_invariants)
         hypothesis_fail = True
 
@@ -220,7 +221,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
                 # eq.dump()
                 network.addEquation(eq)
 
-            marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
+            marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=True, return_vars=True)
             vars.append(cur_vars)
             # print("Querying for induction step: {}".format(marabou_result))
             # network.dump()
@@ -228,7 +229,7 @@ def prove_invariant_multi(network, rnn_start_idxs, invariant_equations, return_v
             if not marabou_result:
                 # for eq in hypothesis_eq:
                 #     network.removeEquation(eq)
-                # network.dump()
+                network.dump()
                 # print("induction step fail, on invariant:", i)
                 proved_invariants[i] = False
             else:
@@ -343,7 +344,7 @@ def property_oracle_generator(network, property_equations):
         for eq in property_equations:
             if eq is not None:
                 network.addEquation(eq)
-        res = marabou_solve_negate_eq(network, False, False)
+        res = marabou_solve_negate_eq(network, False, print_vars=True)
         # network.dump()
         if res:
             pass
@@ -355,6 +356,7 @@ def property_oracle_generator(network, property_equations):
     return property_oracle
 
 
+# def prove_invariant_one_layer()
 def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm,return_alphas=False,
                              number_of_steps=5000, debug=False, return_queries_stats=False):
     network = rnnModel.network
@@ -381,17 +383,19 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
             invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
             layer_invariant_results, sat_vars = invariant_oracle(equations)
             invariant_results += layer_invariant_results
-            if all(layer_invariant_results) and hasattr(algorithm, 'proved_invariant'):
-                algorithm.proved_invariant(l, equations)
+            if all(layer_invariant_results):
+                if hasattr(algorithm, 'proved_invariant'):
+                    algorithm.proved_invariant(l, equations)
                 # When we prove layer l+1 we need to proved equations on layer l
                 proved_equations += equations
                 for eq in proved_equations:
                     network.addEquation(eq)
             else:
                 # TODO: DELETE
-                # assert False
+                # Failed to prove on of the layers, we can  break the loop
                 break
         end_invariant = timer()
+
         for eq in proved_equations:
             network.removeEquation(eq)
         # print(invariant_results)

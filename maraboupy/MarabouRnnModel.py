@@ -479,7 +479,7 @@ class RnnMarabouModel():
             # Internal layer
             return add_intermediate_layer_equations()
             # raise NotImplementedError("activation {} is not supported".format(layer.activation.__name__))
-        elif layer.activation == tf.keras.activations.softmax:
+        elif layer.activation == tf.keras.activations.softmax or layer.activation == tf.keras.activations.linear:
             # last layer
             return add_last_layer_equations()
         else:

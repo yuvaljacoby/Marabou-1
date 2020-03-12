@@ -703,7 +703,7 @@ def get_all_algorithms():
 
     algorithms_ptrs = OrderedDict({
         'gurobi': partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20, use_relu=True, add_alpha_constraint=True, use_counter_example=True),
-        'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
+        # 'random': partial(RandomAlphasSGD, update_strategy_ptr=Relative_Step),
 
         # 'random_absolute': partial(RandomAlphasSGD, update_strategy_ptr=Absolute_Step),
         #
@@ -792,28 +792,6 @@ if __name__ == "__main__":
     pd.set_option('max_colwidth', -1)
     np.random.seed(9)
 
-    # algorithms_ptrs, network_path = parse_input_strings()
-    # df = run_random_experiment(network_path, algorithms_ptrs)
-
-    # Create random points
-    # mean = -3
-    # var = 2
-    # num_points = 200
-    # points = []
-    # for _ in range(num_points):
-    #     points.append(np.random.normal(mean, var, IN_SHAPE))
-    # pickle.dump(points, open("points_{}_{}_{}.pkl".format(mean, var, num_points), "wb"))
-
-    # exp_name = 'controlled'
-    # model_path = 'model_20classes_rnn4_fc32_epochs40.h5'
-    # points_path = "points_{}_{}_{}.pkl".format(mean, var, num_points)
-    # points = pickle.load(open(points_path, "rb"))
-    # algorithms_ptrs = get_all_algorithms()
-    # n_iterations = 5
-    # radius = 0.01
-    # start_idx  = 0
-    # results = run_controlled_experiment(model_path, algorithms_ptrs, points, radius, n_iterations, start_idx)
-
     if len(sys.argv) > 1:
         if sys.argv[1] == 'controlled':
             model_path = sys.argv[2]
@@ -828,12 +806,24 @@ if __name__ == "__main__":
             results = run_controlled_experiment(model_path, algorithms_ptrs, points, radius, n_iterations, start_idx)
             exit(0)
 
-    model_path = "models/model_20classes_rnn2_fc32_epochs200.h5"
-    points = pickle.load(open("points.pkl", "rb"))
-    n_iterations = 12
-    radius = 0.01
-    algorithms_ptrs = get_all_algorithms()
-    results = run_controlled_experiment(model_path, algorithms_ptrs, points[:1], radius, n_iterations, 0, steps_num=5000)
+    # model_path = "models/model_20classes_rnn16_fc16_epochs50.h5"
+    # model_path = "models/model_20classes_rnn16_fc16_fc16_epochs50.h5"
+    for model_path in ["models/model_20classes_rnn16_fc16_fc16_epochs50.h5",
+                       "models/model_20classes_rnn16_fc16_epochs50.h5",
+                       "model_20classes_rnn16_fc16_epochs200.h5"]:
+        points = pickle.load(open("pickles/points.pkl", "rb"))
+        n_iterations = 4
+        radius = 0
+        algorithms_ptrs = get_all_algorithms()
+        results = run_controlled_experiment(model_path, algorithms_ptrs, points, radius, n_iterations, 0, steps_num=5000)
+        for k in results.keys():
+            if 'gurobi' not in results[k]:
+                continue
+            exp_res = results[k]['gurobi']['result']
+            if exp_res:
+                print('SUCCESS')
+                print(results[k])
+                exit(1)
     exit(0)
 
     algorithms_ptrs, network_path = parse_input_strings()
