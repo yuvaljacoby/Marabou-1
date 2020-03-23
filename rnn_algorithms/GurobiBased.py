@@ -1,5 +1,7 @@
 import random
 
+from datetime import datetime
+
 random.seed(0)
 import numpy as np
 from gurobipy import *
@@ -90,7 +92,6 @@ class AlphasGurobiBased:
         self.return_vars = True
         self.is_infesiable = False
         self.xlim = xlim
-        self.xlim = xlim
         self.initial_values = None
         self.random_threshold = random_threshold
         self.n_iterations = rnnModel.n_iterations
@@ -98,7 +99,7 @@ class AlphasGurobiBased:
         self.prev_layer_beta = [None] * self.dim
         self.alphas_u = []
         self.alphas_l = []
-        self.added_constraints = []
+        self.added_constraints = None
         self.temp_alpha = []
         # initalize alphas to -infty +infty
         self.alphas = [-LARGE] * self.dim + [LARGE] * self.dim
@@ -109,6 +110,7 @@ class AlphasGurobiBased:
         self.rnn_start_idxs = rnn_start_idxs + rnn_start_idxs
         self.rnn_output_idxs_double = rnn_output_idxs + rnn_output_idxs
         self.is_time_limit = False
+        self.UNSAT = False
 
         # self.inv_type = [MarabouCore.Equation.LE] * len(initial_values[1]) + [MarabouCore.Equation.GE] * len(initial_values[0])
         self.inv_type = [MarabouCore.Equation.GE] * self.dim + [MarabouCore.Equation.LE] * self.dim
@@ -124,42 +126,38 @@ class AlphasGurobiBased:
 
         self.last_fail = None
         self.alpha_history = []
-        self.gmodel = self.presolve_basic_model()
+        # gmodel = self.get_gurobi_basic_model()
 
-        # Create firs alphas
-        self.alphas = self.do_gurobi_step(strengthen=True)
+        # Create first alphas
 
-        for i in range(len(self.alphas)):
-            self.update_equation(i)
+        # self.alphas = self.do_gurobi_step(strengthen=True)
+        #
+        # for i in range(len(self.alphas)):
+        #     self.update_equation(i)
 
     def __del__(self):
-        if self.gmodel:
-            self.gmodel.dispose()
-        # del gmodel
-        # gmodel = None
-        # import gc
-        # gc.collect()
+        return
 
-    def presolve_basic_model(self):
-        # TODO: We can't return the presolved model since it changes the variables, we need to somehow map between the
-        #  new variables and the old ones
-        # Another options is to use incremental solving, don't know how
-        model = self.get_gurobi_basic_model()
-        presolved_model = model.presolve()
-        status = presolved_model.status
-        error = None
-        if status == GRB.CUTOFF:
-            print("CUTOFF")
-            error = ValueError("CUTOFF problem")
-        elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
-            print("INFEASIBLE")
-            # self.is_infesiable = True
-            error = ValueError("INFEASIBLE problem")
-
-        # model.dispose()
-        if error:
-            raise error
-        return model
+    # def presolve_basic_model(self):
+    #     # TODO: We can't return the presolved model since it changes the variables, we need to somehow map between the
+    #     #  new variables and the old ones
+    #     # Another options is to use incremental solving, don't know how
+    #     model = self.get_gurobi_basic_model()
+    #     presolved_model = model.presolve()
+    #     status = presolved_model.status
+    #     error = None
+    #     if status == GRB.CUTOFF:
+    #         print("CUTOFF")
+    #         error = ValueError("CUTOFF problem")
+    #     elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
+    #         print("INFEASIBLE")
+    #         # self.is_infesiable = True
+    #         error = ValueError("INFEASIBLE problem")
+    #
+    #     if error:
+    #         model.dispose()
+    #         raise error
+    #     return model
 
     def update_xlim(self, lower_bound, upper_bound, beta=None):
         '''
@@ -211,7 +209,8 @@ class AlphasGurobiBased:
         return self.equations
 
     def get_gurobi_basic_model(self):
-        gmodel = Model("test")
+        env = Env()
+        gmodel = Model("test", env)
 
         if self.alphas_l:
             # TODO: Remove, it's here only to make we don't re append constraints
@@ -310,12 +309,13 @@ class AlphasGurobiBased:
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
-        return gmodel
+        return env, gmodel
 
     def gurobi_step_in_random_direction(self, previous_alphas, failed_improves=set()):
         valid_idx = [i for i in range(len(previous_alphas)) if i not in failed_improves and previous_alphas[i] != 0]
         if len(valid_idx) == 0:
-            raise ValueError("No alpha to imporve")
+            self.UNSAT = True
+            return None, None, None
         else:
             idx = random.choice(valid_idx)
         assert previous_alphas[idx] != 0
@@ -334,7 +334,7 @@ class AlphasGurobiBased:
     def do_gurobi_step(self, strengthen, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
                        loop_detected=False, previous_alphas=None, tried_vars_improve=None):
         # TODO: DEBUG
-        self.gmodel = self.get_gurobi_basic_model()
+        env, gmodel = self.get_gurobi_basic_model()
 
         if tried_vars_improve is None:
             tried_vars_improve = set()
@@ -343,12 +343,14 @@ class AlphasGurobiBased:
                 # Invariant failed, does not suppose to happen
                 assert False
 
-            if strengthen and previous_alphas is not None:
+            if False and strengthen and previous_alphas is not None:
                 # We proved invariant but the property is not implied do a big step in one of the invariants
-                random_constraint, constraing_description, improve_idx =\
-                                self.gurobi_step_in_random_direction(previous_alphas, tried_vars_improve)
+                random_constraint, constraing_description, improve_idx = \
+                    self.gurobi_step_in_random_direction(previous_alphas, tried_vars_improve)
+                if random_constraint is None:
+                    return None
                 tried_vars_improve.add(improve_idx)
-                self.added_constraints.append(self.gmodel.addConstr(random_constraint, constraing_description))
+                self.added_constraints.append(gmodel.addConstr(random_constraint, constraing_description))
 
         # if self.add_alpha_constraint and loop_detected:
         #     for j in range(len(self.alphas_u)):
@@ -358,15 +360,16 @@ class AlphasGurobiBased:
         #             loop_cons_l = self.alphas_l[j] <= self.alphas[j] - SMALL
         #             self.added_constraints.append(self.gmodel.addConstr(loop_cons_l, 'loop_constraint_l'))
 
-        self.gmodel.optimize()
+        gmodel.optimize()
 
-        status = self.gmodel.status
+        status = gmodel.status
         error = None
         alphas = None
         if status == GRB.CUTOFF:
             print("CUTOFF")
             error = ValueError("CUTOFF problem")
         elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
+            # gmodel.computeIIS() ; gmodel.write('temp.ilp')
             print("INFEASIBLE")
             self.is_infesiable = True
             error = ValueError("INFEASIBLE problem")
@@ -374,20 +377,30 @@ class AlphasGurobiBased:
             alphas = [1 * a.x for a in self.alphas_l] + [a.x for a in self.alphas_u]
 
         if error:
-            # IF the problem is infeasible try again
             # TODO: Keep track on the recursion depth and use it for generating new bounds
-            for con in self.added_constraints:
-                self.gmodel.remove(con)
+            if self.added_constraints is not None:
+                # If the problem is infeasible and it's not the first try, add constraint and try again
+                for con in self.added_constraints:
+                    gmodel.remove(con)
 
-            self.added_constraints = []
-            # self.last_fail = None
-            self.temp_alpha.append(alphas)
-            alphas = self.do_gurobi_step(strengthen, previous_alphas=self.alphas, tried_vars_improve=tried_vars_improve)
-        if alphas is None:
+                self.added_constraints = []
+                # self.last_fail = None
+                self.temp_alpha.append(alphas)
+                alphas = self.do_gurobi_step(strengthen, previous_alphas=self.alphas, tried_vars_improve=tried_vars_improve)
+            else:
+                self.UNSAT = True
+
+        if self.UNSAT:
+            self.equations = None
+            return None
+
+        if alphas is None and not self.UNSAT:
             assert False
-        # TODO: Make sure we dispose the model
-        # gmodel.dispose()
-        print("FEASIBLE alpahs = {}".format([round(a, 3) for a in alphas]))
+
+        gmodel.dispose()
+        env.dispose()
+
+        print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0], [round(a, 3) for a in alphas]))
 
         return alphas
 
@@ -488,6 +501,9 @@ class AlphasGurobiBased:
             # hyptoesis_ce = self.extract_hyptoesis_from_counter_example(sat_vars)
 
             new_alphas = self.do_gurobi_step(strengthen, alphas_sum=new_min_sum, previous_alphas=self.alphas)
+            if self.UNSAT:
+                return None
+
             if new_alphas == self.alphas:
                 new_alphas = self.do_gurobi_step(strengthen, alphas_sum=new_min_sum, counter_examples=counter_examples,
                                                  loop_detected=True)
@@ -520,6 +536,12 @@ class AlphasGurobiBased:
         return
 
     def get_equations(self):
+        if self.UNSAT:
+            return None
+
+        if self.equations[0] is None:
+            # First call, first update the equations
+            self.do_step(True)
         return self.equations
 
     def get_alphas(self):

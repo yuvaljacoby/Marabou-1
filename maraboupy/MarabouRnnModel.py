@@ -3,7 +3,9 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 
 from maraboupy import MarabouCore
-# from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells
+from datetime import datetime
+
+MARABOU_TIMEOUT = 120
 
 SMALL = 10 ** -2
 LARGE = 5000
@@ -124,6 +126,9 @@ class RnnMarabouModel():
             self._rnn_prev_iteration_idx.append([i - 2 for i in layer_out_idx])
 
         self.num_rnn_layers = len(self.rnn_out_idx)
+
+    def __del__(self):
+        tf.keras.backend.clear_session()
 
     def get_start_end_idxs(self, rnn_layer=0):
         # rnn_start_idxs = []
@@ -265,7 +270,6 @@ class RnnMarabouModel():
             initial_values.append((relu(min_val), relu(max_val)))
             assert initial_values[-1][0] >= 0 and initial_values[-1][1] >= 0
 
-
             # There are rounding problems between this calculation and marabou, query marabou to make sure it's OK
             # Need to add bounds on the previous layer
             if layer_idx == 0:
@@ -338,7 +342,13 @@ class RnnMarabouModel():
             while not proved:
                 eq.setScalar(beta)
                 self.network.addEquation(eq)
-                vars1, stats1 = MarabouCore.solve(self.network, "", 0, 0)
+                # print("{}: start improve query".format(str(datetime.now()).split(".")[0]), flush=True)
+                vars1, stats1 = MarabouCore.solve(self.network, "", MARABOU_TIMEOUT, 0)
+                # print("{}: finish improve  query".format(str(datetime.now()).split(".")[0]), flush=True)
+                if stats1.hasTimedOut():
+                    print("Marabou has timed out")
+                    raise TimeoutError()
+                # vars1, stats1 = MarabouCore.solve(self.network, "", 120, 0)
                 if len(vars1) > 0:
                     proved = False
                     if more_is_better:
@@ -394,9 +404,9 @@ class RnnMarabouModel():
         initial_values = []
         for i in range(len(max_values)):
             if max_values[i] >= min_values[i]:
-                initial_values.append((min_values[i], max_values[i] ))
+                initial_values.append((min_values[i], max_values[i]))
             else:
-                initial_values.append((max_values[i], min_values[i] ))
+                initial_values.append((max_values[i], min_values[i]))
 
         # query_marabou_to_improve_values()
         return initial_values

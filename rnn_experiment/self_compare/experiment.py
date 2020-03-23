@@ -28,6 +28,7 @@ EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)
 SBATCH_FOLDER = "sbatch_exp"
 
+DEBUG = 1
 
 def classes20_1rnn2_1fc2():
     n_inputs = 40
@@ -524,6 +525,8 @@ def run_controlled_experiment(model_name, algorithms_ptrs, points, radius=0.01, 
             row_result = run_one_comparison(point, radius, y_idx_max, other_idx, model_path, n_iterations,
                                             algorithms_ptrs, steps_num=steps_num, return_dict=True)
         except Exception as e:
+            if DEBUG:
+                raise e
             row_result = {'point': point, 'error': e, 'error_traceback': traceback.format_exc(), 'result' : False}
         results.update({i + start_idx: row_result})
         pickle.dump(results, open("controlled_{}.pkl".format(pickle_path), "wb"))
@@ -808,9 +811,9 @@ if __name__ == "__main__":
 
     # model_path = "models/model_20classes_rnn16_fc16_epochs50.h5"
     # model_path = "models/model_20classes_rnn16_fc16_fc16_epochs50.h5"
-    for model_path in ["models/model_20classes_rnn16_fc16_fc16_epochs50.h5",
-                       "models/model_20classes_rnn16_fc16_epochs50.h5",
-                       "model_20classes_rnn16_fc16_epochs200.h5"]:
+    for model_path in ["models/model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_epochs50.h5",
+                        "models/model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_fc32_epochs50.h5"
+                       ]:
         points = pickle.load(open("pickles/points.pkl", "rb"))
         n_iterations = 4
         radius = 0
