@@ -5,7 +5,7 @@ from rnn_algorithms.GurobiBased import AlphasGurobiBasedMultiLayer, AlphasGurobi
 from rnn_algorithms.Update_Strategy import Relative_Step
 from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
 
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/home/yuval/projects/Marabou/"
 import sys
 
 sys.path.insert(0, BASE_FOLDER)
@@ -21,39 +21,13 @@ from prettytable import PrettyTable
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
-
+from rnn_experiment.self_compare.create_sbatch_iterations_exp import BASE_FOLDER, OUT_FOLDER
 # BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
-OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
+# OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
 
 IN_SHAPE = (40,)
 
-def create_sbatch(models_folder, output_folder):
-    print("*"*100)
-    print("creating sbatch")
-    print("*"*100)
-    os.makedirs(output_folder, exist_ok=1)
-    for model in os.listdir(models_folder):
-        exp_time = str(datetime.now()).replace(" ", "-")
-        with open(os.path.join(output_folder, "run_iterations_exp_" + model + ".sh"), "w") as slurm_file:
-            exp = "iterations".format()
-            model_name = model[:model.rfind('.')]
-            slurm_file.write('#!/bin/bash\n')
-            slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model_name, exp, exp_time))
-            # slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
-            slurm_file.write('#SBATCH --cpus-per-task=2\n')
-            # slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
-            slurm_file.write('#SBATCH --output={}\n'.format(os.path.join(OUT_FOLDER, model_name)))
-            # slurm_file.write(f'#SBATCH --partition={partition}\n')
-            slurm_file.write('#SBATCH --time=24:00:00\n')
-            slurm_file.write('#SBATCH --mem-per-cpu=300\n')
-            slurm_file.write('#SBATCH --mail-type=BEGIN,END,FAIL\n')
-            slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
-            slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
-            slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
-            slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
-            slurm_file.write('source /cs/labs/guykatz/yuvalja/tensorflow/bin/activate.csh\n')
-            slurm_file.write('python3 rnn_experiment/self_compare/IterationsExperiment.py {} {}\n'.format("exp", model))
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n_iterations, steps):
     queries_stats = {}
@@ -273,12 +247,10 @@ def parse_dictionary(exp):
         print("{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time))
     return d
 
+
 def parse_inputs(t_range, net_options, points, other_idx_method):
     save_results = True
 
-    if sys.argv[1] == 'sbatch':
-        create_sbatch(sys.argv[2], sys.argv[3])
-        exit(0)
     if sys.argv[1] == 'analyze':
         parse_results_file(sys.argv[2])
     if sys.argv[1] == 'exp':
