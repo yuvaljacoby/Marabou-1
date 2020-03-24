@@ -1,30 +1,24 @@
-from functools import partial
-from typing import Tuple, List, Union
-
-from rnn_algorithms.GurobiBased import AlphasGurobiBasedMultiLayer, AlphasGurobiBased
-from rnn_algorithms.Update_Strategy import Relative_Step
-from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
-
-# BASE_FOLDER = "/home/yuval/projects/Marabou/"
-import sys
-
-sys.path.insert(0, BASE_FOLDER)
+# sys.path.insert(0, BASE_FOLDER)
 import os
 import pickle
 import sys
 from collections import defaultdict
 from datetime import datetime
+from functools import partial
 from timeit import default_timer as timer
+from typing import Tuple, List, Union
 
 import numpy as np
 from prettytable import PrettyTable
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
+from rnn_algorithms.GurobiBased import AlphasGurobiBased
+from rnn_algorithms.Update_Strategy import Relative_Step
 from rnn_experiment.self_compare.create_sbatch_iterations_exp import BASE_FOLDER, OUT_FOLDER
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
+
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
-# OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
 
 IN_SHAPE = (40,)
 
@@ -57,7 +51,9 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
         net_name = ''.join(net_options[0].split('.')[:-1]).split('/')[-1]
     else:
         net_name = ''
-    pickle_path = os.path.join(OUT_FOLDER, 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(net_name))
+    pickle_path = os.path.join(OUT_FOLDER,
+                               'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(
+                                   net_name))
     if continue_pickle is not None and os.path.exists(continue_pickle):
         partial_results = pickle.load(open(continue_pickle, "rb"))
         pickle_path = continue_pickle
@@ -189,7 +185,7 @@ def parse_dictionary(exp):
     timeout_exp = []
     no_timeout_exp = []
     for e in exp:
-        if 'number_of_updates' in e['stats'] and e['stats']['number_of_updates'] == e['stats']['property_queries']\
+        if 'number_of_updates' in e['stats'] and e['stats']['number_of_updates'] == e['stats']['property_queries'] \
                 and not e['result']:
             timeout_exp.append(e)
         elif 'FFNN_Timeout' in e['stats']:
@@ -204,7 +200,7 @@ def parse_dictionary(exp):
     else:
         avg_total_time_no_timeout = (sum([e['time'] for e in exp]) - sum([e['time'] for e in timeout_exp])) / (
                 len(exp) - len(timeout_exp))
-    assert np.abs(avg_total_time_no_timeout - safe_mean([e['time'] for e in no_timeout_exp])) < 2*10**-2, \
+    assert np.abs(avg_total_time_no_timeout - safe_mean([e['time'] for e in no_timeout_exp])) < 2 * 10 ** -2, \
         "{}, {}".format(avg_total_time_no_timeout, safe_mean([e['time'] for e in no_timeout_exp]))
 
     d = {
@@ -307,13 +303,13 @@ if __name__ == "__main__":
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
 
     gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                        use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     if len(sys.argv) > 1:
         parse_inputs(t_range, net_options, points, other_idx_method)
 
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,
     #                     other_idx_method, gurobi_ptr, steps_num=10)
-    #run_all_experiments([net_options[0]], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
+    # run_all_experiments([net_options[0]], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
     exit(0)
     # other_idx_method = [lambda x: np.argmin(x)]
     point = np.array([-1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775,
@@ -326,9 +322,9 @@ if __name__ == "__main__":
     # net = "model_20classes_rnn4_rnn2_fc16_epochs3.h5"
     net = "model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5"
     t_range = range(8, 10)
-    #gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
+    # gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
     #                           use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    #gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
+    # gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
     #                     use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    #run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
+    # run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
     # run_all_experiments([net_options[3]], points[:2], t_range, other_idx_method, gurobi_multi, save_results=0, steps_num=2)
