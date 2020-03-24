@@ -1,6 +1,6 @@
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-# import sys
-# sys.path.insert(0, BASE_FOLDER)
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+import sys
+sys.path.insert(0, BASE_FOLDER)
 
 import os
 import pickle
@@ -21,8 +21,8 @@ from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+#BASE_FOLDER = "/home/yuval/projects/Marabou/"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
 EXPERIMENTS_FOLDER = os.path.join(BASE_FOLDER, "working_arrays/")
 IN_SHAPE = (40,)

@@ -17,17 +17,21 @@ from datetime import datetime
 from timeit import default_timer as timer
 
 import numpy as np
-from prettytable import PrettyTable
+#from prettytable import PrettyTable
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 
-# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
-MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
+BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
+OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
 
 IN_SHAPE = (40,)
 
 def create_sbatch(models_folder, output_folder):
+    print("*"*100)
+    print("creating sbatch")
+    print("*"*100)
     os.makedirs(output_folder, exist_ok=1)
     for model in os.listdir(models_folder):
         exp_time = str(datetime.now()).replace(" ", "-")
@@ -46,7 +50,7 @@ def create_sbatch(models_folder, output_folder):
             slurm_file.write('#SBATCH --mail-type=BEGIN,END,FAIL\n')
             slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
             slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
-            slurm_file.write('export LD_LIBRARY_PATH=/cd/usr/yuvalja/projects/Marabou\n')
+            slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
             slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
             slurm_file.write('python3 rnn_experiment/self_compare/IterationsExperiment.py {} {}\n'.format("exp", model))
 
@@ -78,7 +82,7 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
         net_name = ''.join(net_options[0].split('.')[:-1]).split('/')[-1]
     else:
         net_name = ''
-    pickle_path = 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(net_name)
+    pickle_path = os.path.join(OUT_FOLDER, 'gurobi' + str(datetime.now()).replace('.', '').replace(' ', '') + "{}.pkl".format(net_name))
     if continue_pickle is not None and os.path.exists(continue_pickle):
         partial_results = pickle.load(open(continue_pickle, "rb"))
         pickle_path = continue_pickle
@@ -273,6 +277,7 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
 
     if sys.argv[1] == 'sbatch':
         create_sbatch(sys.argv[2], sys.argv[3])
+        exit(0)
     if sys.argv[1] == 'analyze':
         parse_results_file(sys.argv[2])
     if sys.argv[1] == 'exp':
@@ -324,19 +329,18 @@ if __name__ == "__main__":
     # other_idx_method = [lambda x: np.argmin(x)]
 
     other_idx_method = [lambda x: np.argsort(x)[-i] for i in range(2, 7)]
-    # gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-    #                      use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    gurobi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
 
     t_range = range(2, 21)
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
 
+    gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
+                        use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     if len(sys.argv) > 1:
         parse_inputs(t_range, net_options, points, other_idx_method)
+
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,
     #                     other_idx_method, gurobi_ptr, steps_num=10)
-    run_all_experiments([net_options[0]], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
+    #run_all_experiments([net_options[0]], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
     exit(0)
     # other_idx_method = [lambda x: np.argmin(x)]
     point = np.array([-1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775,
@@ -349,9 +353,9 @@ if __name__ == "__main__":
     # net = "model_20classes_rnn4_rnn2_fc16_epochs3.h5"
     net = "model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5"
     t_range = range(8, 10)
-    gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                               use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
+    #gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
+    #                           use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    #gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
+    #                     use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    #run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
     # run_all_experiments([net_options[3]], points[:2], t_range, other_idx_method, gurobi_multi, save_results=0, steps_num=2)
