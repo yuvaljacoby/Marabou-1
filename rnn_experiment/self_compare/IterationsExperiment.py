@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
 
-BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
+# BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
 OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
 
@@ -36,14 +36,14 @@ def create_sbatch(models_folder, output_folder):
     for model in os.listdir(models_folder):
         exp_time = str(datetime.now()).replace(" ", "-")
         with open(os.path.join(output_folder, "run_iterations_exp_" + model + ".sh"), "w") as slurm_file:
-            exp = "iterations_{}".format(model[:model.rfind('.')])
-            job_output_rel_path = "slurm_{}_{}.out".format(exp, exp_time)
+            exp = "iterations".format()
+            model_name = model[:model.rfind('.')]
             slurm_file.write('#!/bin/bash\n')
-            slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model, exp, exp_time))
+            slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model_name, exp, exp_time))
             # slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
             slurm_file.write('#SBATCH --cpus-per-task=2\n')
             # slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
-            slurm_file.write('#SBATCH --output={}_{}\n'.format(model, job_output_rel_path))
+            slurm_file.write('#SBATCH --output={}\n'.format(os.path.join(OUT_FOLDER, model_name)))
             # slurm_file.write(f'#SBATCH --partition={partition}\n')
             slurm_file.write('#SBATCH --time=24:00:00\n')
             slurm_file.write('#SBATCH --mem-per-cpu=300\n')
