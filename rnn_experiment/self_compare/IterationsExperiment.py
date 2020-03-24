@@ -17,7 +17,7 @@ from datetime import datetime
 from timeit import default_timer as timer
 
 import numpy as np
-#from prettytable import PrettyTable
+from prettytable import PrettyTable
 from tqdm import tqdm
 
 from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
@@ -52,6 +52,7 @@ def create_sbatch(models_folder, output_folder):
             slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
             slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
             slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
+            slurm_file.write('source /cs/labs/guykatz/yuvalja/tensorflow/bin/activate.csh\n')
             slurm_file.write('python3 rnn_experiment/self_compare/IterationsExperiment.py {} {}\n'.format("exp", model))
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n_iterations, steps):
