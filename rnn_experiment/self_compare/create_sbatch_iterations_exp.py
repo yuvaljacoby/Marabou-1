@@ -26,7 +26,7 @@ def create_sbatch(models_folder, output_folder):
             # slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
             slurm_file.write('#SBATCH --cpus-per-task=2\n')
             # slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
-            slurm_file.write('#SBATCH --output={}\n'.format(os.path.join(OUT_FOLDER, model_name)))
+            slurm_file.write('#SBATCH --output={}.out\n'.format(os.path.join(OUT_FOLDER, model_name)))
             # slurm_file.write(f'#SBATCH --partition={partition}\n')
             slurm_file.write('#SBATCH --time=24:00:00\n')
             slurm_file.write('#SBATCH --mem-per-cpu=300\n')
