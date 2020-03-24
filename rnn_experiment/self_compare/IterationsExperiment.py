@@ -102,7 +102,10 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
                         pbar.update(1)
                         if save_results:
                             pickle.dump(results, open(pickle_path, "wb"))
-    parse_results_file(pickle_path)
+    if len(net_options) == 1:
+        parse_results_file(pickle_path, t_range=t_range)
+    else:
+        parse_results_file([(net_name, pickle_path)], t_range=t_range)
     return results
 
 
@@ -272,6 +275,7 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
 
 
 if __name__ == "__main__":
+    
     # parse_results_file([
     #     ('rnn2_fc0', "pickles/final_gurobi_exps/rnn2_fc0.pkl"),
     #     ('rnn2_fc1', "pickles/final_gurobi_exps/rnn2_fc1.pkl"),
