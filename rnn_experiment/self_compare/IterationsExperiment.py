@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
     t_range = range(2, 21)
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
-    
+
     gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     if len(sys.argv) > 1:
