@@ -16,7 +16,6 @@ def check_if_model_in_dir(model_name: str, output_folder: str):
         return False
     for f in os.listdir(output_folder):
         if model_name in f or model_name[:model_name.rfind('.')] in f:
-            print(model_name, f)
             return True
     return False
 
@@ -46,7 +45,7 @@ def create_sbatch(models_folder, output_folder, cache_folder=''):
             # slurm_file.write(f'#SBATCH --partition={partition}\n')
             slurm_file.write('#SBATCH --time=24:00:00\n')
             slurm_file.write('#SBATCH --mem-per-cpu=300\n')
-            slurm_file.write('#SBATCH --mail-type=BEGIN,END,FAIL\n')
+            slurm_file.write('#SBATCH --mail-type=END,FAIL\n')
             slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
             slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
             slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
