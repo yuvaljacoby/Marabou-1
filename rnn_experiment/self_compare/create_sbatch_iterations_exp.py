@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import sys
+import shutil
 
 BASE_FOLDER = "/home/yuval/projects/Marabou/"
 if os.path.exists("/cs/usr/yuvalja/projects/Marabou"):
@@ -10,14 +11,29 @@ OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
 os.makedirs(BASE_FOLDER, exist_ok=True)
 os.makedirs(OUT_FOLDER, exist_ok=True)
 
+def check_if_model_in_dir(model_name: str, output_folder: str):
+    if not output_folder:
+        return False
+    for f in os.listdir(output_folder):
+        if model_name in f or model_name[:model_name.rfind('.')] in f:
+            print(model_name, f)
+            return True
+    return False
 
-def create_sbatch(models_folder, output_folder):
+def create_sbatch(models_folder, output_folder, cache_folder=''):
     print("*" * 100)
-    print("creating sbatch")
+    print("creating sbatch {}".format('using cache {}'.format(cache_folder) if cache_folder else ''))
     print("*" * 100)
+
+    if cache_folder:
+        shutil.rmtree(output_folder)
+
     os.makedirs(output_folder, exist_ok=1)
     for model in os.listdir(models_folder):
         exp_time = str(datetime.now()).replace(" ", "-")
+
+        if check_if_model_in_dir(model, cache_folder):
+            continue
         with open(os.path.join(output_folder, "run_iterations_exp_" + model + ".sh"), "w") as slurm_file:
             exp = "iterations".format()
             model_name = model[:model.rfind('.')]
@@ -40,4 +56,4 @@ def create_sbatch(models_folder, output_folder):
 
 
 if __name__ == '__main__':
-    create_sbatch(sys.argv[1], sys.argv[2])
+    create_sbatch(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) >= 4 else '')

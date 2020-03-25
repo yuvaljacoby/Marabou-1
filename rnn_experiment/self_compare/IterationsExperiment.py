@@ -152,10 +152,13 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             gurobi_time = res['avg_step_time_no_timeout']
             ffnn_time = res['avg_invariant_time_no_timeout'] + res['avg_property_time_no_timeout']
             assert ffnn_time + gurobi_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
-            rows[t - t_range[0]].append("%.2f (%.2f,%.2f) success_rate: %d/%d ffnn_timeout: %d)" %
-                                        (avg_run_time, ffnn_time, gurobi_time, total_success, res['total'],
-                                         res['len_timeout']))
-            # print("net: {}, time: {} \n".format(net_name, time), parse_dictionary(value), "\n" + "#" * 100, "\n")
+            # rows[t - t_range[0]].append("%.2f (%.2f,%.2f) success_rate: %d/%d ffnn_timeout: %d" %
+            #                             (avg_run_time, ffnn_time, gurobi_time, total_success, res['total'],
+            #                              res['len_timeout']))
+
+            rows[t - t_range[0]].append("%.2f (%.2f,%.2f) %d/%d (%d)" % (avg_run_time, ffnn_time, gurobi_time,
+                                                                         total_success, res['total'],
+                                                                         res['len_timeout']))
 
     for row in rows:
         x.add_row(row)
@@ -198,21 +201,13 @@ def parse_dictionary(exp):
 
     safe_mean = lambda x: np.mean(x) if len(x) > 0 else 0
 
-    if len(exp) == len(timeout_exp):
-        avg_total_time_no_timeout = None
-    else:
-        avg_total_time_no_timeout = (sum([e['time'] for e in exp]) - sum([e['time'] for e in timeout_exp])) / (
-                len(exp) - len(timeout_exp))
-    assert np.abs(avg_total_time_no_timeout - safe_mean([e['time'] for e in no_timeout_exp])) < 2 * 10 ** -2, \
-        "{}, {}".format(avg_total_time_no_timeout, safe_mean([e['time'] for e in no_timeout_exp]))
-
     d = {
         'total': len(exp),
         'total_success': len(success_exp),
         'success_rate': len(success_exp) / len(exp),
         'len_timeout': len(timeout_exp),
         'avg_total_time': safe_mean([e['time'] for e in exp]),
-        'avg_total_time_no_timeout': avg_total_time_no_timeout,
+        'avg_total_time_no_timeout': safe_mean([e['time'] for e in no_timeout_exp]),
         'avg_invariant_time_no_timeout': safe_mean(
             [e['stats']['invariant_times']['avg'] for e in no_timeout_exp if 'invariant_times' in e['stats']]),
         'avg_property_time_no_timeout': safe_mean(
@@ -242,8 +237,8 @@ def parse_dictionary(exp):
     ffnn_time = d['avg_invariant_time_no_timeout'] + d['avg_property_time_no_timeout']
     avg_run_time = d['avg_total_time_no_timeout']
 
-    if ffnn_time + gurobi_time > avg_run_time:
-        print("{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time))
+    assert ffnn_time + gurobi_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
+    assert d['num_invariant_avg'] <= 1, "Found point that needed more then one invariant to prove!!! THIS IS GOOD"
     return d
 
 
@@ -274,12 +269,39 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
     exit(0)
 
 
+def compare_ephocs(pkl_dir: str, t_range):
+    def extract_model_name_ephocs(name):
+        m = 'rnn'
+        fc_count = 0
+        for w in name.split('_')[2:]:
+            if 'rnn' in w:
+                m += w.replace('rnn', '')
+            elif 'fc' in w:
+                fc_count += 1
+            else:
+                m += '_{}fc32'.format(fc_count)
+                ephocs = w.replace('.out', '')
+        return m, ephocs
+
+    models = defaultdict(list)
+    for f in os.listdir(pkl_dir):
+        if not f.endswith('pkl'):
+            continue
+        m, e = extract_model_name_ephocs(f)
+        models[m].append((e, os.path.join(OUT_FOLDER, f)))
+    for k, v in models.items():
+        print("Results for model: {}".format(k))
+
+        v = sorted(v, key=lambda x: x[0])
+        parse_results_file(v, t_range)
+        print("\n\n")
+
 if __name__ == "__main__":
-    
     # parse_results_file([
     #     ('rnn2_fc0', "pickles/final_gurobi_exps/rnn2_fc0.pkl"),
     #     ('rnn2_fc1', "pickles/final_gurobi_exps/rnn2_fc1.pkl"),
     #     ('rnn4_fc1', "pickles/final_gurobi_exps/rnn4_fc1.pkl"),
+
     #     ('rnn4_fc2', "pickles/final_gurobi_exps/rnn4_fc2.pkl"),
     #     ('rnn4_rnn2', "pickles/final_gurobi_exps/rnn4_rnn2.pkl"),
     #     ('rnn4_rnn4_fc4', "pickles/final_gurobi_exps/rnn4_rnn4_fc4.pkl"),
@@ -305,7 +327,8 @@ if __name__ == "__main__":
 
     t_range = range(2, 21)
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
-
+    compare_ephocs(OUT_FOLDER, t_range)
+    exit(0)
     gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     if len(sys.argv) > 1:

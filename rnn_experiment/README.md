@@ -15,11 +15,16 @@ args:
 40\)
 * 0 - in which index to start running in the list points (in order to enable
 parallel execution) 
-* the "tee" trick is to display the outputs and save them to the file.
+* thsages to the staff's personal emails "tee" trick is to display the outputs and save them to the file.
 
 
 ## Iterations Experiment 
 Is used to compare a single algorithm throughout time.  
+
+#### How to run on cluster:
+first we need to create the sbatch files, since we PYTHONPATH and stuff like
+that we run:
+    ./run_py.sh 'rnn_experiment/self_compare/create_sbatch_iterations_exp.py FMCAD_EXP/models/ FMCAD_EXP/sbatch/'
 
 
 ### Generating Points
@@ -30,3 +35,5 @@ Running:
     PYTHONPATH=. python3 rnn_experiment/self_compare/generate_points.py
     
 Will create the pickle (if one passes an argument it's the folder to put the pickle in, otherwise uses default) 
+
+
