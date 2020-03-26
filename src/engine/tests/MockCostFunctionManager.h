@@ -149,6 +149,12 @@ public:
     {
         return -1;
     }
+
+    void updateLinearSolved()
+    {
+        
+    }
+
 };
 
 #endif // __MockCostFunctionManager_h__

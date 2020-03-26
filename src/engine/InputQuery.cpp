@@ -233,6 +233,8 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
     _inputIndexToVariable = other._inputIndexToVariable;
     _variableToOutputIndex = other._variableToOutputIndex;
     _outputIndexToVariable = other._outputIndexToVariable;
+    _optimize = other._optimize;
+    _optimizationVariable = other._optimizationVariable;
 
     freeConstraintsIfNeeded();
     for ( const auto &constraint : other._plConstraints )
@@ -402,6 +404,7 @@ void InputQuery::markOutputVariable( unsigned variable, unsigned outputIndex )
 
 void InputQuery::markOptimizationVariable( unsigned variable )
 {
+    printf("Marking optimization variable as %d\n", variable);
     _optimizationVariable = variable;
 }
 
@@ -507,6 +510,7 @@ void InputQuery::setSymbolicBoundTightener( SymbolicBoundTightener *sbt )
 void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldIndexToNewIndex,
                                            const Map<unsigned, unsigned> &mergedVariables )
 {
+
     Map<unsigned, unsigned> newInputIndexToVariable;
     unsigned currentIndex = 0;
 
@@ -530,7 +534,10 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             // In case of a chained merging, go all the way to the final target
             unsigned finalMergeTarget = mergedVariables[it.second];
             while ( mergedVariables.exists( finalMergeTarget ) )
+            {
+                printf("Current merge target is: %d\n", finalMergeTarget);
                 finalMergeTarget = mergedVariables[finalMergeTarget];
+            }
             printf("Final merge target is: %d \n", finalMergeTarget);
             newInputIndexToVariable[it.first] = finalMergeTarget; 
             ++currentIndex;
@@ -544,6 +551,7 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             ++currentIndex;
         }
     }
+
     _inputIndexToVariable = newInputIndexToVariable;
 
     _variableToInputIndex.clear();
@@ -556,8 +564,7 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     // Output variables
     for ( const auto &it : _outputIndexToVariable )
     {
-        printf("\n it.first: %d, it.second: %d, current index: %d\n", it.first, it.second, currentIndex);
-
+        printf("Checking if %d is in merged variables\n", it.second);
         if ( mergedVariables.exists( it.second ) )
         {
             if (!_optimize) 
@@ -569,16 +576,16 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             else
             {
             
-            // Why do we need the count? INDEXING FEELS WRONG HERE?????
-            printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
+                // Why do we need the count? INDEXING FEELS WRONG HERE?????
+                printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
 
-            // In case of a chained merging, go all the way to the final target
-            unsigned finalMergeTarget = mergedVariables[it.second];
-            while ( mergedVariables.exists( finalMergeTarget ) )
-                finalMergeTarget = mergedVariables[finalMergeTarget];
-            printf("Final merge target is: %d \n", finalMergeTarget);
-            newOutputIndexToVariable[it.first] = finalMergeTarget; 
-            ++currentIndex;
+                // In case of a chained merging, go all the way to the final target
+                unsigned finalMergeTarget = mergedVariables[it.second];
+                while ( mergedVariables.exists( finalMergeTarget ) )
+                    finalMergeTarget = mergedVariables[finalMergeTarget];
+                printf("Final merge target is: %d \n", finalMergeTarget);
+                newOutputIndexToVariable[currentIndex] = finalMergeTarget; 
+                ++currentIndex;
 
             }
         }
@@ -598,9 +605,13 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     for ( auto it : _outputIndexToVariable )
         _variableToOutputIndex[it.second] = it.first;
 
+
     // Optimization variable
     if (_optimize)
     {
+
+        //TODO (Chris Strong): check this function - also if it both merges and re-indexes will this change things?
+        //printf("old to new of opt var: %d old, %d new", _optimizationVariable, oldIndexToNewIndex[_optimizationVariable]);
         if ( mergedVariables.exists( _optimizationVariable ) )
         {
             printf("\n!!!!!!!!!!!Merging optimization variable!!!!!!!!!!\n");
@@ -615,9 +626,11 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             printf("Final merge target is: %d \n", finalMergeTarget);
             _optimizationVariable = finalMergeTarget; 
         }
+
+
         if ( oldIndexToNewIndex.exists( _optimizationVariable ) )
         {
-            printf("\n!!!!!!!!!!!Reindexing optimization variable!!!!!!!!!!\n");
+            printf("\n!!!!!!!!!!!Reindexing optimization variable from %d to %d!!!!!!!!!!\n", _optimizationVariable, oldIndexToNewIndex[_optimizationVariable]);
 
             _optimizationVariable = oldIndexToNewIndex[_optimizationVariable];
         }

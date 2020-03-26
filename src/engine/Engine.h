@@ -170,6 +170,15 @@ private:
         PERFORMED_WEAK_RESTORATION = 2,
     };
 
+    bool _noEnteringCandidatesLeft = false;
+    double _bestOptValSoFar = -100000000000;
+    Map<unsigned, double> _bestSolutionSoFar;
+
+    // Store the current assignment of input variables into _bestSolutionSoFar
+    // If preprocessing occurred, this backtracks to find which input variables
+    // the current set of variables corresponds to
+    void updateBestSolutionSoFar();
+
     /*
       Perform bound tightening operations that require
       access to the explicit basis matrix.

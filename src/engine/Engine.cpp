@@ -235,7 +235,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 // We have violated piecewise-linear constraints.
                 performConstraintFixingStep();
 
-                // Finally, take this opporunity to tighten any bounds
+                // Finally, take this opportunity to tighten any bounds
                 // and perform any valid case splits.
                 tightenBoundsOnConstraintMatrix();
                 applyAllBoundTightenings();
@@ -327,7 +327,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
     {
-        printf("\n Starting main loop :D \n");
+        //printf("\n Starting main loop :D - best so far: %f\n", _bestOptValSoFar);
+
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
         mainLoopStart = mainLoopEnd;
@@ -417,7 +418,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
-                printf("Splitting Cases\n");
+                //printf("Splitting Cases\n");
 
                 _smtCore.performSplit();
                 splitJustPerformed = true;
@@ -432,12 +433,32 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 throw InfeasibleQueryException();
             }
 
-            if ( allVarsWithinBounds() )
+            if ( allVarsWithinBounds() && _noEnteringCandidatesLeft)
             {
-                printf("Linear Portion Solved\n");
-                _costFunctionManager->computeCoreCostFunction();
+                //printf("Linear Portion Solved and reached optimum\n");
+                double curOptValue = _tableau->getValue(_costFunctionManager->getOptimizationVariable());
+                //printf("Value of opt var: %f\n", curOptValue);
 
-                _costFunctionManager->dumpCostFunction();
+                // Trim this branch if this value is less than the best we've seen so far
+                // even if the nonlinear constraints are violated
+                if (curOptValue < _bestOptValSoFar)
+                {
+                    printf( "\n Trimming this branch \n" );
+                    if ( !_smtCore.popSplit() )
+                    {
+                        printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
+                        // TODO (Chris Strong): Rethink how we want to return 
+                        _exitCode = Engine::SAT;
+                        return true;
+                    }
+                    else
+                    {
+                        splitJustPerformed = true;
+
+                    }
+                }
+
+                _costFunctionManager->computeCoreCostFunction();
 
                 // The linear portion of the problem has been solved.
                 // Check the status of the PL constraints
@@ -464,8 +485,30 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         printf( "\nEngine::solve: SAT assignment found\n" );
                         _statistics.print();
                     }
-                    _exitCode = Engine::SAT;
-                    return true;
+                    // We've found an optimum - update our best so far if needed - this completes our search of this subtree
+                    if (_bestOptValSoFar < curOptValue)
+                    {
+                        _bestOptValSoFar = curOptValue;
+                        
+                        // Update the best input we've seen so far
+                        updateBestSolutionSoFar();
+
+                    }
+                    // Now, pop one to keep the search going
+                    if( !_smtCore.popSplit() )
+                    {
+                        printf("\nWe've explored the full tree with opt val (print 2): %f\n", _bestOptValSoFar);
+                        // TODO (Chris Strong): Rethink how we want to return 
+                        _exitCode = Engine::SAT;
+                        return true;
+                    }
+                    else
+                    {
+                        splitJustPerformed = true;
+
+                    }
+
+                    continue;
                 }
 
                 // We have violated piecewise-linear constraints.
@@ -486,6 +529,30 @@ bool Engine::optimize( unsigned timeoutInSeconds )
 
             // We have out-of-bounds variables.
             performSimplexStep();
+            if (_noEnteringCandidatesLeft)
+            {
+                // We've found an optimum
+                if ( allVarsWithinBounds() )
+                {
+                    //printf("\nWe've found an optimum!!!!!!!\n");
+                }
+                // The query is infeasible if there's no more options but we're not within bounds yet.
+                else
+                {
+                    //printf("\n Infeasible query!!!!!!!\n");
+                    if( !_smtCore.popSplit() )
+                    {
+                        printf("\nWe've explored the full tree with opt val (print 3): %f\n", _bestOptValSoFar);
+                        // TODO (Chris Strong): Rethink how we want to return 
+                        _exitCode = Engine::SAT;
+                        return true;
+                    }
+                    else
+                    {
+                        splitJustPerformed = true;
+                    }
+                }
+            }
 
             continue;
         }
@@ -524,6 +591,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             {
                 if ( _verbosity > 0 )
                 {
+
                     printf( "\nEngine::solve: UNSAT query\n" );
                     _statistics.print();
                 }
@@ -581,7 +649,8 @@ void Engine::performConstraintFixingStep()
     reportPlViolation();
 
     // Attempt to fix the constraint
-    //fixViolatedPlConstraintIfPossible();
+    if(!_costFunctionManager->getOptimize())
+        fixViolatedPlConstraintIfPossible();
 
     struct timespec end = TimeUtils::sampleMicro();
     _statistics.addTimeConstraintFixingSteps( TimeUtils::timePassed( start, end ) );
@@ -727,12 +796,18 @@ void Engine::performSimplexStep()
         }
         else
         {
+            if (_costFunctionManager->getOptimize())
+            {
+                _noEnteringCandidatesLeft = true;
+                return;
+            }
             // Cost function is fresh --- failure is real.
             struct timespec end = TimeUtils::sampleMicro();
             _statistics.addTimeSimplexSteps( TimeUtils::timePassed( start, end ) );
             throw InfeasibleQueryException();
         }
     }
+    _noEnteringCandidatesLeft = false;
 
     // Set the best choice in the tableau
     _tableau->setEnteringVariableIndex( bestEntering );
@@ -1308,9 +1383,6 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
 
     struct timespec start = TimeUtils::sampleMicro();
 
-    _costFunctionManager->setOptimize(inputQuery.getOptimize());
-    _costFunctionManager->setOptimizationVariable(inputQuery.getOptimizationVariable());
-
     try
     {
         informConstraintsOfInitialBounds( inputQuery );
@@ -1359,14 +1431,66 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
         return false;
     }
 
+
+    // Update at the end so that the optimization variable can get reassigned if need be.
+    _costFunctionManager->setOptimize(_preprocessedQuery.getOptimize());
+    _costFunctionManager->setOptimizationVariable(_preprocessedQuery.getOptimizationVariable());
+
     log( "processInputQuery done\n" );
 
     _smtCore.storeDebuggingSolution( _preprocessedQuery._debuggingSolution );
     return true;
 }
 
+// Update the best solution so far with the current assignment
+void Engine::updateBestSolutionSoFar()
+{
+    for ( unsigned i = 0; i < _preprocessedQuery.getNumberOfVariables(); ++i )
+    {
+        if ( _preprocessingEnabled )
+        {
+            // Has the variable been merged into another?
+            unsigned variable = i;
+            while ( _preprocessor.variableIsMerged( variable ) )
+                variable = _preprocessor.getMergedIndex( variable );
+
+
+            // Fixed variables are easy: return the value they've been fixed to.
+            if ( _preprocessor.variableIsFixed( variable ) )
+            {
+                _bestSolutionSoFar[i] = _preprocessor.getFixedValue( variable );
+                continue;
+            }
+
+            // We know which variable to look for, but it may have been assigned
+            // a new index, due to variable elimination
+            variable = _preprocessor.getNewIndex( variable );
+
+            // Finally, set the assigned value
+            _bestSolutionSoFar[i] = _tableau->getValue( variable );
+        }
+        else
+        {
+            _bestSolutionSoFar[i] = _tableau->getValue( i );
+
+        }       
+
+    }
+}
+
 void Engine::extractSolution( InputQuery &inputQuery )
 {
+    // Set it using the best solution found so far
+    if (_costFunctionManager->getOptimize()) {
+        printf("Preprocessing is %d\n", _preprocessingEnabled);
+
+        for (unsigned i = 0; i < inputQuery.getNumberOfVariables(); ++i) {
+            inputQuery.setSolutionValue(i, _bestSolutionSoFar.get(i));
+        }
+        return;
+    }
+
+
     for ( unsigned i = 0; i < inputQuery.getNumberOfVariables(); ++i )
     {
         if ( _preprocessingEnabled )

@@ -733,6 +733,7 @@ void Tableau::performPivot()
 {
     if ( _leavingVariable == _m )
     {
+
         if ( _statistics )
             _statistics->incNumTableauBoundHopping();
 
@@ -767,6 +768,27 @@ void Tableau::performPivot()
     unsigned currentBasic = _basicIndexToVariable[_leavingVariable];
     unsigned currentNonBasic = _nonBasicIndexToVariable[_enteringVariable];
 
+/*
+    _costFunctionManager->dumpCostFunction();
+    dumpAssignment();
+
+    printf("Tableau performing pivot. Entering: %u, Leaving: %u\n",
+                  _nonBasicIndexToVariable[_enteringVariable],
+                  _basicIndexToVariable[_leavingVariable] );
+
+    printf("Leaving variable %s. Current value: %.15lf. Range: [%.15lf, %.15lf]\n",
+                  _leavingVariableIncreases ? "increases" : "decreases",
+                  _basicAssignment[_leavingVariable],
+                  _lowerBounds[currentBasic], _upperBounds[currentBasic] );
+
+    printf("Entering variable %s. Current value: %.15lf. Range: [%.15lf, %.15lf]\n",
+                  FloatUtils::isNegative( _costFunctionManager->getCostFunction()[_enteringVariable] ) ?
+                  "increases" : "decreases",
+                  _nonBasicAssignment[_enteringVariable],
+                  _lowerBounds[currentNonBasic], _upperBounds[currentNonBasic] );
+    printf("Change ratio is: %.15lf\n", _changeRatio );
+*/
+
     log( Stringf( "Tableau performing pivot. Entering: %u, Leaving: %u",
                   _nonBasicIndexToVariable[_enteringVariable],
                   _basicIndexToVariable[_leavingVariable] ) );
@@ -788,6 +810,11 @@ void Tableau::performPivot()
     double pivotEntryByRow = _pivotRow->_row[_enteringVariable]._coefficient;
     if ( !FloatUtils::isZero( pivotEntryByRow - pivotEntryByColumn, GlobalConfiguration::PIVOT_ROW_AND_COLUMN_TOLERANCE ) )
         throw MalformedBasisException();
+/*
+
+    printf("ASSIGNMENT AFTER PIVOT");
+    dumpAssignment();
+*/
 
     updateAssignmentForPivot();
     updateCostFunctionForPivot();
@@ -1001,10 +1028,6 @@ void Tableau::standardRatioTest( double *changeColumn )
     // numbering each of the basic variables
     List<unsigned> leavingVariableCandidates;
     getLeavingCandidates(leavingVariableCandidates);
-    for (unsigned i : leavingVariableCandidates)
-    {
-        printf("leaving variable candidate: %d\n", i);
-    }
 
     double largestPivot = 0;
     if ( decrease )

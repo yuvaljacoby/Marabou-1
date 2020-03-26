@@ -40,6 +40,7 @@ public:
     void setOptimizationVariable( unsigned variable );
     bool getOptimize();
     unsigned getOptimizationVariable();
+    void updateLinearSolved();
 
 
     /*
@@ -111,6 +112,7 @@ private:
 
     bool _optimize = false;
     unsigned _optimizationVariable = -1;
+    bool _linearSolved = false;
 
     /*
       Status of the cost function.

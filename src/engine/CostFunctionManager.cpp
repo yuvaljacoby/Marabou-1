@@ -145,26 +145,77 @@ void CostFunctionManager::computeCoreCostFunction()
       evaluation thereof on a specific point.
     */
 
+
+    // Once linear is solved, we won't need to check anymore since it will stay
+    if( _optimize)
+    {
+      //printf("Checking if linear solved in computeCoreCostFunction\n");
+      updateLinearSolved();
+    }
+
     std::fill( _costFunction, _costFunction + _n - _m, 0.0 );
 
-    computeBasicOOBCosts();
-    computeMultipliers();
-    computeReducedCosts();
+    // Phase I - find a feasible solution
+    if(!_linearSolved)
+    {
+      computeBasicOOBCosts();
+      computeMultipliers();
+      computeReducedCosts();
+    }
+    // Phase II - optimize our objective function
+    else
+    {
+      /*
+      printf("Opt var: %d\n", _optimizationVariable);
+      printf("Linear is solved, generating cost function to optimize\n");
+      printf("Value of opt var: %f\n", _tableau->getValue(_optimizationVariable));
+      printf("Val via basic assignment: %f\n", _tableau->getBasicAssignment( _tableau->variableToIndex(_optimizationVariable) ));
+      printf("Our opt variable is basic: %d\n", _tableau->isBasic(_optimizationVariable));
+      */
+      std::fill( _basicCosts, _basicCosts + _m, 0.0 );
+      _basicCosts[_tableau->variableToIndex(_optimizationVariable)] = -1.0;
+      computeMultipliers();
+      computeReducedCosts();
+    }
 
     if (_optimize)
     {
-      printf("\nIN COMPUTE COR COST FUNCTION \n");
-      printf("Opt variable is: %d \n", _optimizationVariable);
-      printf("n - m is: %d\n", _n - _m);
-      _costFunction[_optimizationVariable-1] = 1.0;
-      dumpCostFunction();
+      //printf("\nIN COMPUTE CORE COST FUNCTION \n");
+      //printf("Opt variable is: %d \n", _optimizationVariable);
+      //printf("n - m is: %d\n", _n - _m);
+      //printf("n + m is: %d\n", _n + _m);
+
     }
 
     _costFunctionStatus = ICostFunctionManager::COST_FUNCTION_JUST_COMPUTED;
 }
 
+void CostFunctionManager::updateLinearSolved()
+{
+      _linearSolved = !_tableau->existsBasicOutOfBounds();
+      //printf("Marked linear as solved: %d\n", _linearSolved);
+}
+
 void CostFunctionManager::adjustBasicCostAccuracy()
 {
+
+    if( _optimize)
+    {
+      //printf("Checking if linear solved in adjust basic cost accuracy\n");
+      updateLinearSolved();
+    }
+
+    // TODO (Chris Strong): Find what changes need to be made for this to work with optimization
+    // FOR NOW JUST THROW THIS TO THE GENERAL COMPUTE IT ALL FUNCTION
+    // fix this eventually? only need compute 1 thing so probably can just compute every time?
+    if (_linearSolved)
+    {
+      //printf("Updating cost function by recomputing from scratch\n");
+      computeCoreCostFunction();
+      return;
+    }
+
+
     unsigned variable;
     double assignment, lb, relaxedLb, ub, relaxedUb;
 
@@ -276,8 +327,10 @@ void CostFunctionManager::computeReducedCost( unsigned nonBasic )
     unsigned nonBasicIndex = _tableau->nonBasicIndexToVariable( nonBasic );
     _ANColumn = _tableau->getSparseAColumn( nonBasicIndex );
 
+
     for ( const auto &entry : *_ANColumn )
         _costFunction[nonBasic] -= ( _multipliers[entry._index] * entry._value );
+
 }
 
 void CostFunctionManager::dumpCostFunction() const
@@ -339,6 +392,22 @@ double CostFunctionManager::updateCostFunctionForPivot( unsigned enteringVariabl
                                                         const double *changeColumn
                                                         )
 {
+      if( _optimize)
+      {
+        //printf("Checking if linear solved in update for pivot\n");
+        updateLinearSolved();
+      }
+
+
+      // TODO (Chris Strong): Find what changes need to be made for this to work with optimization
+      // FOR NOW JUST THROW THIS TO THE GENERAL COMPUTE IT ALL FUNCTION
+      if (_linearSolved)
+      {
+        computeCoreCostFunction();
+        return -1.0;
+      }      
+
+
     /*
       This method is invoked when the non-basic _enteringVariable and
       basic _leaving variable are about to be swapped. It updates the
@@ -394,6 +463,7 @@ double CostFunctionManager::updateCostFunctionForPivot( unsigned enteringVariabl
     _basicCosts[leavingVariableIndex] = 0;
 
     _costFunctionStatus = ICostFunctionManager::COST_FUNCTION_UPDATED;
+
     return normalizedError;
 }
 
