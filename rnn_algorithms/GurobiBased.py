@@ -208,6 +208,72 @@ class AlphasGurobiBased:
         # self.update_next_idx_step()
         return self.equations
 
+    def calc_x_val(self, i:int, t: int) -> (int, int):
+        cond_x_u = 0  # LinExpr()
+        cond_x_l = 0  # LinExpr()
+        for j in range(len(self.xlim)):
+            if self.prev_layer_beta[0] is not None:
+                # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
+                # In this case we know xlim > 0
+                if self.w_in[j, i] >= 0:
+                    cond_x_u += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                else:
+                    cond_x_u += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+            else:
+                v1 = self.xlim[j][1] * self.w_in[j, i]
+                v2 = self.xlim[j][0] * self.w_in[j, i]
+                if v1 > v2:
+                    cond_x_u += v1
+                    cond_x_l += v2
+                else:
+                    cond_x_u += v2
+                    cond_x_l += v1
+
+            # TODO: I don't like this
+            cond_x_l = min(cond_x_l, 0)
+        return cond_x_l, cond_x_u
+
+    def get_gurobi_rhs(self, i:int, t: int) -> (LinExpr, LinExpr):
+        '''
+        The upper bound for guroib is: alpha_u[0] >= w_h * t * (alpha_u[i] + initial) (for all i) + x + b
+        :param i: The index on which we want the rhs
+        :param t: time stamp
+        :return: (cond_l, cond_u) each of type LinExpr
+        '''
+        #
+        cond_u = LinExpr()
+        cond_l = LinExpr()
+
+        for j in range(self.w_h.shape[0]):
+            if self.w_h[i, j] > 0:
+                cond_l += (self.alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+                cond_u += (self.alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+            else:
+                cond_l += (self.alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+                cond_u += (self.alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+
+        cond_x_l, cond_x_u = self.calc_x_val(i, t)
+        cond_u += cond_x_u + self.b[i]  # + SMALL
+        cond_l += cond_x_l + self.b[i]  # - SMALL
+
+        return cond_l, cond_u
+
+    def get_relu_constraint(self, gmodel, cond: LinExpr, i: int, t: int, upper_bound: bool):
+        first_letter = "u" if upper_bound else "l"
+        cond_f = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="{}b{}_t_{}".format(first_letter, i, t))
+        delta = gmodel.addVar(vtype=GRB.BINARY)
+        if upper_bound:
+            gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
+            gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
+            gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
+        else:
+            gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
+            gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
+            gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
+        return cond_f, delta
+
     def get_gurobi_basic_model(self):
         env = Env()
         gmodel = Model("test", env)
@@ -219,97 +285,30 @@ class AlphasGurobiBased:
         obj = LinExpr()
         for i in range(self.w_h.shape[0]):
             self.alphas_l.append(gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_l_{}".format(i)))
-            obj += -self.alphas_l[-1]
-            # gmodel.addConstr(alphas_l[i] >= 0, "alpha_l{}>=0".format(i, i))
 
-        for i in range(self.w_h.shape[0]):
+            # we want the lower bound to be as tight as possibole so we should prefer large numbers on small numbers
+            obj += -self.alphas_l[-1]
             self.alphas_u.append(gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_u_{}".format(i)))
             obj += self.alphas_u[-1]
-            gmodel.addConstr(self.alphas_u[i] >= SMALL + self.alphas_l[i], "alpha_l{}<alpha_u{}".format(i, i))
 
         gmodel.setObjective(obj, GRB.MINIMIZE)
-        # if alphas_sum:
-        #     gmodel.addConstr(obj >= alphas_sum, "minimum_alpha_sum")
-
-        # Add the constraints
-        cond_u_f = []
-        delta_u = []
-        cond_l_f = []
-        delta_l = []
 
         for i in range(self.w_h.shape[0]):
             # TODO: Should t start from zero or 1? start from zero for now
             for t in range(self.n_iterations):
-                # Conditions for the over approximation of the memory cell at every time point
-                cond_u = LinExpr()
-                cond_l = LinExpr()
-                cond_x_u = 0  # LinExpr()
-                cond_x_l = 0  # LinExpr()
-                for j in range(self.w_h.shape[0]):
-                    if self.w_h[i, j] > 0:
-                        cond_l += (self.alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
-                        cond_u += (self.alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
-                    else:
-                        cond_l += (self.alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
-                        cond_u += (self.alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
-
-                for j in range(len(self.xlim)):
-                    if self.prev_layer_beta[0] is not None:
-                        # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
-                        # In this case we know xlim > 0
-
-                        if self.w_in[j, i] >= 0:
-                            cond_x_u += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                            cond_x_l += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-
-                        else:
-                            cond_x_u += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                            cond_x_l += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                    else:
-                        # if self.xlim[j][1] < 0 or self.xlim[j][0] < 0:
-                        #     print(self.xlim[j][1], self.xlim[j][0])
-                        v1 = self.xlim[j][1] * self.w_in[j, i]
-                        v2 = self.xlim[j][0] * self.w_in[j, i]
-                        if v1 > v2:
-                            cond_x_u += v1
-                            cond_x_l += v2
-                        else:
-                            cond_x_u += v2
-                            cond_x_l += v1
-
-                    # TODO: I don't like this
-                    cond_x_l = min(cond_x_l, 0)
-
-                cond_u += cond_x_u + self.b[i]  # + SMALL
-                cond_l += cond_x_l + self.b[i]  # - SMALL
-
+                cond_l, cond_u = self.get_gurobi_rhs(i, t)
                 if self.use_relu:
-                    # Result of the relu of the over approximation of the memory cell
-                    cond_u_f.append(
-                        gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="ub{}_t_{}".format(i, t)))
-                    cond_l_f.append(
-                        gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="lb{}_t_{}".format(i, t)))
-                    delta_u.append(gmodel.addVar(vtype=GRB.BINARY))
-                    delta_l.append(gmodel.addVar(vtype=GRB.BINARY))
+                    cond_u, d = self.get_relu_constraint(gmodel, cond_u, i, t, True)
+                    cond_l, d = self.get_relu_constraint(gmodel, cond_l, i, t, False)
 
-                    gmodel.addConstr(cond_u_f[-1] >= cond_u, "cond_u_relu0_i{}_t{}".format(i, t))
-                    gmodel.addConstr(cond_u_f[-1] <= cond_u + LARGE * delta_u[-1], "cond_u_relu1_i{}_t{}".format(i, t))
-                    gmodel.addConstr(cond_u_f[-1] <= LARGE * (1 - delta_u[-1]), "cond_u_relu2_i{}_t{}".format(i, t))
-
-                    gmodel.addConstr(cond_l_f[-1] >= cond_l, "cond_l_relu0_i{}_t{}".format(i, t))
-                    gmodel.addConstr(cond_l_f[-1] <= cond_l + LARGE * delta_l[-1], "cond_l_relu1_i{}_t{}".format(i, t))
-                    gmodel.addConstr(cond_l_f[-1] <= LARGE * (1 - delta_l[-1]), "cond_l_relu2_i{}_t{}".format(i, t))
-
-                    gmodel.addConstr((self.alphas_u[i]) * (t + 1) >= cond_u_f[-1], "alpha_u{}_t{}".format(i, t))
-                    gmodel.addConstr((self.alphas_l[i]) * (t + 1) <= cond_l_f[-1], "alpha_l{}_t{}".format(i, t))
-                else:
-                    gmodel.addConstr(self.alphas_u[i] * (t + 1) >= cond_u, "alpha_u{}_t{}".format(i, t))
-                    gmodel.addConstr(self.alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
+                gmodel.addConstr(self.alphas_u[i] * (t + 1) >= cond_u, "alpha_u{}_t{}".format(i, t))
+                gmodel.addConstr(self.alphas_l[i] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(i, t))
 
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
         return env, gmodel
+
 
     def gurobi_step_in_random_direction(self, previous_alphas, failed_improves=set()):
         valid_idx = [i for i in range(len(previous_alphas)) if i not in failed_improves and previous_alphas[i] != 0]
@@ -333,7 +332,6 @@ class AlphasGurobiBased:
 
     def do_gurobi_step(self, strengthen, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
                        loop_detected=False, previous_alphas=None, tried_vars_improve=None):
-        # TODO: DEBUG
         env, gmodel = self.get_gurobi_basic_model()
 
         if tried_vars_improve is None:
@@ -369,7 +367,9 @@ class AlphasGurobiBased:
             print("CUTOFF")
             error = ValueError("CUTOFF problem")
         elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
-            # gmodel.computeIIS() ; gmodel.write('temp.ilp')
+            # gmodel.computeIIS()
+            # gmodel.write('problem.ilp')
+            # gmodel.write("problem.lp")
             print("INFEASIBLE")
             self.is_infesiable = True
             error = ValueError("INFEASIBLE problem")
@@ -400,7 +400,7 @@ class AlphasGurobiBased:
         gmodel.dispose()
         env.dispose()
 
-        print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0], [round(a, 3) for a in alphas]))
+        # print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0], [round(a, 3) for a in alphas]))
 
         return alphas
 

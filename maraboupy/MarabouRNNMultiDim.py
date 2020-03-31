@@ -423,7 +423,7 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
             end_property = timer()
             property_times.append(end_property - start_property)
             if prop_res:
-                print("proved property after {} iterations, using alphas: {}".format(i, algorithm.get_alphas()))
+                # print("proved property after {} iterations, using alphas: {}".format(i, algorithm.get_alphas()))
                 res = True
                 break
             else:
@@ -456,9 +456,10 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
         if len(property_times) != len(invariant_times):
             print('What happed?')
         if len(property_times) > 0:
-            print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
-                len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
-                                      sum(property_times) / len(property_times)))
+            # print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
+            #     len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
+            #                           sum(property_times) / len(property_times)))
+            pass
         else:
             avg_inv_time = sum(invariant_times) / len(invariant_times) if len(invariant_times) > 0 else 0
             print("did {} invariant queries that took on avg: {}, and {} property".format(

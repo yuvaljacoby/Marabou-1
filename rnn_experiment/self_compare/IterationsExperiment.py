@@ -110,6 +110,7 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
 
 
 def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range=range(2, 20), print_latex=False):
+    # TODO: Can I detect t_range from the pickle? using different values cases problems
     if isinstance(name_path_map, str) and name_path_map.endswith('pkl'):
         os.makedirs("temp/", exist_ok=True)
         results = pickle.load(open(name_path_map, "rb"))
@@ -124,7 +125,7 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     if isinstance(name_path_map, str) and os.path.isdir(name_path_map):
         tuples = []
         for f in sorted(os.listdir(name_path_map)):
-            p =os.path.join(name_path_map, f)
+            p = os.path.join(name_path_map, f)
             if not os.path.isfile(p):
                 continue
             m, _ = extract_model_name_ephocs(f)
@@ -280,9 +281,10 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
                                     continue_pickle='')
     exit(0)
 
+
 def extract_model_name_ephocs(name):
     m = 'rnn'
-    ephocs=-1
+    ephocs = -1
     fc_count = 0
     for w in name.split('_')[2:]:
         if 'rnn' in w:
@@ -294,11 +296,10 @@ def extract_model_name_ephocs(name):
             ephocs = w.replace('.out', '')
     return m, ephocs
 
+
 def compare_ephocs(pkl_dir: str, t_range):
-
-
     models = defaultdict(list)
-    models_to_ephocs = defaultdict(set) # in the ephocs pickle there is timestep, make sure no duplicates
+    models_to_ephocs = defaultdict(set)  # in the ephocs pickle there is timestep, make sure no duplicates
     for f in os.listdir(pkl_dir):
         if not f.endswith('pkl'):
             continue
@@ -315,9 +316,10 @@ def compare_ephocs(pkl_dir: str, t_range):
         parse_results_file(v, t_range)
         print("\n\n")
 
+
 if __name__ == "__main__":
 
-    t_range = range(2, 21)
+    t_range = range(2, 20)
 
     # parse_results_file('FMCAD_EXP/out_filter/second_filter', t_range)
     # exit(-1)
@@ -330,6 +332,7 @@ if __name__ == "__main__":
     gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
                          use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     if len(sys.argv) > 1:
+        net_options = None
         parse_inputs(t_range, net_options, points, other_idx_method)
 
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,

@@ -12,7 +12,6 @@ from maraboupy.MarabouRNNMultiDim import negate_equation, prove_multidim_propert
 from maraboupy.MarabouRnnModel import RnnMarabouModel
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
-from rnn_algorithms.WeightedAlphasSGD import WeightedAlphasSGD
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
