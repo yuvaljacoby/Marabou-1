@@ -235,7 +235,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 // We have violated piecewise-linear constraints.
                 performConstraintFixingStep();
 
-                // Finally, take this opportunity to tighten any bounds
+                // Finally, take this opporunity to tighten any bounds
                 // and perform any valid case splits.
                 tightenBoundsOnConstraintMatrix();
                 applyAllBoundTightenings();
@@ -443,7 +443,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 // even if the nonlinear constraints are violated
                 if (curOptValue < _bestOptValSoFar)
                 {
-                    printf( "\n Trimming this branch \n" );
+                   //printf( "\n Trimming this branch \n" );
                     if ( !_smtCore.popSplit() )
                     {
                         printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
@@ -509,6 +509,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                     }
 
                     continue;
+
                 }
 
                 // We have violated piecewise-linear constraints.
@@ -595,8 +596,12 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                     printf( "\nEngine::solve: UNSAT query\n" );
                     _statistics.print();
                 }
-                _exitCode = Engine::UNSAT;
-                return false;
+                // switched to SAT / true b/c as long as the original isnt infeasible there will always be a satisfying solution?
+                // Although if we want to run a query where it finds the optimizer within some output set this
+                // logic may need to be reworked, but it doesn't seem too hard to get that to happen
+                // TODO (Chris Strong): will this ever return before any feasible value has been found?
+                _exitCode = Engine::SAT;
+                return true;
             }
             else
             {
