@@ -308,10 +308,8 @@ void CostFunctionManager::computeReducedCost( unsigned nonBasic )
     unsigned nonBasicIndex = _tableau->nonBasicIndexToVariable( nonBasic );
     _ANColumn = _tableau->getSparseAColumn( nonBasicIndex );
 
-
     for ( const auto &entry : *_ANColumn )
         _costFunction[nonBasic] -= ( _multipliers[entry._index] * entry._value );
-
 }
 
 void CostFunctionManager::dumpCostFunction() const
@@ -364,7 +362,6 @@ unsigned CostFunctionManager::getOptimizationVariable()
 {
     return _optimizationVariable;
 }
-
 
 double CostFunctionManager::updateCostFunctionForPivot( unsigned enteringVariableIndex,
                                                         unsigned leavingVariableIndex,
