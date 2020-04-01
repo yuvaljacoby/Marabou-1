@@ -454,8 +454,9 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                     else
                     {
                         splitJustPerformed = true;
-
                     }
+
+                    continue; // SHOULD THIS BE HERE?
                 }
 
                 _costFunctionManager->computeCoreCostFunction();
