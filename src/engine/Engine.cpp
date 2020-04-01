@@ -494,6 +494,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         updateBestSolutionSoFar();
 
                     }
+                    printf("    Best solution so far: %f\n", _bestOptValSoFar);
                     // Now, pop one to keep the search going
                     if( !_smtCore.popSplit() )
                     {

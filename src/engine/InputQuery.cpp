@@ -564,7 +564,6 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     // Output variables
     for ( const auto &it : _outputIndexToVariable )
     {
-        printf("Checking if %d is in merged variables\n", it.second);
         if ( mergedVariables.exists( it.second ) )
         {
             if (!_optimize) 
