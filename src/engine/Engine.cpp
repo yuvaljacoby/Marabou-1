@@ -327,7 +327,11 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
     {
-        //printf("\n Starting main loop :D - best so far: %f\n", _bestOptValSoFar);
+        if (_tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()) <= _bestOptValSoFar)
+        {
+            printf("!!!!!!!!!!!!!!!!!!!!!The upper bound matches are best so far - so we could trim this!!!!!!!!!!!!!\n");
+        }
+        printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
 
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
@@ -975,6 +979,7 @@ void Engine::invokePreprocessor( const InputQuery &inputQuery, bool preprocess )
                 inputQuery.getEquations().size(),
                 inputQuery.getNumberOfVariables() );
 
+    printf("before invoke, enabled is: %d\n", preprocess);
     // If processing is enabled, invoke the preprocessor
     _preprocessingEnabled = preprocess;
     if ( _preprocessingEnabled )
@@ -988,6 +993,7 @@ void Engine::invokePreprocessor( const InputQuery &inputQuery, bool preprocess )
                 "%u equations, %u variables\n\n",
                 _preprocessedQuery.getEquations().size(),
                 _preprocessedQuery.getNumberOfVariables() );
+    printf("preprocessed the query in invoke preprocessor\n");
 
     unsigned infiniteBounds = _preprocessedQuery.countInfiniteBounds();
     if ( infiniteBounds != 0 )
@@ -1390,12 +1396,16 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
 
     struct timespec start = TimeUtils::sampleMicro();
 
+    printf("processing input query\n");
     try
     {
         informConstraintsOfInitialBounds( inputQuery );
+        printf("after inform constraints\n");
+
         invokePreprocessor( inputQuery, preprocess );
         if ( _verbosity > 0 )
             printInputBounds( inputQuery );
+        printf("after preprocessor\n");
 
         double *constraintMatrix = createConstraintMatrix();
         removeRedundantEquations( constraintMatrix );
@@ -1403,20 +1413,24 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
         // The equations have changed, recreate the constraint matrix
         delete[] constraintMatrix;
         constraintMatrix = createConstraintMatrix();
+        printf("after create constraint matrix\n");
 
         List<unsigned> initialBasis;
         List<unsigned> basicRows;
         selectInitialVariablesForBasis( constraintMatrix, initialBasis, basicRows );
         addAuxiliaryVariables();
         augmentInitialBasisIfNeeded( initialBasis, basicRows );
+        printf("Storing equationsin deg checker\n");
 
         storeEquationsInDegradationChecker();
 
         // The equations have changed, recreate the constraint matrix
         delete[] constraintMatrix;
         constraintMatrix = createConstraintMatrix();
-
+        
+        printf("initializing network level reasoning\n");
         initializeNetworkLevelReasoning();
+        printf("initializing tableau\n");
         initializeTableau( constraintMatrix, initialBasis );
 
         if ( GlobalConfiguration::WARM_START )

@@ -222,6 +222,8 @@ void InputQuery::removeEquation( Equation e )
 
 InputQuery &InputQuery::operator=( const InputQuery &other )
 {
+    printf("in equality at start\n");
+
     _numberOfVariables = other._numberOfVariables;
     _equations = other._equations;
     _lowerBounds = other._lowerBounds;
@@ -236,7 +238,12 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
     _optimize = other._optimize;
     _optimizationVariable = other._optimizationVariable;
 
+    printf("in equality after set a bunch equal\n");
+
     freeConstraintsIfNeeded();
+
+    printf("freed constraints\n");
+
     for ( const auto &constraint : other._plConstraints )
         _plConstraints.append( constraint->duplicateConstraint() );
 
@@ -404,7 +411,6 @@ void InputQuery::markOutputVariable( unsigned variable, unsigned outputIndex )
 
 void InputQuery::markOptimizationVariable( unsigned variable )
 {
-    printf("Marking optimization variable as %d\n", variable);
     _optimizationVariable = variable;
 }
 

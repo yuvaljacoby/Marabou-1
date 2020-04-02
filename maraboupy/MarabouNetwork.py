@@ -145,7 +145,6 @@ class MarabouNetwork:
         if (optimize):
             ipq.markOptimizationVariable(self.optimizationVariable)
 
-
         i = 0
         for inputVarArray in self.inputVars:
             for inputVar in inputVarArray.flatten():

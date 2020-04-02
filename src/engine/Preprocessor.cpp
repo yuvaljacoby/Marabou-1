@@ -39,7 +39,11 @@ Preprocessor::Preprocessor()
 
 InputQuery Preprocessor::preprocess( const InputQuery &query, bool attemptVariableElimination )
 {
+    printf("Starting preprocess\n");
+
     _preprocessed = query;
+
+    printf("after assignment\n");
 
     /*
       Initial work: if needed, have the PL constraints add their additional
@@ -48,6 +52,7 @@ InputQuery Preprocessor::preprocess( const InputQuery &query, bool attemptVariab
     if ( GlobalConfiguration::PREPROCESSOR_PL_CONSTRAINTS_ADD_AUX_EQUATIONS )
         addPlAuxiliaryEquations();
 
+    printf("before make equations equalities\n");
     /*
       Next, make sure all equations are of type EQUALITY. If not, turn them
       into one.
@@ -64,6 +69,7 @@ InputQuery Preprocessor::preprocess( const InputQuery &query, bool attemptVariab
       Then, eliminate fixed variables.
     */
 
+    printf("about to start tightening \n");
     bool continueTightening = true;
     while ( continueTightening )
     {
