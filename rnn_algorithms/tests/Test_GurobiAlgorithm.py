@@ -53,9 +53,27 @@ multi_layer_paths = ['./FMCAD_EXP/models/model_20classes_rnn4_rnn4_fc32_fc32_010
                      ]
 
 
+# @pytest.mark.parametrize('point', points)
+def test_example_polyhedron_more_expressive():
+    # return 1
+    point = np.array([-1.0] * 40)
+    net_path = './FMCAD_EXP/models/model_20classes_rnn8_fc32_fc32_fc32_0050.ckpt'
+    n = 4
+    method = lambda x: np.argsort(x)[-2]
+    idx_max, other_idx = get_out_idx(point, n, net_path, method)
+    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
+                         use_polyhedron=False)
+    res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+    assert not res
+
+    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
+                         use_polyhedron=True)
+    res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+    assert res
+
 def test_spesific():
-    point = np.array([1.0] * 40)
-    net_path = './models/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
+    point = np.array([-1.0] * 40)
+    net_path = './models/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 3
     gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
                          use_polyhedron=True)
@@ -81,7 +99,8 @@ def test_fast_unsat():
     point = np.array([0.8] * 40)
     net_path = './models/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 2
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
+                         use_polyhedron=True)
     idx_max = 0
     other_idx = 16
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
@@ -92,7 +111,8 @@ def test_fast_unsat():
 @pytest.mark.parametrize(['point', 'n', 'net_path'], product(*[points, [2, 5], paths]))
 def test_using_gurobi(point, n, net_path):
     method = lambda x: np.argsort(x)[-2]
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
+                         use_polyhedron=True)
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     print(idx_max, other_idx)
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
@@ -107,7 +127,7 @@ def test_using_multilayer_gurobi(point, n, net_path):
     print(point)
     method = lambda x: np.argsort(x)[-2]
     gurobi_ptr = partial(AlphasGurobiBasedMultiLayer, use_relu=True, add_alpha_constraint=True,
-                         use_counter_example=True)
+                         use_counter_example=True, use_polyhedron=True)
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
                                                           gurobi_ptr, n)

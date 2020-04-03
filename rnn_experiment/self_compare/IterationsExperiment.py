@@ -319,7 +319,7 @@ def compare_ephocs(pkl_dir: str, t_range):
 
 if __name__ == "__main__":
 
-    t_range = range(2, 20)
+    t_range = range(2, 21)
 
     # parse_results_file('FMCAD_EXP/out_filter/second_filter', t_range)
     # exit(-1)

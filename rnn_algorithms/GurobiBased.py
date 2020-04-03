@@ -1,10 +1,9 @@
 import random
 from itertools import product
 
-from typing import List
+from typing import List, Union
 
 random.seed(0)
-import numpy as np
 from gurobipy import *
 from datetime import datetime
 from maraboupy import MarabouCore
@@ -16,16 +15,15 @@ sign = lambda x: 1 if x >= 0 else -1
 SMALL = 10 ** -4
 LARGE = 10 ** 5
 
-MAX_EQS_PER_DIMENSION = 1
+MAX_EQS_PER_DIMENSION = 2
 RANDOM_THRESHOLD = 200  #
 PRINT_GUROBI = False
 
-# e = Env()
 setParam('Threads', 1)
 setParam('NodefileStart', 0.5)
 
 
-class Bound():
+class Bound:
     def __init__(self, gmodel: Model, upper: bool, initial_value: float, bound_idx: int, polyhedron_idx: int):
         self.upper = upper
         self.alpha = LARGE
@@ -34,29 +32,45 @@ class Bound():
         self.initial_value = initial_value
         self.bound_idx = bound_idx
         self.polyhedron_idx = polyhedron_idx
-        self.alpha_var = None
-        self.beta_var = None
-        self.gmodel = gmodel
 
-        first_letter = 'u' if self.is_upper else 'l'
+        self.alpha_val = None
+        self.beta_val = None
+
+        # def attach_bound_to_model(self, gmodel: Model) -> None:
+        self.gmodel = gmodel
+        first_letter = 'u' if self.upper else 'l'
+        self.name = "a{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx)
         self.alpha_var = \
             gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS,
-                          name="a{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
-        self.beta_var = gmodel.addVar(lb=self.initial_value, ub=LARGE, vtype=GRB.CONTINUOUS,
+                          name=self.name)
+        self.beta_var = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS,
                                       name="b{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
+        if self.upper:
+            gmodel.addConstr(self.beta_var >= initial_value, name='{}_init_val'.format(self.name))
+        else:
+            gmodel.addConstr(self.beta_var <= initial_value, name='{}_init_val'.format(self.name))
+
+    def __eq__(self, other):
+        if not isinstance(other, Bound):
+            return False
+        if self._was_model_optimized() and other._was_model_optimized():
+            return self.alpha_val == other.alpha_val and self.beta_val == other.beta_val
+        else:
+            return self.name == other.name
 
     def get_rhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
-            raise Exception("Should first add vars")
+            raise Exception("Should first attach to model")
         return self.alpha_var * t + self.beta_var
 
     def get_lhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
-            raise Exception("Should first add vars")
+            raise Exception("Should first attach to model")
         return self.alpha_var * (t + 1) + self.beta_var
 
     def get_objective(self) -> LinExpr():
         obj = self.alpha_var + self.beta_var
+        # we want the lower bound to be as tight as possible so we should prefer large numbers on small numbers
         if not self.is_upper:
             obj = -obj
         return obj
@@ -64,9 +78,21 @@ class Bound():
     def is_upper(self) -> bool:
         return self.upper
 
+    def _was_model_optimized(self):
+        return self.alpha_val is not None and self.beta_val is not None
+
+    def __str__(self):
+        if self._was_model_optimized():
+            return '{}: {}*i + {}'.format(self.name, round(self.alpha_val, 3), round(self.beta_val), 3)
+        else:
+            return self.name
+
+    def __repr__(self):
+        return self.__str__()
+
     def get_equation(self, loop_idx, rnn_out_idx):
-        if not self.alpha_var.x:
-            raise Exception("First optimize the model")
+        if not self._was_model_optimized():
+            raise Exception("First optimize the attached model")
 
         inv_type = MarabouCore.Equation.LE if self.is_upper() else MarabouCore.Equation.GE
         if inv_type == MarabouCore.Equation.LE:
@@ -76,11 +102,17 @@ class Bound():
             ge_better = 1
             # ge_better = -1
 
-        invariant_equation = MarabouCore.Equation()
+        invariant_equation = MarabouCore.Equation(inv_type)
         invariant_equation.addAddend(1, rnn_out_idx)  # b_i
-        invariant_equation.addAddend(self.alpha_var.x * ge_better, loop_idx)  # i
-        invariant_equation.setScalar(self.beta_var.x)
+        invariant_equation.addAddend(self.alpha_val * ge_better, loop_idx)  # i
+        invariant_equation.setScalar(self.beta_val)
         return invariant_equation
+
+    def model_optimized(self) -> 'Bound':
+        self.alpha_val = self.alpha_var.x
+        self.beta_val = self.beta_var.x
+
+        return self
 
 
 class AlphasGurobiBasedMultiLayer:
@@ -152,7 +184,7 @@ class AlphasGurobiBased:
         self.use_counter_example = use_counter_example
         self.use_relu = use_relu
         self.return_vars = True
-        self.is_infesiable = False
+        # self.is_infeasible = False
         self.xlim = xlim
         self.initial_values = None
         self.random_threshold = random_threshold
@@ -162,9 +194,7 @@ class AlphasGurobiBased:
         self.alphas_u = []
         self.alphas_l = []
         self.added_constraints = None
-        self.temp_alpha = []
-        # initalize alphas to -infty +infty
-        self.alphas = [-LARGE] * self.dim + [LARGE] * self.dim
+
         self.update_strategy = update_strategy_ptr()
         self.same_step_counter = 0
         rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(layer_idx)
@@ -176,28 +206,21 @@ class AlphasGurobiBased:
         self.equations_per_dimension = 1
         self.use_polyhedron = use_polyhedron
 
-        # self.inv_type = [MarabouCore.Equation.LE] * len(initial_values[1]) + [MarabouCore.Equation.GE] * len(initial_values[0])
         self.inv_type = [MarabouCore.Equation.GE] * self.dim + [MarabouCore.Equation.LE] * self.dim
-        # if self.alphas is None:
-        #     self.alphas = [0] * len(self.inv_type)
-        assert len(self.alphas) == (2 * self.dim)
-        assert len(self.alphas) == len(self.inv_type)
-        assert len(self.alphas) == len(self.rnn_output_idxs_double)
-
         self.equations = [None] * self.dim * 2
         if xlim is not None:
             self.update_xlim([x[0] for x in xlim], [x[1] for x in xlim])
 
+        self.alphas = None
+        # [Bound(False, self.initial_values[0][i], i) for i in range(self.dim)] + [Bound(True, self.initial_values[1][i], i) for i in range(self.dim)]
+        # [-LARGE] * self.dim + [LARGE] * self.dim
+
+        # assert len(self.alphas) == (2 * self.dim)
+        # assert (2 * self.dim) == len(self.inv_type)
+        assert (2 * self.dim) == len(self.rnn_output_idxs_double)
+
         self.last_fail = None
         self.alpha_history = []
-        # gmodel = self.get_gurobi_basic_model()
-
-        # Create first alphas
-
-        # self.alphas = self.do_gurobi_step(strengthen=True)
-        #
-        # for i in range(len(self.alphas)):
-        #     self.update_equation(i)
 
     def __del__(self):
         return
@@ -259,25 +282,7 @@ class AlphasGurobiBased:
         initial_values = ([0] * len(initial_values[0]), initial_values[1])
         self.initial_values = initial_values  # [1] + initial_values[0]
 
-    def do_random_step(self, strengthen):
-        assert False
-        if strengthen:
-            direction = -1
-        else:
-            direction = 1
-
-        # self.update_strategy.counter = self.same_step_counter
-        i = np.random.randint(0, len(self.alphas))
-
-        # self.prev_alpha = self.alphas[self.next_idx_step]
-        # self.prev_idx = self.next_idx_step
-        self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction, self.same_step_counter)
-
-        self.update_equation(i)
-        # self.update_next_idx_step()
-        return self.equations
-
-    def calc_x_val(self, i: int, t: int) -> (int, int):
+    def calc_prev_layer_in_val(self, i: int, t: int) -> (int, int):
         cond_x_u = 0  # LinExpr()
         cond_x_l = 0  # LinExpr()
         for j in range(len(self.xlim)):
@@ -304,7 +309,7 @@ class AlphasGurobiBased:
             cond_x_l = min(cond_x_l, 0)
         return cond_x_l, cond_x_u
 
-    def get_gurobi_rhs(self, i: int, t: int, alphas_l: List[Var], alphas_u: List[Var]) -> (LinExpr, LinExpr):
+    def get_gurobi_rhs(self, i: int, t: int, alphas_l: List[Bound], alphas_u: List[Var]) -> (LinExpr, LinExpr):
         '''
         The upper bound for guroib is: alpha_u[0] >= w_h * t * (alpha_u[i] + initial) (for all i) + x + b
         :param i: The index on which we want the rhs
@@ -319,17 +324,21 @@ class AlphasGurobiBased:
 
         for j in range(self.w_h.shape[0]):
             if self.w_h[i, j] > 0:
-                cond_l += (alphas_l[j] * t + self.initial_values[0][j]) * self.w_h[i, j]
-                cond_u += (alphas_u[j] * t + self.initial_values[1][j]) * self.w_h[i, j]
-                # cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
-                # cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+                if hasattr(alphas_l[j], 'get_rhs'):
+                    cond_l += alphas_l[j].get_rhs(t) * self.w_h[i, j]
+                    cond_u += alphas_u[j].get_rhs(t) * self.w_h[i, j]
+                else:
+                    cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+                    cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
             else:
-                cond_l += (alphas_u[j] * t + self.initial_values[1][j])  * self.w_h[i, j]
-                cond_u += (alphas_l[j] * t + self.initial_values[0][j]) * self.w_h[i, j]
-                # cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
-                # cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+                if hasattr(alphas_l[j], 'get_rhs'):
+                    cond_l += alphas_u[j].get_rhs(t) * self.w_h[i, j]
+                    cond_u += alphas_l[j].get_rhs(t) * self.w_h[i, j]
+                else:
+                    cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+                    cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
 
-        cond_x_l, cond_x_u = self.calc_x_val(i, t)
+        cond_x_l, cond_x_u = self.calc_prev_layer_in_val(i, t)
         cond_u += cond_x_u + self.b[i]  # + SMALL
         cond_l += cond_x_l + self.b[i]  # - SMALL
 
@@ -388,13 +397,14 @@ class AlphasGurobiBased:
             self.alphas_u.append([])
             for j in range(n):
                 self.alphas_l[hidden_idx].append(
-                    gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_l^{}_{}".format(j, hidden_idx)))
-                self.alphas_u[hidden_idx].append(
-                    gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_u^{}_{}".format(j, hidden_idx)))
+                    Bound(gmodel, False, self.initial_values[0][hidden_idx], hidden_idx, j))
+                # gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_l^{}_{}".format(j, hidden_idx)))
+                self.alphas_u[hidden_idx].append(Bound(gmodel, True, self.initial_values[1][hidden_idx], hidden_idx, j))
+                # gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="alpha_u^{}_{}".format(j, hidden_idx)))
 
-                # we want the lower bound to be as tight as possibole so we should prefer large numbers on small numbers
-                obj += -self.alphas_l[hidden_idx][-1]
-                obj += self.alphas_u[hidden_idx][-1]
+                obj += self.alphas_l[hidden_idx][-1].get_objective()
+                obj += self.alphas_u[hidden_idx][-1].get_objective()
+
             # TODO: Add constraint that the alphas needs to be different?
 
         gmodel.setObjective(obj, GRB.MINIMIZE)
@@ -415,11 +425,16 @@ class AlphasGurobiBased:
                     conds_l.append(cond_l)
                     conds_u.append(cond_u)
 
-                    self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
-                                             "alpha_l{}_t{}".format(hidden_idx, j, t))
-                    self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t + 1), True,
-                                             "alpha_u{}_t{}".format(hidden_idx, j, t))
-
+                    if hasattr(alphas_l[hidden_idx], 'get_lhs'):
+                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx].get_lhs(t), False,
+                                                 ".{}_t{}".format(hidden_idx, j, t))
+                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx].get_lhs(t), True,
+                                                 "alpha_u{}_t{}".format(hidden_idx, j, t))
+                    else:
+                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t+1), False,
+                                                 ".{}_t{}".format(hidden_idx, j, t))
+                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t+1), True,
+                                                 "alpha_u{}_t{}".format(hidden_idx, j, t))
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
@@ -484,8 +499,13 @@ class AlphasGurobiBased:
             print("adding constraint, alpha_u{} <= {}".format(idx - len(self.alphas_u), previous_alphas[idx] - SMALL))
             return self.alphas_u[idx - len(self.alphas_u)] <= previous_alphas[idx] - SMALL, 'ce_output_alpha_u', idx
 
-    def do_gurobi_step(self, strengthen, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
-                       loop_detected=False, previous_alphas=None, tried_vars_improve=None):
+    def do_gurobi_step(self, strengthen: bool, alphas_sum=None, counter_examples=([], []), hyptoesis_ce=([], []),
+                       loop_detected=False, previous_alphas=None, tried_vars_improve=None) \
+            -> Union[List[int], List['Bound']]:
+        if not strengthen:
+            # Invariant failed, does not suppose to happen
+            assert False
+
         if self.use_polyhedron:
             env, gmodel = self.get_gurobi_polyhedron_model(self.equations_per_dimension)
         else:
@@ -493,12 +513,9 @@ class AlphasGurobiBased:
 
         if tried_vars_improve is None:
             tried_vars_improve = set()
-        if self.use_counter_example:
-            if not strengthen:
-                # Invariant failed, does not suppose to happen
-                assert False
-
-            if False and strengthen and previous_alphas is not None:
+        # not using this for now
+        if False and self.use_counter_example:
+            if strengthen and previous_alphas is not None:
                 # We proved invariant but the property is not implied do a big step in one of the invariants
                 random_constraint, constraing_description, improve_idx = \
                     self.gurobi_step_in_random_direction(previous_alphas, tried_vars_improve)
@@ -524,20 +541,23 @@ class AlphasGurobiBased:
             print("CUTOFF")
             error = ValueError("CUTOFF problem")
         elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
-            gmodel.computeIIS()
-            gmodel.write('get_gurobi_polyhedron.ilp')
+            # gmodel.computeIIS()
+            # gmodel.write('get_gurobi_polyhedron.ilp')
 
             print("INFEASIBLE")
-            self.is_infesiable = True
-            self.equations_per_dimension += 1
-            if self.equations_per_dimension > MAX_EQS_PER_DIMENSION:
+            if self.equations_per_dimension >= MAX_EQS_PER_DIMENSION or not self.use_polyhedron:
                 error = ValueError("INFEASIBLE problem")
             else:
-                assert False
+                gmodel.dispose()
+                env.dispose()
+                # assert False
+                self.equations_per_dimension += 1
                 self.do_gurobi_step(True)
+
         elif isinstance(self.alphas_u[0], list):
             # Using the polyhedron model
-            alphas = [[a.x for a in ls] for ls in self.alphas_l] + [[a.x for a in ls] for ls in self.alphas_u]
+            alphas = [[a.model_optimized() for a in ls] for ls in self.alphas_l] + [[a.model_optimized() for a in ls] for ls in self.alphas_u]
+            # alphas = [[a.x for a in ls] for ls in self.alphas_l] + [[a.x for a in ls] for ls in self.alphas_u]
         else:
             alphas = [1 * a.x for a in self.alphas_l] + [a.x for a in self.alphas_u]
 
@@ -551,7 +571,7 @@ class AlphasGurobiBased:
 
                 self.added_constraints = []
                 # self.last_fail = None
-                self.temp_alpha.append(alphas)
+
                 alphas = self.do_gurobi_step(strengthen, previous_alphas=self.alphas,
                                              tried_vars_improve=tried_vars_improve)
             else:
@@ -569,13 +589,14 @@ class AlphasGurobiBased:
 
         if isinstance(alphas[0], list):
             print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0],
-                                                    [round(a, 3) for a_ls in alphas for a in a_ls]))
+                                                    [str(a) for a_ls in alphas for a in a_ls]))
         else:
             print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0], [round(a, 3) for a in alphas]))
 
         return alphas
 
     def update_all_equations(self):
+
         initial_values = self.initial_values[0] + self.initial_values[1]
         self.equations = []
         if not isinstance(self.alphas[0], list):
@@ -584,9 +605,13 @@ class AlphasGurobiBased:
         for i, alpha in enumerate(self.alphas):
             self.equations.append([])
             for a in alpha:
-                self.equations[-1].append(
-                    alpha_to_equation(self.rnn_start_idxs[i], self.rnn_output_idxs_double[i],
-                                      initial_values[i], a, self.inv_type[i]))
+                if isinstance(a, Bound):
+                    eq = a.get_equation(self.rnn_start_idxs[i], self.rnn_output_idxs_double[i])
+                else:
+                    eq = alpha_to_equation(self.rnn_start_idxs[i], self.rnn_output_idxs_double[i], initial_values[i], a,
+                                           self.inv_type[i])
+
+                self.equations[-1].append(eq)
 
     def update_equation(self, idx):
         initial_values = self.initial_values[0] + self.initial_values[1]
@@ -675,11 +700,11 @@ class AlphasGurobiBased:
             new_min_sum = sum(self.alphas) * 2
             direction = 1
 
-        i = random.randint(0, len(self.alphas) - 1)
         if self.same_step_counter > self.random_threshold:
-            print("random step")
-            self.do_random_step(strengthen)
-            new_alphas = None
+            assert False
+            # print("random step")
+            # self.do_random_step(strengthen)
+            # new_alphas = None
         else:
             counter_examples = self.extract_equation_from_counter_example(sat_vars)
             # hyptoesis_ce = self.extract_hyptoesis_from_counter_example(sat_vars)
@@ -729,3 +754,21 @@ class AlphasGurobiBased:
 
     def get_alphas(self):
         return self.alphas
+
+    # def do_random_step(self, strengthen):
+    #     assert False
+    #     if strengthen:
+    #         direction = -1
+    #     else:
+    #         direction = 1
+    #
+    #     # self.update_strategy.counter = self.same_step_counter
+    #     i = np.random.randint(0, len(self.alphas))
+    #
+    #     # self.prev_alpha = self.alphas[self.next_idx_step]
+    #     # self.prev_idx = self.next_idx_step
+    #     self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction, self.same_step_counter)
+    #
+    #     self.update_equation(i)
+    #     # self.update_next_idx_step()
+    #     return self.equations

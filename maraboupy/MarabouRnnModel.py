@@ -232,7 +232,7 @@ class RnnMarabouModel():
         :param prev_layer_alpha:
         :param prev_layer_scalar:
         :param layer_idx:
-        :return:
+        :return: (list of min values, list of max values)
         '''
         layer = self.model.layers[layer_idx]
         initial_values = []
