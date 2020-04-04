@@ -1,7 +1,7 @@
 import random
 from itertools import product
 
-from typing import List, Union
+from typing import List, Union, Tuple
 
 random.seed(0)
 from gurobipy import *
@@ -114,6 +114,9 @@ class Bound:
 
         return self
 
+    def get_bound(self) -> Tuple[int, int]:
+        return self.alpha_val, self.beta_val
+
 
 class AlphasGurobiBasedMultiLayer:
     # Alpha Search Algorithm for multilayer recurrent, assume the recurrent layers are one following the other
@@ -148,13 +151,30 @@ class AlphasGurobiBasedMultiLayer:
 
     def proved_invariant(self, layer_idx=0, equations=None):
         # Proved invariant on layer_idx --> we can update bounds for layer_idx +1
-        alphas = self.alphas_algorithm_per_layer[layer_idx].get_alphas()
-        betas = self.alphas_algorithm_per_layer[layer_idx].initial_values
-        assert len(alphas) % 2 == 0
-        alphas_l = alphas[:len(alphas) // 2]
-        alphas_u = alphas[len(alphas) // 2:]
+        l_bound, u_bound = self.alphas_algorithm_per_layer[layer_idx].get_bounds()
+        alphas_l, alphas_u, betas_l, betas_u = [], [], [], []
+
+        for l_bound_node in l_bound:
+            min_alpha_bound = l_bound_node[0][1]
+            min_beta_bound = l_bound_node[0][1]
+            for l in l_bound_node[1:]:
+                if l[0] + l[1] >= min_alpha_bound + min_beta_bound:
+                    min_alpha_bound = l[0]
+                    min_beta_bound = l[1]
+            alphas_l.append(min_alpha_bound)
+            betas_l.append(min_beta_bound)
+        for u_bound_node in u_bound:
+            max_alpha_bound = u_bound_node[0][0]
+            max_beta_bound = u_bound_node[0][1]
+            for u in u_bound_node[1:]:
+                if u[0] + u[1] <= max_alpha_bound + max_beta_bound:
+                    max_alpha_bound = u[0]
+                    max_beta_bound = u[1]
+            alphas_u.append(max_alpha_bound)
+            betas_u.append(max_beta_bound)
+
         if len(self.alphas_algorithm_per_layer) > layer_idx + 1:
-            self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, betas)
+            self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, (betas_l, betas_u))
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
         return self.alphas_algorithm_per_layer[layer_idx].do_step(strengthen, invariants_results, sat_vars)
@@ -268,7 +288,6 @@ class AlphasGurobiBased:
         if beta is not None:
             self.is_time_limit = True
             assert len(beta[0]) == len(lower_bound)
-            assert len(beta[1]) == len(lower_bound)
             self.prev_layer_beta = beta
             # for i in range(len(xlim)):
             #     # Need to do the same for beta[0], in cases I saw it is always zero
@@ -431,9 +450,9 @@ class AlphasGurobiBased:
                         self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx].get_lhs(t), True,
                                                  "alpha_u{}_t{}".format(hidden_idx, j, t))
                     else:
-                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t+1), False,
+                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
                                                  ".{}_t{}".format(hidden_idx, j, t))
-                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t+1), True,
+                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t + 1), True,
                                                  "alpha_u{}_t{}".format(hidden_idx, j, t))
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
@@ -556,7 +575,8 @@ class AlphasGurobiBased:
 
         elif isinstance(self.alphas_u[0], list):
             # Using the polyhedron model
-            alphas = [[a.model_optimized() for a in ls] for ls in self.alphas_l] + [[a.model_optimized() for a in ls] for ls in self.alphas_u]
+            alphas = [[a.model_optimized() for a in ls] for ls in self.alphas_l] + [[a.model_optimized() for a in ls]
+                                                                                    for ls in self.alphas_u]
             # alphas = [[a.x for a in ls] for ls in self.alphas_l] + [[a.x for a in ls] for ls in self.alphas_u]
         else:
             alphas = [1 * a.x for a in self.alphas_l] + [a.x for a in self.alphas_u]
@@ -755,20 +775,40 @@ class AlphasGurobiBased:
     def get_alphas(self):
         return self.alphas
 
-    # def do_random_step(self, strengthen):
-    #     assert False
-    #     if strengthen:
-    #         direction = -1
-    #     else:
-    #         direction = 1
-    #
-    #     # self.update_strategy.counter = self.same_step_counter
-    #     i = np.random.randint(0, len(self.alphas))
-    #
-    #     # self.prev_alpha = self.alphas[self.next_idx_step]
-    #     # self.prev_idx = self.next_idx_step
-    #     self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction, self.same_step_counter)
-    #
-    #     self.update_equation(i)
-    #     # self.update_next_idx_step()
-    #     return self.equations
+    def get_bounds(self) -> Tuple[List[List[Tuple[int, int]]], List[List[Tuple[int, int]]]]:
+        '''
+        :return: (lower_bounds, upper_bounds), each bound is a list of (alpha,beta)
+        '''
+        if isinstance(self.alphas_l[0], list) and isinstance(self.alphas_l[0][0], Bound):
+            return [[b.get_bound() for b in al] for al in self.alphas_l], \
+                   [[b.get_bound() for b in au] for au in self.alphas_u]
+        elif isinstance(self.alphas[0], list):
+            alphas = [a[0] for a in self.alphas]
+        else:
+            alphas = self.alphas
+
+        alphas_l = alphas[:len(alphas) // 2]
+        alphas_u = alphas[len(alphas) // 2:]
+
+        return ([[(a, b)] for a, b in zip(alphas_l, self.initial_values[0])],
+                [[(a, b)] for a, b in zip(alphas_u, self.initial_values[1])])
+        # else:
+        #     raise Exception
+
+# def do_random_step(self, strengthen):
+#     assert False
+#     if strengthen:
+#         direction = -1
+#     else:
+#         direction = 1
+#
+#     # self.update_strategy.counter = self.same_step_counter
+#     i = np.random.randint(0, len(self.alphas))
+#
+#     # self.prev_alpha = self.alphas[self.next_idx_step]
+#     # self.prev_idx = self.next_idx_step
+#     self.alphas[i] = self.update_strategy.do_step(self.alphas[i], direction, self.same_step_counter)
+#
+#     self.update_equation(i)
+#     # self.update_next_idx_step()
+#     return self.equations

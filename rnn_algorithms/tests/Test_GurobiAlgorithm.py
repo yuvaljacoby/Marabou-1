@@ -71,6 +71,7 @@ def test_example_polyhedron_more_expressive():
     res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
     assert res
 
+
 def test_spesific():
     point = np.array([-1.0] * 40)
     net_path = './models/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
