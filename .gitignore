@@ -34,3 +34,8 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
+*.pdf
+*.lyx
+*.tar.gz
+*.pkl
+tools/pybind11-2.3.0
