@@ -2,7 +2,7 @@ from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.SMTBaseSearch import SmtAlphaSearch
 from maraboupy import MarabouCore
 from maraboupy.MarabouRNN import *
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property
+from RNN.MarabouRNNMultiDim import prove_multidim_property
 
 
 def define_positive_sum_network_no_invariant(xlim, ylim, n_iterations):

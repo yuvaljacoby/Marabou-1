@@ -1034,7 +1034,7 @@ def test_auto_adversarial_robustness_two_inputs_SGDAlgorithm():
     '''
     This example has 2 input nodes and two RNN cells
     '''
-    from maraboupy.MarabouRNNMultiDim import prove_multidim_property
+    from RNN.MarabouRNNMultiDim import prove_multidim_property
     from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 
     num_iterations = 10

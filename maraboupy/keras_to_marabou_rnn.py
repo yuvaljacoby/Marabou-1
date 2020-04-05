@@ -8,8 +8,8 @@ import numpy as np
 import tensorflow as tf
 
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import negate_equation, prove_multidim_property
-from maraboupy.MarabouRnnModel import RnnMarabouModel
+from RNN.MarabouRNNMultiDim import negate_equation, prove_multidim_property
+from RNN.MarabouRnnModel import RnnMarabouModel
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
@@ -135,54 +135,6 @@ def get_output_vector_template(h5_file_path: str, x: list, n_iterations: int):
     model = tf.keras.models.load_model(h5_file_path)
     tensor = template_to_vector(x, n_iterations)
     return model.predict(tensor)
-
-
-def adversarial_query_template(x: list, radius: float, y_idx_max: int, other_idx: int, h5_file_path: str,
-                               n_iterations=10, is_fail_test=False):
-    '''
-    Query marabou with adversarial query
-    :param x: template of the input vector, each cell is a tuple (alpha, beta) which will limit the input as alpha *i  + beta
-    :param radius: determines the limit of the inputs around the base_vector
-    :param y_idx_max: max index in the output layer, if None run the model with x for n_iterations and extract it
-    :param other_idx: which index to compare max idx, if None the minimum when running the model with x for n iterations
-    :param h5_file_path: path to keras model which we will check on
-    :param n_iterations: number of iterations to run
-    :param is_fail_test: we make sure that the output in y_idx_max >= other_idx, if this is True we negate it
-    :return: True / False
-    '''
-    if y_idx_max is None or other_idx is None:
-        out = get_output_vector_template(h5_file_path, x, n_iterations)
-        if other_idx is None:
-            other_idx = np.argmin(out)
-        if y_idx_max is None:
-            y_idx_max = np.argmax(out)
-        print(y_idx_max, other_idx)
-
-    assert_adversarial_query_template(x, y_idx_max, other_idx, h5_file_path, n_iterations, is_fail_test)
-
-    rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
-    xlim = calc_min_max_template_by_radius(x, radius)
-    rnn_model.set_input_bounds_template(x, radius)
-    initial_values = rnn_model.get_rnn_min_max_value_one_iteration(xlim)
-
-    # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
-    adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
-    adv_eq.addAddend(-1, rnn_model.output_idx[other_idx])  # The zero'th element in the output layer
-    adv_eq.addAddend(1, rnn_model.output_idx[y_idx_max])  # The y_idx_max of the output layer
-    adv_eq.setScalar(0)
-
-    rnn_output_idxs = rnn_model.rnn_out_idx
-    rnn_start_idxs = [i - 3 for i in rnn_output_idxs]
-
-    # Convert the initial values to the SGDAlphaAlgorithm format
-    rnn_max_values = [val[1] for val in initial_values]
-    rnn_min_values = [val[0] for val in initial_values]
-
-    assert sum([rnn_max_values[i] >= rnn_min_values[i] for i in range(len(rnn_max_values))]) == len(rnn_max_values)
-    algorithm = IterateAlphasSGD((rnn_min_values, rnn_max_values), rnn_start_idxs, rnn_output_idxs)
-    # rnn_model.network.dump()
-    return prove_multidim_property(rnn_model.network, rnn_start_idxs, rnn_output_idxs, [negate_equation(adv_eq)],
-                                   algorithm)
 
 
 def get_out_idx(x, n_iterations, h5_file_path, other_index_func=lambda vec: np.argmin(vec)):
@@ -421,26 +373,6 @@ def test_20classes_1rnn2_1fc32_pass():
     assert adversarial_query_wrapper([1] * n_inputs, 0.05, y_idx_max, other_idx,
                                      "{}/model_classes20_1rnn2_1_32_4.h5".format(MODELS_FOLDER),
                                      is_fail_test=False)
-
-
-def test_20classes_1rnn2_0fc_template_input_pass():
-    n_iterations = 5
-    n_inputs = 40
-
-    template = [(i, 0) for i in range(n_inputs)]
-    assert adversarial_query_template(template, 0.1, None, None,
-                                      "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
-                                      n_iterations=n_iterations)
-
-
-def test_20classes_1rnn2_0fc_template_input_fail():
-    n_iterations = 50
-    n_inputs = 40
-
-    template = [(i, 0) for i in range(n_inputs)]
-    assert not adversarial_query_template(template, 0.1, 8, 9,
-                                          "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER),
-                                          n_iterations=n_iterations, is_fail_test=True)
 
 
 def test_20classes_1rnn2_0fc_pass():

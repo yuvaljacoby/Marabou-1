@@ -12,9 +12,8 @@ import numpy as np
 from prettytable import PrettyTable
 from tqdm import tqdm
 
-from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
-from rnn_algorithms.GurobiBased import AlphasGurobiBased
-from rnn_algorithms.Update_Strategy import Relative_Step
+from RNN.Adversarial import adversarial_query, get_out_idx
+from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
 from rnn_experiment.self_compare.create_sbatch_iterations_exp import BASE_FOLDER, OUT_FOLDER
 from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
 
@@ -318,9 +317,15 @@ def compare_ephocs(pkl_dir: str, t_range):
 
 
 if __name__ == "__main__":
+    # TODO: Write test, to show demonstrate entry point to the experiennt (every options we have in the parse)
 
     t_range = range(2, 21)
-
+    FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
+                      'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
+                      'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
+                      'model_20classes_rnn12_rnn12_fc32_fc32_fc32_fc32_0200.pkl',
+                      'model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.pkl',
+                      'model_20classes_rnn8_rnn4_rnn4_fc32_fc32_fc32_fc32_0150.pkl']
     # parse_results_file('FMCAD_EXP/out_filter/second_filter', t_range)
     # exit(-1)
 
@@ -329,15 +334,15 @@ if __name__ == "__main__":
 
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
 
-    gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-                         use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     if len(sys.argv) > 1:
         net_options = None
-        parse_inputs(t_range, net_options, points, other_idx_method)
+        parse_inputs(t_range, FMCAD_networks, points, other_idx_method)
 
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,
     #                     other_idx_method, gurobi_ptr, steps_num=10)
-    exit(0)
+    # exit(0)
 
     point = np.array([-1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775,
                       -2.37340524, -3.94152213, 1.78206783, -0.37256191, 1.07329743, 0.02954765,
@@ -346,11 +351,9 @@ if __name__ == "__main__":
                       5.45421917, 4.11029858, -4.65444165, 0.50871269, 1.40619639, -0.7546163,
                       3.68131841, 1.18965503, 0.81459484, 2.36269942, -2.4609835, -1.14228611,
                       -0.28604645, -6.39739288, -3.54854402, -3.21648808])
-    net = "model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5"
+    net = "model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_0200.ckpt"
     t_range = range(8, 10)
-    # gurobi_multi_ptr = partial(AlphasGurobiBasedMultiLayer, update_strategy_ptr=Relative_Step, random_threshold=20000,
-    #                           use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    # gurobi_ptr = partial(AlphasGurobiBased, update_strategy_ptr=Relative_Step, random_threshold=20000,
-    #                     use_relu=True, add_alpha_constraint=True, use_counter_example=True)
-    # run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
+    gurobi_multi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                               use_counter_example=True)
+    run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
     # run_all_experiments([net_options[3]], points[:2], t_range, other_idx_method, gurobi_multi, save_results=0, steps_num=2)

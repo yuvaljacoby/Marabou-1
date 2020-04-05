@@ -15,7 +15,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
+# TODO: Recall what we did how to run and move to polyhedron algorithms, and RNN folder
+from RNN.Adversarial import adversarial_query, get_out_idx
 from rnn_algorithms.GurobiBased import AlphasGurobiBased
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD

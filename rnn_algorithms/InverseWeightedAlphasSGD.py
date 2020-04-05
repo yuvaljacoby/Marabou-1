@@ -1,10 +1,10 @@
-from maraboupy.MarabouRNNMultiDim import alpha_to_equation, double_list
+from RNN.MarabouRNNMultiDim import alpha_to_equation
 from maraboupy import MarabouCore
-from maraboupy.MarabouRnnModel import RnnMarabouModel
+from RNN.MarabouRnnModel import RnnMarabouModel
 
 import random
 import numpy as np
-from rnn_algorithms.Update_Strategy import Absolute_Step, Relative_Step
+from rnn_algorithms.Update_Strategy import Absolute_Step
 
 sign = lambda x: 1 if x >= 0 else -1
 

@@ -493,7 +493,7 @@ def draw_2d_from_h5(h5_path, in_tensor, steps, algorithm_points=None):
     :param algorithm_points: None, or a list of points, each point 2d tupple to add a search pattern in the drawing
     :return:
     '''
-    from maraboupy.MarabouRnnModel import RnnMarabouModel
+    from RNN.MarabouRnnModel import RnnMarabouModel
     rnnModel = RnnMarabouModel(h5_path, steps)
     w_in, w_h, b = rnnModel.get_weights()[0]
     draw_max_alphas(in_tensor, w_in, w_h, num_steps=steps, points=algorithm_points)

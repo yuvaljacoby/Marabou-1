@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, IterateAlphasSGD,
+from RNN.MarabouRNNMultiDim import add_rnn_multidim_cells, prove_multidim_property, IterateAlphasSGD,
 
 MODEL_FILE_PATH = 'maraboupy/mnist_example/rnn.pt'
 large = 5000

@@ -4,8 +4,8 @@ from typing import List, Union
 import numpy as np
 
 from maraboupy import MarabouCore
-from maraboupy.MarabouRnnModel import MARABOU_TIMEOUT
-from maraboupy.MarabouRnnModel import RnnMarabouModel
+from RNN.MarabouRnnModel import MARABOU_TIMEOUT
+from RNN.MarabouRnnModel import RnnMarabouModel
 
 large = 5000.0
 small = 10 ** -4
@@ -121,16 +121,8 @@ def create_invariant_equations(loop_indices: List[int],
         hypothesis_eq.append(cur_temp_eq)
         return hypothesis_eq
 
-    if isinstance(loop_indices[0], list):
-        assert False
-        rnn_input_indices = [idx + 1 for ls in loop_indices for idx in ls]
-        rnn_output_indices = [idx + 3 for ls in loop_indices for idx in ls]
-    else:
-        rnn_input_indices = [idx + 1 for idx in loop_indices]
-        rnn_output_indices = [idx + 3 for idx in loop_indices]
-
-    # equations for induction step
     if isinstance(invariant_eq, list):
+        # recursion
         base = []
         step = []
         hypothesis = []
@@ -142,9 +134,18 @@ def create_invariant_equations(loop_indices: List[int],
             hypothesis += h
         return base, step, hypothesis
 
+    if isinstance(loop_indices[0], list):
+        # TODO: delete isinstance
+        assert False
+        rnn_input_indices = [idx + 1 for ls in loop_indices for idx in ls]
+        rnn_output_indices = [idx + 3 for ls in loop_indices for idx in ls]
+    else:
+        rnn_input_indices = [idx + 1 for idx in loop_indices]
+        rnn_output_indices = [idx + 3 for idx in loop_indices]
+
+
     induction_step = negate_equation(invariant_eq)
 
-    # equations for induction base
 
     # make sure i == 0 (for induction base)
     loop_equations = []

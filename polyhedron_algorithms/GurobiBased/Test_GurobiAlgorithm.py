@@ -4,8 +4,9 @@ from itertools import product
 import numpy as np
 import pytest
 
-from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
-from rnn_algorithms.GurobiBased import AlphasGurobiBased, AlphasGurobiBasedMultiLayer
+from RNN.Adversarial import adversarial_query, get_out_idx
+from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
+from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
 points = [
     np.array([1.0] * 40),
@@ -53,43 +54,24 @@ multi_layer_paths = ['./FMCAD_EXP/models/model_20classes_rnn4_rnn4_fc32_fc32_010
                      ]
 
 
-# @pytest.mark.parametrize('point', points)
-def test_example_polyhedron_more_expressive():
-    # return 1
-    point = np.array([-1.0] * 40)
-    net_path = './FMCAD_EXP/models/model_20classes_rnn8_fc32_fc32_fc32_0050.ckpt'
-    n = 4
-    method = lambda x: np.argsort(x)[-2]
-    idx_max, other_idx = get_out_idx(point, n, net_path, method)
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
-                         use_polyhedron=False)
-    res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
-    assert not res
-
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
-                         use_polyhedron=True)
-    res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
-    assert res
-
-
-def test_spesific():
+def test_specific():
     point = np.array([-1.0] * 40)
     net_path = './models/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 3
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
-                         use_polyhedron=True)
+    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     method = lambda x: np.argsort(x)[-2]
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
     assert res
 
 
-def test_spesific_multilayer():
+def test_specific_multilayer():
     point = np.array([1.0] * 40)
     net_path = multi_layer_paths[0]
     n = 3
-    gurobi_ptr = partial(AlphasGurobiBasedMultiLayer, use_relu=True, add_alpha_constraint=True,
-                         use_counter_example=True, use_polyhedron=True)
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     method = lambda x: np.argsort(x)[-2]
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
@@ -100,8 +82,7 @@ def test_fast_unsat():
     point = np.array([0.8] * 40)
     net_path = './models/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 2
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
-                         use_polyhedron=True)
+    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True, use_counter_example=True)
     idx_max = 0
     other_idx = 16
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
@@ -112,8 +93,8 @@ def test_fast_unsat():
 @pytest.mark.parametrize(['point', 'n', 'net_path'], product(*[points, [2, 5], paths]))
 def test_using_gurobi(point, n, net_path):
     method = lambda x: np.argsort(x)[-2]
-    gurobi_ptr = partial(AlphasGurobiBased, use_relu=True, add_alpha_constraint=True, use_counter_example=True,
-                         use_polyhedron=True)
+    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     print(idx_max, other_idx)
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
@@ -127,12 +108,30 @@ def test_using_multilayer_gurobi(point, n, net_path):
     print(n)
     print(point)
     method = lambda x: np.argsort(x)[-2]
-    gurobi_ptr = partial(AlphasGurobiBasedMultiLayer, use_relu=True, add_alpha_constraint=True,
-                         use_counter_example=True, use_polyhedron=True)
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     idx_max, other_idx = get_out_idx(point, n, net_path, method)
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
                                                           gurobi_ptr, n)
     assert res
+
+
+# def test_example_polyhedron_more_expressive():
+#     # return 1
+#     point = np.array([-1.0] * 40)
+#     net_path = './FMCAD_EXP/models/model_20classes_rnn8_fc32_fc32_fc32_0050.ckpt'
+#     n = 4
+#     method = lambda x: np.argsort(x)[-2]
+#     idx_max, other_idx = get_out_idx(point, n, net_path, method)
+#     gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+#                          use_counter_example=True)
+#     res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+#     assert not res
+#
+#     gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=2, use_relu=True, add_alpha_constraint=True,
+#                          use_counter_example=True)
+#     res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+#     assert res
 
 
 def test_cond_x_l_zero():

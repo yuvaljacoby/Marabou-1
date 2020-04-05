@@ -1,5 +1,5 @@
 from maraboupy import MarabouCore
-from maraboupy.MarabouRNNMultiDim import add_rnn_multidim_cells, \
+from RNN.MarabouRNNMultiDim import add_rnn_multidim_cells, \
     negate_equation, prove_multidim_property
 from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
 

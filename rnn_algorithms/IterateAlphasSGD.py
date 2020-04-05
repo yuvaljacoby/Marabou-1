@@ -1,4 +1,4 @@
-from maraboupy.MarabouRNNMultiDim import alpha_to_equation, double_list
+from RNN.MarabouRNNMultiDim import alpha_to_equation
 from maraboupy import MarabouCore
 
 

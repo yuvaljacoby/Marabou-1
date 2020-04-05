@@ -8,7 +8,7 @@ from datetime import datetime
 MARABOU_TIMEOUT = 120
 
 SMALL = 10 ** -2
-LARGE = 5000
+LARGE = 10000
 
 
 def add_rnn_multidim_cells(query, input_idx, input_weights, hidden_weights, bias, num_iterations, print_debug=False):

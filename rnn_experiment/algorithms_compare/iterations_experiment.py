@@ -1,15 +1,7 @@
-import pickle
 import numpy as np
-from maraboupy.MarabouRNNMultiDim import prove_multidim_property
-from maraboupy.keras_to_marabou_rnn import adversarial_query, get_out_idx
-from rnn_algorithms.RandomAlphasSGD import RandomAlphasSGD
-from rnn_algorithms.MaxAlphasSGDInfStart import MaxAlphasSGD
-from rnn_algorithms.IterateAlphasSGD import IterateAlphasSGD
-from maraboupy.keras_to_marabou_rnn import RnnMarabouModel, calc_min_max_by_radius, negate_equation
-from maraboupy import MarabouCore
+from RNN.Adversarial import adversarial_query, get_out_idx
 from timeit import default_timer as timer
 import seaborn as sns
-from rns_verify.verify_keras import verify_query as rns_verify_query
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
