@@ -20,7 +20,7 @@ def check_if_model_in_dir(model_name: str, output_folder: str):
     return False
 
 
-def write_one_sbatch(output_folder: str, model: str):
+def write_one_sbatch(output_folder, model):
     exp_time = str(datetime.now()).replace(" ", "-")
     with open(os.path.join(output_folder, "run_iterations_exp_" + model + ".sh"), "w") as slurm_file:
         exp = "iterations".format()
@@ -34,12 +34,12 @@ def write_one_sbatch(output_folder: str, model: str):
         # slurm_file.write(f'#SBATCH --partition={partition}\n')
         slurm_file.write('#SBATCH --time=24:00:00\n')
         slurm_file.write('#SBATCH --mem-per-cpu=300\n')
-        slurm_file.write('#SBATCH --mail-type=END,FAIL\n')
+        slurm_file.write('#SBATCH --mail-type=FAIL\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
         slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
+        slurm_file.write('. /cs/labs/guykatz/yuvalja/marabou_rnn/bin/activate\n')
         slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
         slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
-        slurm_file.write('. /cs/labs/guykatz/yuvalja/tensorflow/bin/activate\n')
         slurm_file.write('python3 rnn_experiment/self_compare/IterationsExperiment.py {} {}\n'.format("exp", model))
 
 def create_sbatch(output_folder, models_folder, cache_folder=''):
@@ -56,15 +56,20 @@ def create_sbatch(output_folder, models_folder, cache_folder=''):
             continue
         write_one_sbatch(output_folder, model)
 
-def create_sbatch_from_list(output_folder):
-    FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn12_rnn12_fc32_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.pkl',
-                      'model_20classes_rnn8_rnn4_rnn4_fc32_fc32_fc32_fc32_0150.pkl']
+def create_sbatch_from_list(output_folder, clear_dir=True):
+    FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.ckpt',
+                      'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.ckpt',
+                      'model_20classes_rnn8_rnn8_fc32_fc32_0200.ckpt',
+                      'model_20classes_rnn12_rnn12_fc32_fc32_fc32_fc32_0200.ckpt',
+                      'model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.ckpt',
+                      'model_20classes_rnn8_rnn4_rnn4_fc32_fc32_fc32_fc32_0150.ckpt']
+    if clear_dir:
+        shutil.rmtree(output_folder)
 
+    os.makedirs(output_folder, exist_ok=1)
     for model in FMCAD_networks:
+        # if not os.path.exists(model):
+        #     raise FileNotFoundError(model)
         write_one_sbatch(output_folder, model)
 
 
