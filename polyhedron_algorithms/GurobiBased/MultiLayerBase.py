@@ -2,6 +2,7 @@ from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
 POLYHEDRON_MAX_DIM = 1
 
+
 class GurobiMultiLayer:
     # Alpha Search Algorithm for multilayer recurrent, assume the recurrent layers are one following the other
     # we need this assumptions in proved_invariant method, if we don't have it we need to extract bounds in another way
@@ -23,15 +24,23 @@ class GurobiMultiLayer:
         self.num_layers = len(rnnModel.rnn_out_idx)
         self.alphas_algorithm_per_layer = []
         self.alpha_history = None
+        self.rnnModel = rnnModel
+        self.polyhedron_max_dim = polyhedron_max_dim
+        self.use_relu = use_relu
+        self.use_counter_example = use_counter_example
+        self.add_alpha_constraint = add_alpha_constraint
+        self.input_lim = xlim
         for i in range(self.num_layers):
-            if i == 0:
-                prev_layer_lim = xlim
-            else:
-                prev_layer_lim = None  # [(-LARGE, LARGE) for _ in range(len(xlim))]
-            self.alphas_algorithm_per_layer.append(
-                GurobiSingleLayer(rnnModel, prev_layer_lim, polyhedron_max_dim=polyhedron_max_dim, use_relu=use_relu,
-                                  use_counter_example=use_counter_example, add_alpha_constraint=add_alpha_constraint,
-                                  layer_idx=i))
+            self.alphas_algorithm_per_layer.append(self._initialize_single_layer(i))
+
+    def _initialize_single_layer(self, layer_idx: int) -> GurobiSingleLayer:
+        if layer_idx == 0:
+            prev_layer_lim = self.input_lim
+        else:
+            prev_layer_lim = None
+        return GurobiSingleLayer(self.rnnModel, prev_layer_lim, polyhedron_max_dim=self.polyhedron_max_dim,
+                                 use_relu=self.use_relu, use_counter_example=self.use_counter_example,
+                                 add_alpha_constraint=self.add_alpha_constraint, layer_idx=layer_idx)
 
     def proved_invariant(self, layer_idx=0, equations=None):
         # Proved invariant on layer_idx --> we can update bounds for layer_idx +1

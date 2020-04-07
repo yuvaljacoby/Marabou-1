@@ -5,8 +5,8 @@ from typing import List, Tuple, Union
 
 from gurobipy import LinExpr, Var, Model, Env, GRB, setParam
 
-from maraboupy import MarabouCore
 from RNN.MarabouRNNMultiDim import alpha_to_equation
+from maraboupy import MarabouCore
 from polyhedron_algorithms.GurobiBased.Bound import Bound
 
 random.seed(0)
@@ -21,7 +21,8 @@ setParam('NodefileStart', 0.5)
 
 
 class GurobiSingleLayer:
-    def __init__(self, rnnModel, xlim, polyhedron_max_dim, use_relu=True, use_counter_example=False, add_alpha_constraint=False,
+    def __init__(self, rnnModel, xlim, polyhedron_max_dim, use_relu=True, use_counter_example=False,
+                 add_alpha_constraint=False,
                  layer_idx=0):
         '''
 
@@ -44,7 +45,7 @@ class GurobiSingleLayer:
         self.alphas_l = []
         self.added_constraints = None
         self.polyhedron_max_dim = polyhedron_max_dim
-
+        self.step_num = 1
         self.same_step_counter = 0
         rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(layer_idx)
         self.rnn_output_idxs = rnn_output_idxs
@@ -52,7 +53,6 @@ class GurobiSingleLayer:
         self.rnn_output_idxs_double = rnn_output_idxs + rnn_output_idxs
         self.is_time_limit = False
         self.UNSAT = False
-        self.equations_per_dimension = 1
 
         self.inv_type = [MarabouCore.Equation.GE] * self.dim + [MarabouCore.Equation.LE] * self.dim
         self.equations = [None] * self.dim * 2
@@ -209,25 +209,18 @@ class GurobiSingleLayer:
 
         gmodel.addConstr(cond_delta <= len(deltas) - 1, "{}_deltas".format(cond_name))
 
-    def get_gurobi_polyhedron_model(self, n):
+    def get_gurobi_polyhedron_model(self):
         env = Env()
         gmodel = Model("test", env)
 
-        if self.alphas_l:
-            self.alphas_l = []
-            self.alphas_u = []
-
         obj = LinExpr()
-        for hidden_idx in range(self.w_h.shape[0]):
-            self.alphas_l.append([])
-            self.alphas_u.append([])
-            for j in range(n):
-                cur_init_vals = (self.initial_values[0][hidden_idx], self.initial_values[1][hidden_idx])
-                self.alphas_l[hidden_idx].append(Bound(gmodel, False, cur_init_vals[0], hidden_idx, j))
-                self.alphas_u[hidden_idx].append(Bound(gmodel, True, cur_init_vals[1], hidden_idx, j))
+        self.alphas_l, self.alphas_u = self.set_gurobi_vars(gmodel)
 
-                obj += self.alphas_l[hidden_idx][-1].get_objective()
-                obj += self.alphas_u[hidden_idx][-1].get_objective()
+        for hidden_idx in range(self.w_h.shape[0]):
+            for a in self.alphas_l[hidden_idx]:
+                obj += a.get_objective()
+            for a in self.alphas_u[hidden_idx]:
+                obj += a.get_objective()
 
         gmodel.setObjective(obj, GRB.MINIMIZE)
 
@@ -248,19 +241,43 @@ class GurobiSingleLayer:
 
                     if hasattr(alphas_l[hidden_idx], 'get_lhs'):
                         self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx].get_lhs(t), False,
-                                                 ".{}_t{}".format(hidden_idx, j, t))
+                                                 "alpha_l{}_t{}".format(hidden_idx, t))
                         self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx].get_lhs(t), True,
-                                                 "alpha_u{}_t{}".format(hidden_idx, j, t))
+                                                 "alpha_u{}_t{}".format(hidden_idx, t))
                     else:
+                        assert False
                         self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
-                                                 ".{}_t{}".format(hidden_idx, j, t))
+                                                 "alpha_l{}_t{}".format(hidden_idx, t))
                         self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t + 1), True,
-                                                 "alpha_u{}_t{}".format(hidden_idx, j, t))
+                                                 "alpha_u{}_t{}".format(hidden_idx, t))
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
         # gmodel.write("get_gurobi_polyhedron_model.lp")
         return env, gmodel
+
+    def set_gurobi_vars(self, gmodel: Model) -> Tuple[List[List[Bound]], List[List[Bound]]]:
+        alphas_u = []
+        alphas_l = []
+        for hidden_idx in range(self.w_h.shape[0]):
+            alphas_l.append([])
+            alphas_u.append([])
+            for j in range(self.step_num):
+                cur_init_vals = (self.initial_values[0][hidden_idx], self.initial_values[1][hidden_idx])
+                alphas_l[hidden_idx].append(Bound(gmodel, False, cur_init_vals[0], hidden_idx, j))
+                alphas_u[hidden_idx].append(Bound(gmodel, True, cur_init_vals[1], hidden_idx, j))
+
+        self.step_num += 1
+        return alphas_l, alphas_u
+
+    def improve_gurobi_model(self, gmodel: Model) -> bool:
+        '''
+        Got o model, extract anything needed to improve in the next iteration
+        :param gmodel: infeasible model
+        :return wheater to do another step or not
+        '''
+        return self.step_num <= self.polyhedron_max_dim
+
 
     def get_gurobi_basic_model(self):
         env = Env()
@@ -327,8 +344,7 @@ class GurobiSingleLayer:
             # Invariant failed, does not suppose to happen
             assert False
 
-
-        env, gmodel = self.get_gurobi_polyhedron_model(self.equations_per_dimension)
+        env, gmodel = self.get_gurobi_polyhedron_model()
 
         if tried_vars_improve is None:
             tried_vars_improve = set()
@@ -356,35 +372,27 @@ class GurobiSingleLayer:
         status = gmodel.status
         error = None
         alphas = None
-        if status == GRB.CUTOFF:
-            print("CUTOFF")
-            error = ValueError("CUTOFF problem")
-        elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
-            # gmodel.computeIIS()
-            # gmodel.write('get_gurobi_polyhedron.ilp')
+        if status == GRB.OPTIMAL:
+            alphas = [[a.model_optimized() for a in ls] for ls in self.alphas_l] + [
+                [a.model_optimized() for a in ls]
+                for ls in self.alphas_u]
+            print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0],
+                                                    [str(a) for a_ls in alphas for a in a_ls]))
 
+        elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
             print("INFEASIBLE")
-            if self.equations_per_dimension >= self.polyhedron_max_dim:
-                error = ValueError("INFEASIBLE problem")
-            else:
-                gmodel.dispose()
-                env.dispose()
-                self.do_gurobi_step(True)
+            error = ValueError("INFEASIBLE problem")
         else:
-            # FEASIBLE  CASE
-            if isinstance(self.alphas_u[0], list):
-                # Using the polyhedron model
-                alphas = [[a.model_optimized() for a in ls] for ls in self.alphas_l] + [[a.model_optimized() for a in ls]
-                                                                                        for ls in self.alphas_u]
-                # alphas = [[a.x for a in ls] for ls in self.alphas_l] + [[a.x for a in ls] for ls in self.alphas_u]
-            else:
-                # TODO: delete isinstance
-                assert False
-                alphas = [1 * a.x for a in self.alphas_l] + [a.x for a in self.alphas_u]
+            # Not sure which other statuses can be ...
+            assert False, status
 
         if error:
             # TODO: Keep track on the recursion depth and use it for generating new bounds
-            if self.added_constraints is not None:
+            if self.improve_gurobi_model(gmodel):
+                gmodel.dispose()
+                env.dispose()
+                self.do_gurobi_step(True)
+            elif self.added_constraints is not None:
                 assert False
                 # If the problem is infeasible and it's not the first try, add constraint and try again
                 for con in self.added_constraints:
@@ -398,23 +406,16 @@ class GurobiSingleLayer:
             else:
                 self.UNSAT = True
 
+
         if self.UNSAT:
             self.equations = None
             return None
 
-        if alphas is None and not self.UNSAT:
-            assert False
+        # if alphas is None and not self.UNSAT:
+        #     assert False
 
         gmodel.dispose()
         env.dispose()
-
-        if isinstance(alphas[0], list):
-            print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0],
-                                                    [str(a) for a_ls in alphas for a in a_ls]))
-        else:
-            # TODO: delete isinstance
-            assert False
-            print("{}: FEASIBLE alpahs = {}".format(str(datetime.now()).split(".")[0], [round(a, 3) for a in alphas]))
 
         return alphas
 
