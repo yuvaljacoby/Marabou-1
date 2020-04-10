@@ -8,7 +8,7 @@ class GurobiMultiLayer:
     # we need this assumptions in proved_invariant method, if we don't have it we need to extract bounds in another way
     # not sure it is even possible to create multi recurrent layer NOT in a row
     def __init__(self, rnnModel, xlim, polyhedron_max_dim=POLYHEDRON_MAX_DIM, use_relu=True, use_counter_example=False,
-                 add_alpha_constraint=False):
+                 add_alpha_constraint=False, **kwargs):
         '''
 
         :param rnnModel: multi layer rnn model (MarabouRnnModel class)
