@@ -1,3 +1,4 @@
+from timeit import default_timer as timer
 import random
 from datetime import datetime
 from itertools import product
@@ -23,7 +24,7 @@ setParam('NodefileStart', 0.5)
 class GurobiSingleLayer:
     def __init__(self, rnnModel, xlim, polyhedron_max_dim, use_relu=True, use_counter_example=False,
                  add_alpha_constraint=False,
-                 layer_idx=0):
+                 layer_idx=0, **kwargs):
         '''
 
         :param rnnModel:
@@ -221,7 +222,10 @@ class GurobiSingleLayer:
                 obj += a.get_objective()
             for a in self.alphas_u[hidden_idx]:
                 obj += a.get_objective()
-
+        # print("*" * 100)
+        # print("l: ", self.alphas_l)
+        # print("u: ", self.alphas_u)
+        # print("*"*100)
         gmodel.setObjective(obj, GRB.MINIMIZE)
 
         # To understand the next line use:
@@ -344,6 +348,7 @@ class GurobiSingleLayer:
             # Invariant failed, does not suppose to happen
             assert False
 
+        start_time = timer()
         env, gmodel = self.get_gurobi_polyhedron_model()
 
         if tried_vars_improve is None:
@@ -367,7 +372,9 @@ class GurobiSingleLayer:
         #             loop_cons_l = self.alphas_l[j] <= self.alphas[j] - SMALL
         #             self.added_constraints.append(self.gmodel.addConstr(loop_cons_l, 'loop_constraint_l'))
 
+
         gmodel.optimize()
+
 
         status = gmodel.status
         error = None
@@ -380,7 +387,6 @@ class GurobiSingleLayer:
                                                     [str(a) for a_ls in alphas for a in a_ls]))
 
         elif status == GRB.INFEASIBLE or status == GRB.INF_OR_UNBD:
-            print("INFEASIBLE")
             error = ValueError("INFEASIBLE problem")
         else:
             # Not sure which other statuses can be ...
@@ -389,6 +395,8 @@ class GurobiSingleLayer:
         if error:
             # TODO: Keep track on the recursion depth and use it for generating new bounds
             if self.improve_gurobi_model(gmodel):
+                end_time = timer()
+                print("FAIL Gurobi Step, retry, seconds:", round(end_time - start_time, 3))
                 gmodel.dispose()
                 env.dispose()
                 self.do_gurobi_step(True)
@@ -405,11 +413,13 @@ class GurobiSingleLayer:
                                              tried_vars_improve=tried_vars_improve)
             else:
                 self.UNSAT = True
+                self.equations = None
+                alphas = None
 
 
-        if self.UNSAT:
-            self.equations = None
-            return None
+        # if self.UNSAT:
+        #     self.equations = None
+        #     return None
 
         # if alphas is None and not self.UNSAT:
         #     assert False

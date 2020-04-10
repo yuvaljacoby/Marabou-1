@@ -5,6 +5,8 @@ import numpy as np
 import pytest
 
 from RNN.Adversarial import adversarial_query, get_out_idx
+from polyhedron_algorithms.GurobiBased.GurobiPolyhedronIISBased import GurobiMultiLayerIIS
+from polyhedron_algorithms.GurobiBased.GurobiPolyhedronRandomImprove import GurobiMultiLayerRandom
 from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
 from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
@@ -82,7 +84,8 @@ def test_fast_unsat():
     point = np.array([0.8] * 40)
     net_path = './models/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 2
-    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True, use_counter_example=True)
+    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True)
     idx_max = 0
     other_idx = 16
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
@@ -114,6 +117,33 @@ def test_using_multilayer_gurobi(point, n, net_path):
     res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path,
                                                           gurobi_ptr, n)
     assert res
+
+
+@pytest.mark.parametrize(['point', 'n', 'net_path'], product(*[points[:2], [5], multi_layer_paths[:2]]))
+def test_using_multilayer_gurobi_random_improve(point, n, net_path):
+    print(net_path)
+    print(n)
+    print(point)
+    method = lambda x: np.argsort(x)[-2]
+    gurobi_ptr = partial(GurobiMultiLayerRandom, polyhedron_max_dim=2, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True, num_steps=10)
+    idx_max, other_idx = get_out_idx(point, n, net_path, method)
+    res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+    assert res
+
+@pytest.mark.parametrize(['point', 'n', 'net_path'], product(*[points[:2], [5], multi_layer_paths[:2]]))
+def test_using_multilayer_gurobi_IIS_improve(point, n, net_path):
+    print(net_path)
+    print(n)
+    print(point)
+    method = lambda x: np.argsort(x)[-2]
+    gurobi_ptr = partial(GurobiMultiLayerIIS, polyhedron_max_dim=2, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True, num_steps=15)
+    idx_max, other_idx = get_out_idx(point, n, net_path, method)
+    res, queries_stats, alpha_history = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+    assert res
+
+
 
 
 # def test_example_polyhedron_more_expressive():

@@ -1,6 +1,6 @@
-from typing import Tuple
+from typing import Tuple, List
 
-from gurobipy import Model, LinExpr, GRB
+from gurobipy import Model, LinExpr, GRB, Constr
 
 from maraboupy import MarabouCore
 from RNN.MarabouRnnModel import LARGE
@@ -31,7 +31,7 @@ class Bound:
         if self.upper:
             gmodel.addConstr(self.beta_var >= initial_value, name='{}_init_val'.format(self.name))
         else:
-            gmodel.addConstr(self.beta_var <= initial_value, name='{}_init_val'.format(self.name))
+            gmodel.addConstr(self.beta_var <= initial_value, name='{}_init_val'.format(self.name.replace('a', 'b')))
 
     def __eq__(self, other):
         if not isinstance(other, Bound):
@@ -99,3 +99,11 @@ class Bound:
 
     def get_bound(self) -> Tuple[int, int]:
         return self.alpha_val, self.beta_val
+
+    def get_iis_weight(self, gmodel: Model, iis_constrains: List[Constr]) -> int:
+        weight_a, weight_b = 0, 0
+        for c in iis_constrains:
+            weight_a += abs(gmodel.getCoeff(c, self.alpha_var))
+            weight_b += abs(gmodel.getCoeff(c, self.beta_var))
+
+        return weight_a + weight_b
