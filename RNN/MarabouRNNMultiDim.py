@@ -32,6 +32,7 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
         raise TimeoutError()
     if len(vars1) > 0:
         if print_vars:
+            query.dump()
             print("SAT")
             print(vars1)
         res = False

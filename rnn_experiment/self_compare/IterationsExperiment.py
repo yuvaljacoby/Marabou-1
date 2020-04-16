@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
 
-    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=4, use_relu=True, add_alpha_constraint=True,
                          use_counter_example=True)
     if len(sys.argv) > 1:
         net_options = None

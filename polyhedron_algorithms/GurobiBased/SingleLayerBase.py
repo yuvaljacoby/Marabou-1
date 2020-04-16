@@ -1,7 +1,7 @@
-from timeit import default_timer as timer
 import random
 from datetime import datetime
 from itertools import product
+from timeit import default_timer as timer
 from typing import List, Tuple, Union
 
 from gurobipy import LinExpr, Var, Model, Env, GRB, setParam
@@ -106,7 +106,7 @@ class GurobiSingleLayer:
 
         initial_values = self.rnnModel.get_rnn_min_max_value_one_iteration(xlim, layer_idx=self.layer_idx,
                                                                            prev_layer_beta=beta)
-        initial_values = ([0] * len(initial_values[0]), initial_values[1])
+        initial_values = (initial_values[0], initial_values[1])
         self.initial_values = initial_values  # [1] + initial_values[0]
 
     def calc_prev_layer_in_val(self, i: int, t: int) -> (int, int):
@@ -117,11 +117,11 @@ class GurobiSingleLayer:
                 # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
                 # In this case we know xlim > 0
                 if self.w_in[j, i] >= 0:
-                    cond_x_u += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                    cond_x_l += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                    cond_x_u += (self.xlim[j][1] * (t) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][0] * (t) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
                 else:
-                    cond_x_u += (self.xlim[j][0] * (t + 1) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                    cond_x_l += (self.xlim[j][1] * (t + 1) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                    cond_x_u += (self.xlim[j][0] * (t) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][1] * (t) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
             else:
                 v1 = self.xlim[j][1] * self.w_in[j, i]
                 v2 = self.xlim[j][0] * self.w_in[j, i]
@@ -133,7 +133,7 @@ class GurobiSingleLayer:
                     cond_x_l += v1
 
             # TODO: I don't like this
-            cond_x_l = min(cond_x_l, 0)
+            # cond_x_l = min(cond_x_l, 0)
         return cond_x_l, cond_x_u
 
     def get_gurobi_rhs(self, i: int, t: int, alphas_l: List[Bound], alphas_u: List[Bound]) -> (LinExpr, LinExpr):
@@ -157,6 +157,7 @@ class GurobiSingleLayer:
                 else:
                     cond_l += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
                     cond_u += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
+                    assert False
             else:
                 if hasattr(alphas_l[j], 'get_rhs'):
                     cond_l += alphas_u[j].get_rhs(t) * self.w_h[i, j]
@@ -164,6 +165,7 @@ class GurobiSingleLayer:
                 else:
                     cond_l += (alphas_u[j] + self.initial_values[1][j]) * (t) * self.w_h[i, j]
                     cond_u += (alphas_l[j] + self.initial_values[0][j]) * (t) * self.w_h[i, j]
+                    assert False
 
         cond_x_l, cond_x_u = self.calc_prev_layer_in_val(i, t)
         cond_u += cond_x_u + self.b[i]  # + SMALL
@@ -176,14 +178,18 @@ class GurobiSingleLayer:
         first_letter = "u" if upper_bound else "l"
         cond_f = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name="{}b{}_t_{}".format(first_letter, i, t))
         delta = gmodel.addVar(vtype=GRB.BINARY)
-        if upper_bound:
-            gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
-            gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
-            gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
-        else:
-            gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
-            gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
-            gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
+        gmodel.addConstr(cond_f >= cond, name="cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
+        gmodel.addConstr(cond_f <= cond + LARGE * delta, name="cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
+        gmodel.addConstr(cond_f <= LARGE * (1 - delta), name="cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
+
+        # if upper_bound:
+        #     gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
+        #     gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
+        #     gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
+        # else:
+        #     gmodel.addConstr(cond_f >= cond, "cond_{}_relu0_i{}_t{}".format(first_letter, i, t))
+        #     gmodel.addConstr(cond_f <= cond + LARGE * delta, "cond_{}_relu1_i{}_t{}".format(first_letter, i, t))
+        #     gmodel.addConstr(cond_f <= LARGE * (1 - delta), "cond_{}_relu2_i{}_t{}".format(first_letter, i, t))
         return cond_f, delta
 
     @staticmethod
@@ -203,12 +209,12 @@ class GurobiSingleLayer:
             deltas.append(gmodel.addVar(vtype=GRB.BINARY))
             cond_delta += deltas[-1]
             if greater:
-                gmodel.addConstr(lhs >= cond - (LARGE * deltas[-1]), cond_name)
+                gmodel.addConstr(lhs >= cond - (LARGE * deltas[-1]), name=cond_name)
             else:
-                gmodel.addConstr(lhs <= cond + (LARGE * deltas[-1]), cond_name)
-            gmodel.addConstr(deltas[-1] <= 0)
+                gmodel.addConstr(lhs <= cond + (LARGE * deltas[-1]), name=cond_name)
+            # gmodel.addConstr(deltas[-1] <= 0)
 
-        gmodel.addConstr(cond_delta <= len(deltas) - 1, "{}_deltas".format(cond_name))
+        gmodel.addConstr(cond_delta <= len(deltas) - 1, name="{}_deltas".format(cond_name))
 
     def get_gurobi_polyhedron_model(self):
         env = Env()
@@ -232,32 +238,32 @@ class GurobiSingleLayer:
         #       [list(a_l) for a_l in product(*[[1,2],[3]])], [list(a_u) for a_u in product(*[[10],[20,30]])]
         all_alphas = [[list(a_l) for a_l in product(*self.alphas_l)], [list(a_u) for a_u in product(*self.alphas_u)]]
         for hidden_idx in range(self.w_h.shape[0]):
-            for t in range(self.n_iterations):
+            for t in range(1, self.n_iterations + 1):
                 conds_l = []
                 conds_u = []
                 for alphas_l, alphas_u in zip(*all_alphas):
                     cond_l, cond_u = self.get_gurobi_rhs(hidden_idx, t, alphas_l, alphas_u)
                     if self.use_relu:
-                        cond_u, _ = self.get_relu_constraint(gmodel, cond_u, hidden_idx, t, True)
-                        cond_l, _ = self.get_relu_constraint(gmodel, cond_l, hidden_idx, t, False)
+                        cond_u, _ = self.get_relu_constraint(gmodel, cond_u, hidden_idx, t, upper_bound=True)
+                        cond_l, _ = self.get_relu_constraint(gmodel, cond_l, hidden_idx, t, upper_bound=False)
                     conds_l.append(cond_l)
                     conds_u.append(cond_u)
 
-                    if hasattr(alphas_l[hidden_idx], 'get_lhs'):
-                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx].get_lhs(t), False,
-                                                 "alpha_l{}_t{}".format(hidden_idx, t))
-                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx].get_lhs(t), True,
-                                                 "alpha_u{}_t{}".format(hidden_idx, t))
-                    else:
-                        assert False
-                        self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
-                                                 "alpha_l{}_t{}".format(hidden_idx, t))
-                        self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t + 1), True,
-                                                 "alpha_u{}_t{}".format(hidden_idx, t))
+                for i, al in enumerate(self.alphas_l[hidden_idx]):
+                    self.add_disjunction_rhs(gmodel, conds=conds_l, lhs=al.get_lhs(t),
+                                             greater=False, cond_name="alpha_l{}_t{}".format(i, t))
+                for i, au in enumerate(self.alphas_u[hidden_idx]):
+                    self.add_disjunction_rhs(gmodel, conds=conds_u, lhs=au.get_lhs(t),
+                                             greater=True, cond_name="alpha_u{}_t{}".format(i, t))
+                    
+                        # self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
+                        #                          "alpha_l{}_t{}".format(hidden_idx, t))
+                        # self.add_disjunction_rhs(gmodel, conds_u, alphas_u[hidden_idx] * (t + 1), True,
+                        #                          "alpha_u{}_t{}".format(hidden_idx, t))
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
-        # gmodel.write("get_gurobi_polyhedron_model.lp")
+        gmodel.write("get_gurobi_polyhedron_model.lp")
         return env, gmodel
 
     def set_gurobi_vars(self, gmodel: Model) -> Tuple[List[List[Bound]], List[List[Bound]]]:
@@ -280,8 +286,9 @@ class GurobiSingleLayer:
         :param gmodel: infeasible model
         :return wheater to do another step or not
         '''
+        gmodel.computeIIS()
+        gmodel.write("gurobi_improve.ilp")
         return self.step_num <= self.polyhedron_max_dim
-
 
     def get_gurobi_basic_model(self):
         env = Env()
@@ -312,8 +319,8 @@ class GurobiSingleLayer:
                     cond_u, d = self.get_relu_constraint(gmodel, cond_u, hidden_idx, t, True)
                     cond_l, d = self.get_relu_constraint(gmodel, cond_l, hidden_idx, t, False)
 
-                gmodel.addConstr(self.alphas_u[hidden_idx] * (t + 1) >= cond_u, "alpha_u{}_t{}".format(hidden_idx, t))
-                gmodel.addConstr(self.alphas_l[hidden_idx] * (t + 1) <= cond_l, "alpha_l{}_t{}".format(hidden_idx, t))
+                gmodel.addConstr(self.alphas_u[hidden_idx] * (t + 1) >= cond_u, name="alpha_u{}_t{}".format(hidden_idx, t))
+                gmodel.addConstr(self.alphas_l[hidden_idx] * (t + 1) <= cond_l, name="alpha_l{}_t{}".format(hidden_idx, t))
 
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
@@ -355,6 +362,7 @@ class GurobiSingleLayer:
             tried_vars_improve = set()
         # not using this for now
         if False and self.use_counter_example:
+            assert False
             if strengthen and previous_alphas is not None:
                 # We proved invariant but the property is not implied do a big step in one of the invariants
                 random_constraint, constraing_description, improve_idx = \
@@ -372,9 +380,7 @@ class GurobiSingleLayer:
         #             loop_cons_l = self.alphas_l[j] <= self.alphas[j] - SMALL
         #             self.added_constraints.append(self.gmodel.addConstr(loop_cons_l, 'loop_constraint_l'))
 
-
         gmodel.optimize()
-
 
         status = gmodel.status
         error = None
@@ -412,10 +418,11 @@ class GurobiSingleLayer:
                 alphas = self.do_gurobi_step(strengthen, previous_alphas=self.alphas,
                                              tried_vars_improve=tried_vars_improve)
             else:
+                end_time = timer()
+                print("FAIL Gurobi Step, stop, seconds:", round(end_time - start_time, 3))
                 self.UNSAT = True
                 self.equations = None
                 alphas = None
-
 
         # if self.UNSAT:
         #     self.equations = None

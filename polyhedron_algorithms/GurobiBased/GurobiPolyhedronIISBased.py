@@ -47,7 +47,7 @@ class GurobiSingleLayerIIS(GurobiSingleLayer):
             for j in range(self.alphas_u_lengths[hidden_idx]):
                 alphas_u[hidden_idx].append(Bound(gmodel, True, cur_init_vals[1], hidden_idx, j))
 
-        print('step_num:', self.step_num)
+        # print('step_num:', self.step_num)
         self.step_num += 1
         return alphas_l, alphas_u
 

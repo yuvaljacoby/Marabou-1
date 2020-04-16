@@ -56,6 +56,18 @@ multi_layer_paths = ['./FMCAD_EXP/models/model_20classes_rnn4_rnn4_fc32_fc32_010
                      ]
 
 
+def test_simple_rnn2():
+    return
+    point = np.array([1.0])
+    net_path = 'FMCAD_EXP/rnn_test_model.h5'
+    n = 3
+    gurobi_ptr = partial(GurobiSingleLayer, polyhedron_max_dim=4, use_relu=False, add_alpha_constraint=True,
+                         use_counter_example=True)
+    method = lambda x: np.argsort(x)[-2]
+    idx_max, other_idx = get_out_idx(point, n, net_path, method)
+    res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
+    assert res
+
 def test_specific():
     point = np.array([-1.0] * 40)
     net_path = './models/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs50.h5'

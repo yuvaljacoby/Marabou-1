@@ -3,6 +3,7 @@ import os
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow.keras as keras
 from tqdm import tqdm
 
 MIN_GRID = -2
@@ -172,7 +173,8 @@ def get_2d_max_constraints(x, w_in, w_h, num_steps):
         v = r0[i]
         # a0_constraints.append(v - ReLU(a0 * i + np.matmul(x, w_in[:, 0])) < EPS)
         # a0_constraints.append(v - ReLU(a0 * i ) < EPS)
-        a0_constraints.append(v - ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])) < EPS)
+        a0_constraints.append(
+            v - ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])) < EPS)
         # we removed + x * w_in[0] from both sides of the equation
         # induction_constraints.append(a0 * i >= ReLU(a0 * (i - 1) * w_h[0, 0] + a1 * (i - 1) * w_h[0, 1] + np.matmul(x, w_in[:, 0])))
 
@@ -182,7 +184,8 @@ def get_2d_max_constraints(x, w_in, w_h, num_steps):
         # a1_constraints.append(ReLU(a1 * i + x) >= v)
         # a1_constraints.append(v - ReLU(a1 * i + np.matmul(x, w_in[:, 1])) < EPS)
         # a1_constraints.append(v - ReLU(a1 * i) < EPS)
-        a1_constraints.append(v - ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])) < EPS)
+        a1_constraints.append(
+            v - ReLU(a0 * (i - 1) * w_h[1, 0] + a1 * (i - 1) * w_h[1, 1] + np.matmul(x, w_in[:, 1])) < EPS)
         # a1_constraints.append(np.abs(ReLU(a1 * i + np.matmul(x, w_in[:, 1])) - v) < EPS)
         # we removed + x * w_in[1] from both sides of the equation
 
@@ -362,75 +365,40 @@ def draw_max_alphas_and_property(x: int, w_in: np.ndarray, w_h: np.ndarray, prop
     # draw(property_and_invariant, MIN_GRID, MAX_GRID)
 
 
-def draw_2d_hidden_values_one_image(x, w_in, w_h0, num_steps, file_name):
-    min_r = 0
-    max_r = 1.5
-    points_to_sample = 25 ** 2
-    sqrt_num_points = int(np.sqrt(points_to_sample))
-    values = [50, 255]
-    valid = np.zeros((sqrt_num_points, sqrt_num_points)) + values[0]
-    step_size = (max_r - min_r) / sqrt_num_points
-    pbar = tqdm(total=points_to_sample)
+def draw_2d_hidden_output_from_h5(x, h5_path, num_steps):
+    model = keras.models.load_model(h5_path)
+    w_in, w_h, b = model.layers[0].get_weights()
+    draw_2d_hidden_output_one_image(x, w_in, w_h, num_steps)
 
-    for i in range(sqrt_num_points):
-        for j in range(sqrt_num_points):
-            w_h = np.vstack((w_h0, np.array([i * step_size, j * step_size])))
-            max_constraints, induction_constraints = get_2d_max_constraints(x, w_in, w_h, num_steps)
-            if constraint_conjunction(max_constraints + induction_constraints).any():
-                valid[i, j] = values[1]
-            pbar.update(1)
 
-    im = plt.imshow((valid).astype(int),
-                    extent=(min_r, max_r, min_r, max_r),
-                    origin="lower", cmap='hot')
-    colors = [im.cmap(im.norm(value)) for value in values]
-    patches = [mpatches.Patch(color=colors[0], label="Invalid hidden values"),
-               mpatches.Patch(color=colors[1], label="Valid hidden values")]
-    plt.title("Alphas for proving max property, n: {} w_h0: {}".format(num_steps, w_h0))
-    plt.legend(handles=patches, loc=2)
-    plt.xlabel('w_h[1,0]')
-    plt.ylabel('w_h[1,1]')
+def draw_2d_hidden_output_one_image(x, w_in, w_h, num_steps):
+    r = calc_rnn_values(x, w_in, w_h, num_steps)
+    print(r)
+    colors = ['r', 'g', 'b']
+    for i in range(r.shape[1]):
+        plt.scatter(range(len(r[:, i])), r[:, i], label='r' + str(i), color=colors[i], alpha=0.4)
+    def draw_line(m, b, i, is_upper):
+        label_text = 'upper' if is_upper else 'lower'
+        linestyle = 'dashed' if is_upper else 'dotted'
+        plt.plot(line_range, [m * x + b for x in line_range], label='r{}_{}'.format(i, label_text),
+                 color=colors[i], linestyle=linestyle, alpha=0.6)
+
+    line_range = range(-1, r.shape[0])
+    for i in range(r.shape[1]):
+        continue
+        if i == 0:
+            draw_line(m=0, b=0, i=i, is_upper=False)
+            draw_line(m=0.495, b=1, i=i, is_upper=True)
+        if i == 1:
+            draw_line(m=0, b=0, i=i, is_upper=False)
+            draw_line(m=0.912, b=1, i=i, is_upper=True)
+
+
+    plt.title("RNN Output")
+    plt.xlabel('time')
+    plt.ylabel('rnn_out')
+    plt.legend(loc='best')
     # plt.savefig(file_name)
-    plt.show()
-
-
-def draw_2d_hidden_values(x, w_in, w_h0, num_steps, file_name='figures/w_h_over_time_{}.gif'):
-    '''
-    Save a gif to file_name, each image in the gif correspond to time stamp
-    white pixels have valid invariants, gray area do not.
-    The axis are w_h_1_0 and w_h_1_1
-    :param x:
-    :param w_in:
-    :param w_h0:
-    :param num_steps:
-    :param file_name:
-    :return:
-    '''
-    min_r = -1
-    max_r = 1
-    points_to_sample = 25 ** 2
-    sqrt_num_points = int(np.sqrt(points_to_sample))
-    valid = np.zeros((sqrt_num_points, sqrt_num_points)) + 50
-    step_size = (max_r - min_r) / sqrt_num_points
-
-    pbar = tqdm(total=points_to_sample * num_steps)
-    images = None
-    for t in range(1, num_steps + 1):
-        for i in range(sqrt_num_points):
-            for j in range(sqrt_num_points):
-                w_h = np.vstack((w_h0, np.array([i * step_size, j * step_size])))
-                a0_constraints, a1_constraints = get_max_constriants(x, w_in, w_h, t)
-                if constraint_conjunction(a0_constraints + a1_constraints).any():
-                    valid[i, j] = 255
-                pbar.update(1)
-
-        if images is None:
-            images = valid[None, ...]
-        else:
-            images = np.vstack((images, valid[None, ...]))
-
-    images = images.repeat(10, axis=1).repeat(10, axis=2)
-    # imageio.mimsave(file_name.format(w_h0), images / 255, duration=1)
     plt.show()
 
 
@@ -510,37 +478,24 @@ if __name__ == "__main__":
     #     0.91561612, 0.39746448, 0.14791963, 0.38114261, 0.24696231])
     # draw_2d_from_h5("models/model_classes5_1rnn2_0_64_4.h5", in_tensor, 5)
     # exit(0)
-    steps = 3
+    steps = 4
     max_property = 15
 
-    # d = np.linspace(MIN_GRID, MAX_GRID, NUM_POINTS_TO_SAMPLE)
-    # v1, v2 = np.meshgrid(d, d)
-    #
-    # # y1 = Relu(-v1 + 3v0) + Relu(-2v0 + v1)
-    # h1 = ReLU(2.0 * v1 - 1.0 * v2)
-    # h2 = ReLU(-1.0 *v1 + 1.5 * v2)
-    # r1 = ReLU(-1.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
-    # r2 = ReLU(-3.0 * h1 + 3.0 * h2) #+ ReLU(-2 * v0 + v1)
-    # y1 = r1 + 2.0 *r2
-    # y2 = 2.0 *r1 + r2
-    # property_constraints = (y2 <= y1)
-    #
-    # im = plt.imshow((property_constraints).astype(int),
-    #                 extent=(MIN_GRID, MAX_GRID, MIN_GRID, MAX_GRID),
-    #                  cmap='hot')
-    #
-    # plt.show()
-    # exit(0)
+    x = np.array([1])
+    draw_2d_hidden_output_from_h5(x, 'FMCAD_EXP/rnn_test_model.h5', steps)
+    exit(1)
 
-    x = np.array([2])
-    w_in = np.array([-1, 2])[None, :]
+    w_in = np.array([1, 1])[None, :]
+
     # w_h = np.array([[0.1, 0.7], [1, 1]]) # no convex shape
     # w_h0 = [0.5,0.5]
     # w_h0 = [-0.2, 2]
     w_h = np.array([[1, 1], [1, -1]])
 
+    draw_2d_hidden_output_one_image(x, w_in, w_h, steps)
     draw_max_constraints(x, w_in, w_h, 10, 2)
     # draw_min_alphas(x, w_in, w_h, steps)
+
     # draw_max_alphas_and_property(x, w_in, w_h, max_property, steps)
     # draw_min_alphas(x, w_in, w_h, steps)
 

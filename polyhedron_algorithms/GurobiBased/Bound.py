@@ -28,10 +28,11 @@ class Bound:
                           name=self.name)
         self.beta_var = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS,
                                       name="b{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
+        init_constr_name = '{}_init_val'.format(self.name.replace('a', 'b'))
         if self.upper:
-            gmodel.addConstr(self.beta_var >= initial_value, name='{}_init_val'.format(self.name))
+            gmodel.addConstr(self.beta_var >= initial_value, name=init_constr_name)
         else:
-            gmodel.addConstr(self.beta_var <= initial_value, name='{}_init_val'.format(self.name.replace('a', 'b')))
+            gmodel.addConstr(self.beta_var <= initial_value, name=init_constr_name)
 
     def __eq__(self, other):
         if not isinstance(other, Bound):
@@ -44,12 +45,14 @@ class Bound:
     def get_rhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-        return self.alpha_var * t + self.beta_var
+        time = max(t-1, 0)
+        # time = max(t, 0)
+        return self.alpha_var * time + self.beta_var
 
     def get_lhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-        return self.alpha_var * (t + 1) + self.beta_var
+        return self.alpha_var * (t) + self.beta_var
 
     def get_objective(self, alpha_weight=1, beta_weight=1) -> LinExpr():
         obj = self.alpha_var * alpha_weight + self.beta_var * beta_weight
