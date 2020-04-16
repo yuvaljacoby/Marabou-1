@@ -263,7 +263,7 @@ class GurobiSingleLayer:
         if not PRINT_GUROBI:
             gmodel.setParam('OutputFlag', False)
 
-        gmodel.write("get_gurobi_polyhedron_model.lp")
+        # gmodel.write("get_gurobi_polyhedron_model.lp")
         return env, gmodel
 
     def set_gurobi_vars(self, gmodel: Model) -> Tuple[List[List[Bound]], List[List[Bound]]]:
@@ -286,8 +286,8 @@ class GurobiSingleLayer:
         :param gmodel: infeasible model
         :return wheater to do another step or not
         '''
-        gmodel.computeIIS()
-        gmodel.write("gurobi_improve.ilp")
+        # gmodel.computeIIS()
+        # gmodel.write("gurobi_improve.ilp")
         return self.step_num <= self.polyhedron_max_dim
 
     def get_gurobi_basic_model(self):
