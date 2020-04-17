@@ -36,7 +36,7 @@ def write_one_sbatch(output_folder, model):
         slurm_file.write('#SBATCH --mem-per-cpu=300\n')
         slurm_file.write('#SBATCH --mail-type=FAIL\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
-        slurm_file.write('#SBATCH -w, --nodelist=hm-47\n')
+        slurm_file.write('#SBATCH -w, --nodelist=hm-68\n')
         slurm_file.write('. /cs/labs/guykatz/yuvalja/marabou_rnn/bin/activate\n')
         slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
         slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
