@@ -45,14 +45,13 @@ class Bound:
     def get_rhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-        time = max(t-1, 0)
-        # time = max(t, 0)
-        return self.alpha_var * time + self.beta_var
+
+        return self.alpha_var * t + self.beta_var
 
     def get_lhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-        return self.alpha_var * (t) + self.beta_var
+        return self.alpha_var * (t + 1) + self.beta_var
 
     def get_objective(self, alpha_weight=1, beta_weight=1) -> LinExpr():
         obj = self.alpha_var * alpha_weight + self.beta_var * beta_weight
@@ -84,9 +83,7 @@ class Bound:
         if inv_type == MarabouCore.Equation.LE:
             ge_better = -1
         else:
-            # TODO: I don't like this either
             ge_better = 1
-            # ge_better = -1
 
         invariant_equation = MarabouCore.Equation(inv_type)
         invariant_equation.addAddend(1, rnn_out_idx)  # b_i

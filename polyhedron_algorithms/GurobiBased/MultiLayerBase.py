@@ -1,3 +1,4 @@
+from RNN import MarabouRnnModel
 from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
 POLYHEDRON_MAX_DIM = 1
@@ -7,7 +8,7 @@ class GurobiMultiLayer:
     # Alpha Search Algorithm for multilayer recurrent, assume the recurrent layers are one following the other
     # we need this assumptions in proved_invariant method, if we don't have it we need to extract bounds in another way
     # not sure it is even possible to create multi recurrent layer NOT in a row
-    def __init__(self, rnnModel, xlim, polyhedron_max_dim=POLYHEDRON_MAX_DIM, use_relu=True, use_counter_example=False,
+    def __init__(self, rnnModel: MarabouRnnModel, xlim, polyhedron_max_dim=POLYHEDRON_MAX_DIM, use_relu=True, use_counter_example=False,
                  add_alpha_constraint=False, **kwargs):
         '''
 
@@ -48,25 +49,26 @@ class GurobiMultiLayer:
         alphas_l, alphas_u, betas_l, betas_u = [], [], [], []
 
         for l_bound_node in l_bound:
-            min_alpha_bound = l_bound_node[0][1]
+            min_alpha_bound = l_bound_node[0][1] #* self.rnnModel.n_iterations
             min_beta_bound = l_bound_node[0][1]
             for l in l_bound_node[1:]:
-                if l[0] + l[1] >= min_alpha_bound + min_beta_bound:
+                if l[0] + l[1] > min_alpha_bound + min_beta_bound:
                     min_alpha_bound = l[0]
                     min_beta_bound = l[1]
             alphas_l.append(min_alpha_bound)
             betas_l.append(min_beta_bound)
         for u_bound_node in u_bound:
-            max_alpha_bound = u_bound_node[0][0]
+            max_alpha_bound = u_bound_node[0][0] #* self.rnnModel.n_iterations
             max_beta_bound = u_bound_node[0][1]
             for u in u_bound_node[1:]:
-                if u[0] + u[1] <= max_alpha_bound + max_beta_bound:
+                if u[0] + u[1] < max_alpha_bound + max_beta_bound:
                     max_alpha_bound = u[0]
                     max_beta_bound = u[1]
             alphas_u.append(max_alpha_bound)
             betas_u.append(max_beta_bound)
 
         if len(self.alphas_algorithm_per_layer) > layer_idx + 1:
+            print(alphas_l, alphas_u, (betas_l, betas_u))
             self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, (betas_l, betas_u))
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):

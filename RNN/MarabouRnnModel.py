@@ -108,14 +108,14 @@ class RnnMarabouModel():
         # save spot for the input nodes
         self.network.setNumberOfVariables(n_input_nodes)
         for layer in self.model.layers:
-            if type(layer) == tf.keras.layers.SimpleRNN:
+            if isinstance(layer, tf.keras.layers.SimpleRNN):
                 prev_layer_idx = self.add_rnn_simple_layer(layer, prev_layer_idx)
                 self.rnn_out_idx.append(prev_layer_idx)
             elif type(layer) == tf.keras.layers.Dense:
                 prev_layer_idx = self.add_dense_layer(layer, prev_layer_idx)
             else:
                 #
-                raise NotImplementedError("{} layer is not supported".format(layer.name))
+                raise NotImplementedError("{} layer is not supported".format(type(layer)))
 
         # Save the last layer output indcies
         self.output_idx = list(range(*prev_layer_idx))
@@ -249,23 +249,23 @@ class RnnMarabouModel():
             min_val = 0
             for j, w in enumerate(rnn_dim_weights):
                 w = round(w, 6)
-                v1 = w * (prev_layer_alpha[j][1] + prev_layer_beta[1][j])
-                v2 = w * (prev_layer_alpha[j][0] + prev_layer_beta[0][j])
+                v_max_bound = w * (prev_layer_alpha[j][1] + prev_layer_beta[1][j])
+                v_min_bound = w * (prev_layer_alpha[j][0] + prev_layer_beta[0][j])
                 if layer_idx > 0 and w < 0:
                     # The invariant (prev_layer_bounds[j] is as a function of time, and here we are intrested in the first iteration where i=0
-                    min_val += v2
-                    max_val += 0
+                    min_val += v_max_bound
+                    max_val += prev_layer_beta[0][j]
                     continue
-                if v1 > v2:
-                    max_val += v1
-                    min_val += v2
+                if v_max_bound > v_min_bound:
+                    assert w > 0
+                    max_val += v_max_bound
+                    min_val += v_min_bound
                 else:
-                    max_val += v2
-                    min_val += v1
+                    assert w <= 0
+                    max_val += v_min_bound
+                    min_val += v_max_bound
             min_val += b[i]
             max_val += b[i]
-            # TODO: +- SMALL is not ideal here (SMALL = 10**-2) but otherwise there are rounding problems
-            # min_val = relu(min_val) - 2 * SMALL if relu(min_val) > 0 else 0
 
             initial_values.append((relu(min_val), relu(max_val)))
             assert initial_values[-1][0] >= 0 and initial_values[-1][1] >= 0

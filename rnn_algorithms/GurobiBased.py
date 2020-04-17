@@ -304,7 +304,7 @@ class AlphasGurobiBased:
                     cond_x_l += v1
 
             # TODO: I don't like this
-            cond_x_l = min(cond_x_l, 0)
+            # cond_x_l = min(cond_x_l, 0)
         return cond_x_l, cond_x_u
 
     def get_gurobi_rhs(self, i: int, t: int, alphas_l: List[Bound], alphas_u: List[Var]) -> (LinExpr, LinExpr):

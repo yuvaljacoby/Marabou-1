@@ -21,8 +21,8 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
     :return: True if UNSAT (no valid assignment), False otherwise
     '''
     verbose = 0
-    if debug:
-        query.dump()
+    # if debug:
+    #     query.dump()
 
     # print("{}: start query".format(str(datetime.now()).split(".")[0]), flush=True)
     vars1, stats1 = MarabouCore.solve(query, "", MARABOU_TIMEOUT, verbose)
@@ -32,7 +32,7 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
         raise TimeoutError()
     if len(vars1) > 0:
         if print_vars:
-            query.dump()
+            # query.dump()
             print("SAT")
             print(vars1)
         res = False
@@ -258,7 +258,7 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
             if not marabou_result:
                 # for eq in hypothesis_eq:
                 #     network.removeEquation(eq)
-                network.dump()
+                # network.dump()
                 # print("induction step fail, on invariant:", i)
                 proved_invariants[i] = False
             else:

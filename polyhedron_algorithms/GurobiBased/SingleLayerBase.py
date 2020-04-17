@@ -85,7 +85,7 @@ class GurobiSingleLayer:
         '''
         assert len(lower_bound) == len(upper_bound)
 
-        # TODO: This is good only if using the box (or polyhedron with n=1)
+        # TODO: This is good f if using the box (or polyhedron with n=1)
         if isinstance(lower_bound[0], list):
             lower_bound = [l[0] for l in lower_bound]
             upper_bound = [u[0] for u in upper_bound]
@@ -107,21 +107,23 @@ class GurobiSingleLayer:
         initial_values = self.rnnModel.get_rnn_min_max_value_one_iteration(xlim, layer_idx=self.layer_idx,
                                                                            prev_layer_beta=beta)
         initial_values = (initial_values[0], initial_values[1])
-        self.initial_values = initial_values  # [1] + initial_values[0]
+
+        self.initial_values = initial_values
 
     def calc_prev_layer_in_val(self, i: int, t: int) -> (int, int):
-        cond_x_u = 0  # LinExpr()
-        cond_x_l = 0  # LinExpr()
+        cond_x_u = 0
+        cond_x_l = 0
         for j in range(len(self.xlim)):
             if self.prev_layer_beta[0] is not None:
                 # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
                 # In this case we know xlim > 0
+                t = t + 1
                 if self.w_in[j, i] >= 0:
-                    cond_x_u += (self.xlim[j][1] * (t) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                    cond_x_l += (self.xlim[j][0] * (t) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                    cond_x_u += (self.xlim[j][1] * t + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][0] * t + self.prev_layer_beta[0][j]) * self.w_in[j, i]
                 else:
-                    cond_x_u += (self.xlim[j][0] * (t) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                    cond_x_l += (self.xlim[j][1] * (t) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                    cond_x_u += (self.xlim[j][0] * t + self.prev_layer_beta[0][j]) * self.w_in[j, i]
+                    cond_x_l += (self.xlim[j][1] * t + self.prev_layer_beta[1][j]) * self.w_in[j, i]
             else:
                 v1 = self.xlim[j][1] * self.w_in[j, i]
                 v2 = self.xlim[j][0] * self.w_in[j, i]
@@ -132,8 +134,8 @@ class GurobiSingleLayer:
                     cond_x_u += v2
                     cond_x_l += v1
 
-            # TODO: I don't like this
-            # cond_x_l = min(cond_x_l, 0)
+            # TODO: Might help?
+            cond_x_l = min(cond_x_l, 0)
         return cond_x_l, cond_x_u
 
     def get_gurobi_rhs(self, i: int, t: int, alphas_l: List[Bound], alphas_u: List[Bound]) -> (LinExpr, LinExpr):
@@ -238,7 +240,7 @@ class GurobiSingleLayer:
         #       [list(a_l) for a_l in product(*[[1,2],[3]])], [list(a_u) for a_u in product(*[[10],[20,30]])]
         all_alphas = [[list(a_l) for a_l in product(*self.alphas_l)], [list(a_u) for a_u in product(*self.alphas_u)]]
         for hidden_idx in range(self.w_h.shape[0]):
-            for t in range(1, self.n_iterations + 1):
+            for t in range(self.n_iterations):
                 conds_l = []
                 conds_u = []
                 for alphas_l, alphas_u in zip(*all_alphas):
@@ -405,7 +407,7 @@ class GurobiSingleLayer:
                 print("FAIL Gurobi Step, retry, seconds:", round(end_time - start_time, 3))
                 gmodel.dispose()
                 env.dispose()
-                self.do_gurobi_step(True)
+                return self.do_gurobi_step(True)
             elif self.added_constraints is not None:
                 assert False
                 # If the problem is infeasible and it's not the first try, add constraint and try again
@@ -438,7 +440,7 @@ class GurobiSingleLayer:
 
     def update_all_equations(self):
 
-        initial_values = self.initial_values[0] + self.initial_values[1]
+        # initial_values = self.initial_values[0] + self.initial_values[1]
         self.equations = []
         if not isinstance(self.alphas[0], list):
             self.alphas = [[a] for a in self.alphas]
