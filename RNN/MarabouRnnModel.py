@@ -248,7 +248,7 @@ class RnnMarabouModel():
             max_val = 0
             min_val = 0
             for j, w in enumerate(rnn_dim_weights):
-                w = round(w, 6)
+                # w = round(w, 6)
                 v_max_bound = w * (prev_layer_alpha[j][1] + prev_layer_beta[1][j])
                 v_min_bound = w * (prev_layer_alpha[j][0] + prev_layer_beta[0][j])
                 if layer_idx > 0 and w < 0:
@@ -257,11 +257,9 @@ class RnnMarabouModel():
                     max_val += prev_layer_beta[0][j]
                     continue
                 if v_max_bound > v_min_bound:
-                    assert w > 0
                     max_val += v_max_bound
                     min_val += v_min_bound
                 else:
-                    assert w <= 0
                     max_val += v_min_bound
                     min_val += v_max_bound
             min_val += b[i]

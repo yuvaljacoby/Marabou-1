@@ -3,9 +3,9 @@ from typing import List, Union
 
 import numpy as np
 
-from maraboupy import MarabouCore
 from RNN.MarabouRnnModel import MARABOU_TIMEOUT
 from RNN.MarabouRnnModel import RnnMarabouModel
+from maraboupy import MarabouCore
 
 large = 5000.0
 small = 10 ** -4
@@ -32,9 +32,10 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
         raise TimeoutError()
     if len(vars1) > 0:
         if print_vars:
-            # query.dump()
             print("SAT")
             print(vars1)
+            # query.dump()
+            # exit(1)
         res = False
     else:
         # print("UNSAT")
@@ -144,9 +145,7 @@ def create_invariant_equations(loop_indices: List[int],
         rnn_input_indices = [idx + 1 for idx in loop_indices]
         rnn_output_indices = [idx + 3 for idx in loop_indices]
 
-
     induction_step = negate_equation(invariant_eq)
-
 
     # make sure i == 0 (for induction base)
     loop_equations = []
@@ -226,7 +225,7 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
             print("induction base fail, on invariant {} which is:".format(i))
             # for eq in ls_eq:
             #     eq.dump()
-            return False
+            assert False
     # print("proved induction base for all invariants")
 
     # add all hypothesis equations
@@ -414,9 +413,10 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
             invariant_results += layer_invariant_results
             if all(layer_invariant_results):
                 if hasattr(algorithm, 'proved_invariant'):
-                    algorithm.proved_invariant(l, equations)
+                    algorithm.proved_invariant(l, equations=equations)
                 # When we prove layer l+1 we need to proved equations on layer l
-                proved_equations += [eq for eq_ls in equations for eq in eq_ls] if isinstance(equations[0], list) else equations
+                proved_equations += [eq for eq_ls in equations for eq in eq_ls] if isinstance(equations[0],
+                                                                                              list) else equations
                 for eq in proved_equations:
                     network.addEquation(eq)
             else:
@@ -452,10 +452,19 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 step_times.append(end_step - start_step)
         else:
             start_step = timer()
+            print('fail in one (or more) invariants:', invariant_results)
+
             if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
                 # Invariant failed in gurobi based search, does not suppose to happen
-                assert False, invariant_results
-                # algorithm.do_step(False, invariant_results, sat_vars)
+                # assert False, invariant_results
+                # Restart the search (start from first layer)
+                res = algorithm.do_step(strengthen=False, invariants_results=invariant_results, sat_vars=sat_vars)
+                if res:
+                    return prove_multidim_property(rnnModel, property_equations, algorithm, return_alphas,
+                                                   number_of_steps,
+                                                   debug, return_queries_stats)
+                #  FAIL to prove
+                break
             else:
                 algorithm.do_step(False, invariant_results)
             end_step = timer()
@@ -464,12 +473,9 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
         #  print progress for debug
         if debug:
             if i > 0 and i % 300 == 0:
-                print('iteration {} sum(alphas): {}, alphas: {}'.format(i, sum(algorithm.get_alphas()),
-                                                                        algorithm.get_alphas()))
+                print('iteration {}, alphas: {}'.format(i, algorithm.get_alphas()))
 
     if debug:
-        if len(property_times) != len(invariant_times):
-            print('What happed?')
         if len(property_times) > 0:
             # print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
             #     len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
@@ -477,8 +483,8 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
             pass
         else:
             avg_inv_time = sum(invariant_times) / len(invariant_times) if len(invariant_times) > 0 else 0
-            print("did {} invariant queries that took on avg: {}, and {} property".format(
-                len(invariant_times), avg_inv_time, len(property_times)))
+            print("{}\t{} invariant queries that took on avg: {}, and {} property".format(
+                'SUCCESS' if res else 'FAIL', len(invariant_times), avg_inv_time, len(property_times)))
     queries_stats = {}
     if return_queries_stats:
         safe_percentile = lambda func, x: func(x) if len(x) > 0 else 0

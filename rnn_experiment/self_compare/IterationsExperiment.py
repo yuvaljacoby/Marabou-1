@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
     points = pickle.load(open(POINTS_PATH, "rb"))[:5]
 
-    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=4, use_relu=True, add_alpha_constraint=True,
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
                          use_counter_example=True)
     if len(sys.argv) > 1:
         net_options = None
@@ -351,8 +351,11 @@ if __name__ == "__main__":
                       5.45421917, 4.11029858, -4.65444165, 0.50871269, 1.40619639, -0.7546163,
                       3.68131841, 1.18965503, 0.81459484, 2.36269942, -2.4609835, -1.14228611,
                       -0.28604645, -6.39739288, -3.54854402, -3.21648808])
-    net = "model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_0200.ckpt"
-    t_range = range(8, 10)
+    net = "model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_fc32_0200.ckpt"
+    # net = "model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.ckpt"
+    t_range = range(2, 21)
+    run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
+    exit(0)
     gurobi_multi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
                                use_counter_example=True)
     run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)

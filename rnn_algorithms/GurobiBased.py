@@ -173,8 +173,10 @@ class AlphasGurobiBasedMultiLayer:
             alphas_u.append(max_alpha_bound)
             betas_u.append(max_beta_bound)
 
+        # betas = (betas_l, betas_u)
+        betas = self.alphas_algorithm_per_layer[layer_idx].initial_values
         if len(self.alphas_algorithm_per_layer) > layer_idx + 1:
-            self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, (betas_l, betas_u))
+            self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, betas)
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
         return self.alphas_algorithm_per_layer[layer_idx].do_step(strengthen, invariants_results, sat_vars)

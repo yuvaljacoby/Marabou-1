@@ -23,10 +23,8 @@ class Bound:
         self.gmodel = gmodel
         first_letter = 'u' if self.upper else 'l'
         self.name = "a{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx)
-        self.alpha_var = \
-            gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS,
-                          name=self.name)
-        self.beta_var = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS,
+        self.alpha_var = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name=self.name)
+        self.beta_var = gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS,
                                       name="b{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
         init_constr_name = '{}_init_val'.format(self.name.replace('a', 'b'))
         if self.upper:
@@ -45,7 +43,7 @@ class Bound:
     def get_rhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-
+        t = max(t, 0)
         return self.alpha_var * t + self.beta_var
 
     def get_lhs(self, t: int) -> LinExpr():
@@ -53,11 +51,14 @@ class Bound:
             raise Exception("Should first attach to model")
         return self.alpha_var * (t + 1) + self.beta_var
 
-    def get_objective(self, alpha_weight=1, beta_weight=1) -> LinExpr():
+    def get_objective(self, alpha_weight=2, beta_weight=1) -> LinExpr():
         obj = self.alpha_var * alpha_weight + self.beta_var * beta_weight
         # we want the lower bound to be as tight as possible so we should prefer large numbers on small numbers
-        if not self.is_upper:
+        if not self.is_upper():
             obj = -obj
+        #     obj = self.alpha_var * alpha_weight * 3 + self.beta_var * beta_weight * -4
+        # else:
+        #     obj = self.alpha_var * (alpha_weight * -2) + self.beta_var * (beta_weight * -2)
         return obj
 
     def is_upper(self) -> bool:
@@ -68,7 +69,7 @@ class Bound:
 
     def __str__(self):
         if self._was_model_optimized():
-            return '{}: {}*i + {}'.format(self.name, round(self.alpha_val, 3), round(self.beta_val), 3)
+            return '{}: {}*i + {}'.format(self.name, round(self.alpha_val, 6), round(self.beta_val, 6))
         else:
             return self.name
 
@@ -80,14 +81,16 @@ class Bound:
             raise Exception("First optimize the attached model")
 
         inv_type = MarabouCore.Equation.LE if self.is_upper() else MarabouCore.Equation.GE
-        if inv_type == MarabouCore.Equation.LE:
-            ge_better = -1
-        else:
-            ge_better = 1
+        # if inv_type == MarabouCore.Equation.LE:
+        #     ge_better = -1
+        # else:
+        #     ge_better = 1
 
+        # is_upper:True  -> RNN_OUT <= alpha * i + beta <--> RNN_OUT - alpha * i <=  beta
+        # is_upper:False -> RNN_OUT >= alpha * i + beta <--> RNN_OUT - alpha * i >=  beta
         invariant_equation = MarabouCore.Equation(inv_type)
         invariant_equation.addAddend(1, rnn_out_idx)  # b_i
-        invariant_equation.addAddend(self.alpha_val * ge_better, loop_idx)  # i
+        invariant_equation.addAddend(-self.alpha_val, loop_idx)  # i
         invariant_equation.setScalar(self.beta_val)
         return invariant_equation
 
