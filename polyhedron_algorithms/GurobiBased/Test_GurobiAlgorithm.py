@@ -161,7 +161,7 @@ def test_temp():
     np.random.seed(0)
     pass_counter = 0
     total_tests = 100
-    rnn_dim0 = 2
+    rnn_dim0 = 4
     rnn_dim1 = 2
     for i in range(total_tests):
         print('$' * 40, i, '$' * 40)
@@ -188,11 +188,11 @@ def test_temp():
             model.save(net_path)
 
             point = np.array([1.0])
-            if i > 21:
-                break
-            if i < 19:
-                continue
-            n = 3
+            # if i > 21:
+            #     break
+            # if i < 19:
+            #     continue
+            n = 2
             method = lambda x: np.argsort(x)[-2]
             idx_max, other_idx = get_out_idx(point, n, net_path, method)
             gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,

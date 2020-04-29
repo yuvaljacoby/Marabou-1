@@ -33,7 +33,7 @@ def marabou_solve_negate_eq(query, debug=False, print_vars=False, return_vars=Fa
     if len(vars1) > 0:
         if print_vars:
             print("SAT")
-            print(vars1)
+            # print(vars1)
             # query.dump()
             # exit(1)
         res = False

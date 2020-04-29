@@ -27,6 +27,7 @@ class Bound:
         self.beta_var = gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS,
                                       name="b{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
         self.relu_bound = {} # Map between time and a relu constraint
+        self.delta_relu_bound = {}
 
         init_constr_name = '{}_init_val'.format(self.name.replace('a', 'b'))
         if self.upper:
@@ -47,13 +48,14 @@ class Bound:
             return self.relu_bound[t]
         else:
             first_letter = "u" if self.is_upper() else "l"
-            cond = self.get_lhs(t)
+            cond = self.get_rhs(t)
             cond_f = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name=self.name + "_relu_output{}".format(t))
             delta = gmodel.addVar(vtype=GRB.BINARY)
             gmodel.addConstr(cond_f >= cond, name=self.name + "cond_relu0_t{}".format(t))
             gmodel.addConstr(cond_f <= cond + LARGE * delta, name=self.name + "cond_relu1_t{}".format(t))
             gmodel.addConstr(cond_f <= LARGE * (1 - delta), name=self.name + "cond_relu2_t{}".format(t))
             self.relu_bound[t] = cond_f
+            self.delta_relu_bound[t] = delta
 
             return cond_f
 
