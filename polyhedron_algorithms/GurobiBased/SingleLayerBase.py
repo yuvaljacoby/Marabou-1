@@ -113,13 +113,17 @@ class GurobiSingleLayer:
             assert len(lower_bound) == len(upper_bound)
             assert len(lower_bound) == len(beta[0])
             assert len(lower_bound) == len(beta[1])
-            for i in range(len(lower_bound)):
-                init_l, init_u = self.calc_prev_layer_in_val(i, -1)
-                self.initial_values[0].append(init_l)
-                self.initial_values[1].append(init_u)
-            initial_values = self.rnnModel.get_rnn_min_max_value_one_iteration(xlim, layer_idx=self.layer_idx,
-                                                                               prev_layer_beta=beta)
-            self.initial_values = (self.initial_values[0], initial_values[1])
+
+            # for i in range(len(lower_bound)):
+            for i in range(self.dim):
+                init_l, init_u = self.calc_prev_layer_in_val(i, 0)
+                # self.initial_values[0].append(init_l + self.b[i])
+                # self.initial_values[1].append(init_u + self.b[i])
+                self.initial_values[0].append(init_l + self.b[i])
+                self.initial_values[1].append(init_u + self.b[i])
+            # initial_values = self.rnnModel.get_rnn_min_max_value_one_iteration(xlim, layer_idx=self.layer_idx,
+            #                                                                    prev_layer_beta=beta)
+            # self.initial_values = (self.initial_values[0], initial_values[1])
 
         else:
             initial_values = self.rnnModel.get_rnn_min_max_value_one_iteration(xlim, layer_idx=self.layer_idx,
@@ -132,7 +136,9 @@ class GurobiSingleLayer:
     def calc_prev_layer_in_val(self, i: int, t: int) -> (int, int):
         cond_x_u = 0
         cond_x_l = 0
-        for j in range(len(self.xlim)):
+        # for j in range(len(self.xlim)):
+        for j in range(self.w_in.shape[0]):
+            w = self.w_in[j, i]
             if self.prev_layer_beta[0] is not None:
                 # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
                 t = t + 1
@@ -141,22 +147,29 @@ class GurobiSingleLayer:
                 v_max = (self.xlim[j][1] * t + self.prev_layer_beta[1][j]) * self.w_in[j, i]
                 v_min = (self.xlim[j][0] * t + self.prev_layer_beta[0][j]) * self.w_in[j, i]
                 if self.approximate_layers:
-                    if v_max >= v_min:
-                        cond_x_u += v_max
-                        cond_x_l += v_min
+                    # The input from the previous layer is an ReLU function output, therefore we take max with 0
+                    if w > 0:
+                        cond_x_u += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
+                        cond_x_l += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
                     else:
-                        cond_x_u += v_min  # (self.xlim[j][0] * t + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                        cond_x_l += v_max  # (self.xlim[j][1] * t + self.prev_layer_beta[1][j]) * self.w_in[j, i]
+                        cond_x_u += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
+                        cond_x_l += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
                 else:
-                    u_max = (self.xlim[j][1] * (self.n_iterations) + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                    u_min = (self.xlim[j][0] * (self.n_iterations) + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                    cond_x_u += max(u_max, u_min)
-                    cond_x_l += min(u_max, u_min)
-
-                    l_max = self.prev_layer_beta[1][j] * self.w_in[j, i]
-                    l_min = self.prev_layer_beta[0][j] * self.w_in[j, i]
-                    cond_x_u = max(l_max, l_min, 0)
-                    cond_x_l = min(l_max, l_min)
+                    if w > 0:
+                        cond_x_u += max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
+                        cond_x_l += max((self.xlim[j][0] * 0 + self.prev_layer_beta[0][j]), 0) * w
+                    else:
+                        cond_x_u += max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w
+                        cond_x_l += max((self.xlim[j][1] * 0 + self.prev_layer_beta[1][j]), 0) * w
+                    # u_max = (self.xlim[j][1] * (self.n_iterations) + self.prev_layer_beta[1][j]) * w
+                    # u_min = (self.xlim[j][0] * (self.n_iterations) + self.prev_layer_beta[0][j]) * w
+                    # cond_x_u += max(u_max, u_min)
+                    # cond_x_l += min(u_max, u_min)
+                    #
+                    # l_max = self.prev_layer_beta[1][j] * w
+                    # l_min = self.prev_layer_beta[0][j] * w
+                    # cond_x_u = max(l_max, l_min, 0)
+                    # cond_x_l = min(l_max, l_min)
                     # if u_max < u_min:
                     #     cond_x_u += u_max
                     #     cond_x_l += max(self.prev_layer_beta[0][j] * self.w_in[j, i], 0)  # t = 0
@@ -191,24 +204,32 @@ class GurobiSingleLayer:
         cond_l = LinExpr()
 
         for j in range(self.w_h.shape[1]):
-            if self.w_h[i, j] > 0:
-                l_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_l[j].get_rhs(t), 'cond_l', 'i{}t{}'.format(i, t),
-                                                      False)
-                u_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_u[j].get_rhs(t), 'cond_u', 'i{}t{}'.format(i, t),
-                                                      True)
-                # l_rhs_f = alphas_l[j].get_rhs(t-1)
-                # u_rhs_f = alphas_u[j].get_rhs(t)
-                cond_l += l_rhs_f * self.w_h[i, j]
-                cond_u += u_rhs_f * self.w_h[i, j]
+            if True:
+                if self.w_h[i, j] > 0:
+                    cond_l += alphas_l[j].get_relu(gmodel, t) * self.w_h[i, j]
+                    cond_u += alphas_u[j].get_relu(gmodel, t) * self.w_h[i, j]
+                else:
+                    cond_u += alphas_l[j].get_relu(gmodel, t) * self.w_h[i, j]
+                    cond_l += alphas_u[j].get_relu(gmodel, t) * self.w_h[i, j]
             else:
-                l_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_u[j].get_rhs(t), 'cond_l', 'i{}t{}'.format(i, t),
-                                                      False)
-                u_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_l[j].get_rhs(t), 'cond_u', 'i{}t{}'.format(i, t),
-                                                      True)
-                # u_rhs_f = alphas_l[j].get_rhs(t)
-                # l_rhs_f = alphas_u[j].get_rhs(t-1)
-                cond_l += l_rhs_f * self.w_h[i, j]
-                cond_u += u_rhs_f * self.w_h[i, j]
+                if self.w_h[i, j] > 0:
+                    l_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_l[j].get_rhs(t), 'cond_l',
+                                                          'i{}t{}'.format(i, t),
+                                                          False)
+                    u_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_u[j].get_rhs(t), 'cond_u',
+                                                          'i{}t{}'.format(i, t),
+                                                          True)
+                    cond_l += l_rhs_f * self.w_h[i, j]
+                    cond_u += u_rhs_f * self.w_h[i, j]
+                else:
+                    l_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_u[j].get_rhs(t), 'cond_l',
+                                                          'i{}t{}'.format(i, t),
+                                                          False)
+                    u_rhs_f, _ = self.get_relu_constraint(gmodel, alphas_l[j].get_rhs(t), 'cond_u',
+                                                          'i{}t{}'.format(i, t),
+                                                          True)
+                    cond_l += l_rhs_f * self.w_h[i, j]
+                    cond_u += u_rhs_f * self.w_h[i, j]
 
         cond_x_l, cond_x_u = self.calc_prev_layer_in_val(i, t)
         cond_u += cond_x_u + self.b[i]
@@ -316,10 +337,10 @@ class GurobiSingleLayer:
                     conds_u.append(cond_u)
 
                 for _, al in enumerate(self.alphas_l[hidden_idx]):
-                    self.add_disjunction_rhs(gmodel, conds=conds_l, lhs=al.get_lhs(t),
+                    self.add_disjunction_rhs(gmodel, conds=conds_l, lhs=al.get_lhs(t + 1),
                                              greater=False, cond_name="alpha_l{}_t{}".format(hidden_idx, t))
                 for _, au in enumerate(self.alphas_u[hidden_idx]):
-                    self.add_disjunction_rhs(gmodel, conds=conds_u, lhs=au.get_lhs(t),
+                    self.add_disjunction_rhs(gmodel, conds=conds_u, lhs=au.get_lhs(t + 1),
                                              greater=True, cond_name="alpha_u{}_t{}".format(hidden_idx, t))
 
                     # self.add_disjunction_rhs(gmodel, conds_l, alphas_l[hidden_idx] * (t + 1), False,
@@ -398,11 +419,11 @@ class GurobiSingleLayer:
                     if i < len(counter_examples[0]) // 2:
                         # It's a lower bound
                         for a in self.alphas_l[i]:
-                            gmodel.addConstr(a.get_lhs(time) <= out)
+                            gmodel.addConstr(a.get_lhs(time + 1) <= out - (10 * SMALL))
                     else:
                         real_idx = i % (len(counter_examples[0]) // 2)
                         for a in self.alphas_u[real_idx]:
-                            gmodel.addConstr(a.get_lhs(time) >= out)
+                            gmodel.addConstr(a.get_lhs(time) >= out + (10 * SMALL))
 
         gmodel.optimize()
 
@@ -526,7 +547,7 @@ class GurobiSingleLayer:
             times.append(counter_example[self.rnn_start_idxs[0]])
         return outputs, times
 
-    def do_step(self, strengthen=True, invariants_results=[], sat_vars=None):
+    def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
         '''
         do a step in the one of the alphas
         :param strengthen: determines the direction of the step if True will return a stronger suggestion to invert,

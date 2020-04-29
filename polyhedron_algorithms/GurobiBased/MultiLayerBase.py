@@ -10,7 +10,7 @@ class GurobiMultiLayer:
     # not sure it is even possible to create multi recurrent layer NOT in a row
     def __init__(self, rnnModel: MarabouRnnModel, xlim, polyhedron_max_dim=POLYHEDRON_MAX_DIM, use_relu=True,
                  use_counter_example=False,
-                 add_alpha_constraint=False, debug=False, max_steps=5, **kwargs):
+                 add_alpha_constraint=False, debug=False, max_steps=10, **kwargs):
         '''
 
         :param rnnModel: multi layer rnn model (MarabouRnnModel class)
@@ -64,7 +64,7 @@ class GurobiMultiLayer:
         # For each dimension get the tightest bound, we don't multiply here by time
         # We do that in calc_prev_layer_in_val (because we want to bound for different time steps)
         for l_bound_node in l_bound:
-            min_alpha_bound = l_bound_node[0][1]
+            min_alpha_bound = l_bound_node[0][0]
             min_beta_bound = l_bound_node[0][1]
             for l in l_bound_node[1:]:
                 if l[0] + l[1] > min_alpha_bound + min_beta_bound:
@@ -89,8 +89,6 @@ class GurobiMultiLayer:
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
 
-        if not strengthen:
-            return False
         #     self.invariant_fail_steps += 1
         #     if self.invariant_fail_steps == 2:
         #         assert False

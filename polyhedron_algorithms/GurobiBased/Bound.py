@@ -26,6 +26,8 @@ class Bound:
         self.alpha_var = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name=self.name)
         self.beta_var = gmodel.addVar(lb=-LARGE, ub=LARGE, vtype=GRB.CONTINUOUS,
                                       name="b{}{}^{}".format(first_letter, self.bound_idx, self.polyhedron_idx))
+        self.relu_bound = {} # Map between time and a relu constraint
+
         init_constr_name = '{}_init_val'.format(self.name.replace('a', 'b'))
         if self.upper:
             gmodel.addConstr(self.beta_var >= initial_value, name=init_constr_name)
@@ -40,6 +42,21 @@ class Bound:
         else:
             return self.name == other.name
 
+    def get_relu(self, gmodel, t) -> LinExpr:
+        if t in self.relu_bound:
+            return self.relu_bound[t]
+        else:
+            first_letter = "u" if self.is_upper() else "l"
+            cond = self.get_lhs(t)
+            cond_f = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name=self.name + "_relu_output{}".format(t))
+            delta = gmodel.addVar(vtype=GRB.BINARY)
+            gmodel.addConstr(cond_f >= cond, name=self.name + "cond_relu0_t".format(t))
+            gmodel.addConstr(cond_f <= cond + LARGE * delta, name=self.name + "cond_relu1_t".format(t))
+            gmodel.addConstr(cond_f <= LARGE * (1 - delta), name=self.name + "cond_relu2_t".format(t))
+            self.relu_bound[t] = cond_f
+
+            return cond_f
+
     def get_rhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
@@ -49,7 +66,7 @@ class Bound:
     def get_lhs(self, t: int) -> LinExpr():
         if self.alpha_var is None:
             raise Exception("Should first attach to model")
-        return self.alpha_var * (t + 1) + self.beta_var
+        return self.alpha_var * t + self.beta_var
 
     def get_objective(self, alpha_weight=2, beta_weight=1) -> LinExpr():
         obj = self.alpha_var * alpha_weight + self.beta_var * beta_weight

@@ -198,11 +198,11 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
     if isinstance(rnn_start_idxs[0], list) and len(rnn_start_idxs) == 1:
         rnn_start_idxs = rnn_start_idxs[0]
 
-    proved_invariants = [False] * len(invariant_equations)
+    proved_invariants = [None] * len(invariant_equations)
     base_eq = []
     step_eq = []  # this needs to be a list of lists, each time we work on all equations of a list
     hypothesis_eq = []
-    vars = []
+    assignments = []
 
     for i in range(len(invariant_equations)):
         cur_base_eq, cur_step_eq, cur_hypothesis_eq = create_invariant_equations(rnn_start_idxs, invariant_equations[i])
@@ -214,18 +214,29 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
     for i, ls_eq in enumerate(base_eq):
         for eq in ls_eq:
             network.addEquation(eq)
-        marabou_result = marabou_solve_negate_eq(network, print_vars=True)
+        marabou_result, sat_vars = marabou_solve_negate_eq(network, print_vars=True, return_vars=True)
+        assignments.append(sat_vars)
         # print('induction base query')
         # network.dump()
 
         for eq in ls_eq:
             network.removeEquation(eq)
 
+        proved_invariants[i] = marabou_result
         if not marabou_result:
-            print("induction base fail, on invariant {} which is:".format(i))
+            print("induction base fail, on invariant {}".format(i))
             # for eq in ls_eq:
             #     eq.dump()
-            assert False
+            # assert False
+
+    if not all(proved_invariants):
+        if return_vars:
+            return proved_invariants, assignments
+        else:
+            return proved_invariants
+
+    proved_invariants = [False] * len(invariant_equations)
+    assignments = []
     # print("proved induction base for all invariants")
 
     # add all hypothesis equations
@@ -250,19 +261,15 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
                 network.addEquation(eq)
 
             marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=True, return_vars=True)
-            vars.append(cur_vars)
+            assignments.append(cur_vars)
             # print("Querying for induction step: {}".format(marabou_result))
             # network.dump()
 
+            # proved_invariants[i] = marabou_result
             if not marabou_result:
-                # for eq in hypothesis_eq:
-                #     network.removeEquation(eq)
-                # network.dump()
-                # print("induction step fail, on invariant:", i)
                 proved_invariants[i] = False
             else:
                 proved_invariants[i] = True
-                # print("induction step work, on invariant:", i)
 
             for eq in steq_eq_ls:
                 network.removeEquation(eq)
@@ -270,7 +277,7 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
         network.removeEquation(eq)
 
     if return_vars:
-        return proved_invariants, vars
+        return proved_invariants, assignments
     else:
         return proved_invariants
 
@@ -420,9 +427,20 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 for eq in proved_equations:
                     network.addEquation(eq)
             else:
-                # TODO: DELETE
-                # Failed to prove on of the layers, we can  break the loop
-                break
+                start_step = timer()
+                print('layer: {}, fail in one (or more) invariants: {}'.format(l, invariant_results))
+                # Failed to prove, get better invariant
+                res = algorithm.do_step(strengthen=False, invariants_results=invariant_results, sat_vars=sat_vars,
+                                        layer_idx=l)
+                end_step = timer()
+                step_times.append(end_step - start_step)
+                if res:
+                    proved_equations = []
+                    for eq in proved_equations:
+                        network.removeEquation(eq)
+                    return prove_multidim_property(rnnModel, property_equations, algorithm, return_alphas,
+                                                   number_of_steps, debug, return_queries_stats)
+
         end_invariant = timer()
         if unsat:
             res = False
@@ -445,12 +463,13 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 start_step = timer()
                 # If the property failed no need to pass which invariants passed (of course)
                 if hasattr(algorithm, 'return_vars') and algorithm.return_vars:
-                    algorithm.do_step(True, None, sat_vars)
+                    algorithm.do_step(True, None, sat_vars, layer_idx=i)
                 else:
                     algorithm.do_step(True, None)
                 end_step = timer()
                 step_times.append(end_step - start_step)
         else:
+            # assert False
             start_step = timer()
             print('fail in one (or more) invariants:', invariant_results)
 
