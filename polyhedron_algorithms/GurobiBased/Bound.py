@@ -50,9 +50,9 @@ class Bound:
             cond = self.get_lhs(t)
             cond_f = gmodel.addVar(lb=0, ub=LARGE, vtype=GRB.CONTINUOUS, name=self.name + "_relu_output{}".format(t))
             delta = gmodel.addVar(vtype=GRB.BINARY)
-            gmodel.addConstr(cond_f >= cond, name=self.name + "cond_relu0_t".format(t))
-            gmodel.addConstr(cond_f <= cond + LARGE * delta, name=self.name + "cond_relu1_t".format(t))
-            gmodel.addConstr(cond_f <= LARGE * (1 - delta), name=self.name + "cond_relu2_t".format(t))
+            gmodel.addConstr(cond_f >= cond, name=self.name + "cond_relu0_t{}".format(t))
+            gmodel.addConstr(cond_f <= cond + LARGE * delta, name=self.name + "cond_relu1_t{}".format(t))
+            gmodel.addConstr(cond_f <= LARGE * (1 - delta), name=self.name + "cond_relu2_t{}".format(t))
             self.relu_bound[t] = cond_f
 
             return cond_f
@@ -99,9 +99,9 @@ class Bound:
 
         inv_type = MarabouCore.Equation.LE if self.is_upper() else MarabouCore.Equation.GE
         # if inv_type == MarabouCore.Equation.LE:
-        #     ge_better = -1
-        # else:
         #     ge_better = 1
+        # else:
+        #     ge_better = -1
 
         # is_upper:True  -> RNN_OUT <= alpha * i + beta <--> RNN_OUT - alpha * i <=  beta
         # is_upper:False -> RNN_OUT >= alpha * i + beta <--> RNN_OUT - alpha * i >=  beta

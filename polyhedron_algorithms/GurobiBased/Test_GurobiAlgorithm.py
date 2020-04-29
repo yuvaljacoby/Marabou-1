@@ -188,14 +188,15 @@ def test_temp():
             model.save(net_path)
 
             point = np.array([1.0])
-
+            if i > 21:
+                break
             if i < 19:
                 continue
             n = 3
             method = lambda x: np.argsort(x)[-2]
             idx_max, other_idx = get_out_idx(point, n, net_path, method)
             gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
-                                 use_counter_example=True)
+                                 use_counter_example=True, debug=True   )
             res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
             pass_counter += res
             assert res
