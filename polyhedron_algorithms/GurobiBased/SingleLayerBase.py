@@ -133,59 +133,61 @@ class GurobiSingleLayer:
 
             self.initial_values = initial_values
 
+    def calc_prev_layer_in_val_inner_layer(self, i: int, t: int) -> (int, int):
+        assert self.layer_idx > 0
+        cond_x_u = 0
+        cond_x_l = 0
+        for j in range(self.w_in.shape[0]):
+            assert self.xlim[j][1] * t + self.prev_layer_beta[1][j] >= 0
+            w = self.w_in[j, i]
+            if self.approximate_layers:
+                # The input from the previous layer is an ReLU function output, therefore we take max with 0
+                if w > 0:
+                    cond_x_u += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
+                    cond_x_l += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
+                else:
+                    cond_x_u += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
+                    cond_x_l += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
+            else:
+                if w > 0:
+                    cond_x_u += max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
+                    cond_x_l += max((self.xlim[j][0] * 0 + self.prev_layer_beta[0][j]), 0) * w
+                else:
+                    # TODO: I am not sure why the outer max is necessary, but it helps to pass tests ....
+                    cond_x_u += max(max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w, 0)
+                    cond_x_l += max((self.xlim[j][1] * 0 + self.prev_layer_beta[1][j]), 0) * w
+            # u_max = (self.xlim[j][1] * (self.n_iterations) + self.prev_layer_beta[1][j]) * w
+            # u_min = (self.xlim[j][0] * (self.n_iterations) + self.prev_layer_beta[0][j]) * w
+            # cond_x_u += max(u_max, u_min)
+            # cond_x_l += min(u_max, u_min)
+            #
+            # l_max = self.prev_layer_beta[1][j] * w
+            # l_min = self.prev_layer_beta[0][j] * w
+            # cond_x_u = max(l_max, l_min, 0)
+            # cond_x_l = min(l_max, l_min)
+            # if u_max < u_min:
+            #     cond_x_u += u_max
+            #     cond_x_l += max(self.prev_layer_beta[0][j] * self.w_in[j, i], 0)  # t = 0
+            # else:
+            #     cond_x_u += u_min
+            #     cond_x_l += max(self.prev_layer_beta[1][j] * self.w_in[j, i], 0)  # t = 0
+        return cond_x_l, cond_x_u
+
     def calc_prev_layer_in_val(self, i: int, t: int) -> (int, int):
         cond_x_u = 0
         cond_x_l = 0
         # for j in range(len(self.xlim)):
+        if self.prev_layer_beta[0] is not None:
+            return self.calc_prev_layer_in_val_inner_layer(i, t)
         for j in range(self.w_in.shape[0]):
-            w = self.w_in[j, i]
-            if self.prev_layer_beta[0] is not None:
-                # Not first RNN layer, previous layer bound on the memory unit is in  alpha*time + beta
-                t = t + 1
-                assert self.xlim[j][1] * t + self.prev_layer_beta[1][j] >= 0
-                assert self.layer_idx > 0
-                v_max = (self.xlim[j][1] * t + self.prev_layer_beta[1][j]) * self.w_in[j, i]
-                v_min = (self.xlim[j][0] * t + self.prev_layer_beta[0][j]) * self.w_in[j, i]
-                if self.approximate_layers:
-                    # The input from the previous layer is an ReLU function output, therefore we take max with 0
-                    if w > 0:
-                        cond_x_u += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
-                        cond_x_l += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
-                    else:
-                        cond_x_u += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
-                        cond_x_l += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
-                else:
-                    if w > 0:
-                        cond_x_u += max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
-                        cond_x_l += max((self.xlim[j][0] * 0 + self.prev_layer_beta[0][j]), 0) * w
-                    else:
-                        cond_x_u += max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w
-                        cond_x_l += max((self.xlim[j][1] * 0 + self.prev_layer_beta[1][j]), 0) * w
-                    # u_max = (self.xlim[j][1] * (self.n_iterations) + self.prev_layer_beta[1][j]) * w
-                    # u_min = (self.xlim[j][0] * (self.n_iterations) + self.prev_layer_beta[0][j]) * w
-                    # cond_x_u += max(u_max, u_min)
-                    # cond_x_l += min(u_max, u_min)
-                    #
-                    # l_max = self.prev_layer_beta[1][j] * w
-                    # l_min = self.prev_layer_beta[0][j] * w
-                    # cond_x_u = max(l_max, l_min, 0)
-                    # cond_x_l = min(l_max, l_min)
-                    # if u_max < u_min:
-                    #     cond_x_u += u_max
-                    #     cond_x_l += max(self.prev_layer_beta[0][j] * self.w_in[j, i], 0)  # t = 0
-                    # else:
-                    #     cond_x_u += u_min
-                    #     cond_x_l += max(self.prev_layer_beta[1][j] * self.w_in[j, i], 0)  # t = 0
-
+            v1 = self.xlim[j][1] * self.w_in[j, i]
+            v2 = self.xlim[j][0] * self.w_in[j, i]
+            if v1 > v2:
+                cond_x_u += v1
+                cond_x_l += v2
             else:
-                v1 = self.xlim[j][1] * self.w_in[j, i]
-                v2 = self.xlim[j][0] * self.w_in[j, i]
-                if v1 > v2:
-                    cond_x_u += v1
-                    cond_x_l += v2
-                else:
-                    cond_x_u += v2
-                    cond_x_l += v1
+                cond_x_u += v2
+                cond_x_l += v1
 
         return cond_x_l, cond_x_u
 

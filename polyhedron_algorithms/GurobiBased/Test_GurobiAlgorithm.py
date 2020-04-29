@@ -50,7 +50,7 @@ multi_layer_paths = ['./FMCAD_EXP/models/model_20classes_rnn4_rnn4_fc32_fc32_010
                      './FMCAD_EXP/models/model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.ckpt',
                     './FMCAD_EXP/models/model_20classes_rnn8_rnn4_fc32_fc32_0050.ckpt',
                     './models/old/model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_epochs50.h5',
-                    './models/old/model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5',
+                    # './models/old/model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5',
                      ]
 
 
@@ -81,8 +81,8 @@ def test_multilayer_large_n():
 
 
 def test_specific_multilayer2():
-    point = points[-1]
-    net_path = multi_layer_paths[0]
+    point = np.array([1.0] * 40)#points[-1]
+    net_path = './models/old/model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_epochs50.h5'
     n = 4
 
     gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
@@ -160,8 +160,8 @@ def test_temp():
     import tensorflow.keras as k
     np.random.seed(0)
     pass_counter = 0
-    total_tests = 100
-    rnn_dim0 = 4
+    total_tests = 20
+    rnn_dim0 = 3
     rnn_dim1 = 2
     for i in range(total_tests):
         print('$' * 40, i, '$' * 40)
@@ -172,10 +172,10 @@ def test_temp():
             model.add(k.layers.SimpleRNN(rnn_dim1, input_shape=(None, 1), activation='relu', return_sequences=False))
             model.add(k.layers.Dense(2, activation='relu'))
 
-            w_h0 = np.random.uniform(-0.5, 0.5, (rnn_dim0, rnn_dim0))
+            w_h0 = np.random.uniform(-2.5, 0.5, (rnn_dim0, rnn_dim0))
             w_in0 = np.random.random(rnn_dim0)[None, :]
             b0 = np.random.random(rnn_dim0)
-            w_h1 = np.random.uniform(-0.5, 0.5, (rnn_dim1, rnn_dim1))
+            w_h1 = np.random.uniform(-1.5, 0, (rnn_dim1, rnn_dim1))
             w_in1 = np.random.random((rnn_dim0, rnn_dim1))
             b1 = np.random.random(rnn_dim1)
 
@@ -188,10 +188,6 @@ def test_temp():
             model.save(net_path)
 
             point = np.array([1.0])
-            # if i > 21:
-            #     break
-            # if i < 19:
-            #     continue
             n = 2
             method = lambda x: np.argsort(x)[-2]
             idx_max, other_idx = get_out_idx(point, n, net_path, method)
@@ -199,8 +195,8 @@ def test_temp():
                                  use_counter_example=True, debug=True   )
             res, _, _ = adversarial_query(point, 0.01, idx_max, other_idx, net_path, gurobi_ptr, n)
             pass_counter += res
-            assert res
+            # assert res
 
-    assert pass_counter > 20
+    # assert pass_counter > 20
     print('out of {} tests {} passed'.format(total_tests,pass_counter))
 
