@@ -7,7 +7,8 @@ BASE_FOLDER = "/home/yuval/projects/Marabou/"
 if os.path.exists("/cs/usr/yuvalja/projects/Marabou"):
     BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 
-OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
+#OUT_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/out/")
+OUT_FOLDER = os.path.join(BASE_FOLDER, "ATVA_EXP/out/")
 os.makedirs(BASE_FOLDER, exist_ok=True)
 os.makedirs(OUT_FOLDER, exist_ok=True)
 
@@ -22,22 +23,22 @@ def check_if_model_in_dir(model_name: str, output_folder: str):
 
 def write_one_sbatch(output_folder, model):
     exp_time = str(datetime.now()).replace(" ", "-")
-    with open(os.path.join(output_folder, "run_iterations_exp_" + model + ".sh"), "w") as slurm_file:
+    model_name = model[model.rfind('/') + 1 : model.rfind('.')]
+    with open(os.path.join(output_folder, "run_iterations_exp_" + model_name + ".sh"), "w") as slurm_file:
         exp = "iterations".format()
-        model_name = model[:model.rfind('.')]
         slurm_file.write('#!/bin/bash\n')
-        slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model_name, exp, exp_time))
+        slurm_file.write('#SBATCH --job-name={}_{}_{}\n'.format(model_name.replace("model_20classes_", ""), exp, exp_time))
         # slurm_file.write(f'#SBATCH --job-name={model}_{exp}_{exp_time}\n')
-        slurm_file.write('#SBATCH --cpus-per-task=2\n')
+        slurm_file.write('#SBATCH --cpus-per-task=6\n')
         # slurm_file.write(f'#SBATCH --output={model}_{job_output_rel_path}\n')
         slurm_file.write('#SBATCH --output={}.out\n'.format(os.path.join(OUT_FOLDER, model_name)))
         # slurm_file.write(f'#SBATCH --partition={partition}\n')
         slurm_file.write('#SBATCH --time=24:00:00\n')
-        slurm_file.write('#SBATCH --mem-per-cpu=300\n')
+        slurm_file.write('#SBATCH --mem-per-cpu=500\n')
         slurm_file.write('#SBATCH --mail-type=FAIL\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
         slurm_file.write('#SBATCH -w, --nodelist=hm-68\n')
-        slurm_file.write('. /cs/labs/guykatz/yuvalja/marabou_rnn/bin/activate\n')
+        #slurm_file.write('. /cs/labs/guykatz/yuvalja/marabou_rnn/bin/activate\n')
         slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
         slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
         slurm_file.write('python3 rnn_experiment/self_compare/IterationsExperiment.py {} {}\n'.format("exp", model))
@@ -54,7 +55,7 @@ def create_sbatch(output_folder, models_folder, cache_folder=''):
     for model in os.listdir(models_folder):
         if check_if_model_in_dir(model, cache_folder):
             continue
-        write_one_sbatch(output_folder, model)
+        write_one_sbatch(output_folder, os.path.join(models_folder, model))
 
 def create_sbatch_from_list(output_folder, clear_dir=True):
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.ckpt',

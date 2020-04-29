@@ -34,6 +34,8 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n
     except TimeoutError as e:
         res = False
         queries_stats['FFNN_Timeout'] = True
+    except AssertionError as e:
+        res = False
 
     end = timer()
 
