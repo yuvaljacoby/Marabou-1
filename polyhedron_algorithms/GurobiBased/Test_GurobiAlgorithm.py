@@ -50,7 +50,7 @@ multi_layer_paths = ['./FMCAD_EXP/models/model_20classes_rnn4_rnn4_fc32_fc32_010
                      './FMCAD_EXP/models/model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.ckpt',
                     './FMCAD_EXP/models/model_20classes_rnn8_rnn4_fc32_fc32_0050.ckpt',
                     './models/old/model_20classes_rnn4_rnn4_fc32_fc32_fc32_fc32_epochs50.h5',
-                    # './models/old/model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5',
+                    './models/old/model_20classes_rnn4_rnn4_rnn4_fc32_epochs50.h5',
                      ]
 
 

@@ -425,7 +425,7 @@ class GurobiSingleLayer:
                     else:
                         real_idx = i % (len(counter_examples[0]) // 2)
                         for a in self.alphas_u[real_idx]:
-                            gmodel.addConstr(a.get_lhs(time) >= out + (10 * SMALL))
+                            gmodel.addConstr(a.get_lhs(time - 1) >= out + (10 * SMALL))
 
         gmodel.optimize()
 
