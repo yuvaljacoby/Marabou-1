@@ -518,6 +518,9 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
         queries_stats['property_queries'] = len(property_times)
         queries_stats['invariant_queries'] = len(invariant_times)
         queries_stats['number_of_updates'] = i + 1  # one based counting
+        queries_stats['algorithm'] = []
+        if hasattr(algorithm, 'get_stats'):
+            queries_stats['algorithm'] = algorithm.get_stats()
     if not return_alphas:
         if not return_queries_stats:
             return res

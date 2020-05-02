@@ -103,10 +103,11 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
                         pbar.update(1)
                         if save_results:
                             pickle.dump(results, open(pickle_path, "wb"))
-    if len(net_options) == 1:
-        parse_results_file(pickle_path, t_range=t_range)
-    else:
-        parse_results_file([(net_name, pickle_path)], t_range=t_range)
+    if save_results:
+        if len(net_options) == 1:
+            parse_results_file(pickle_path, t_range=t_range)
+        else:
+            parse_results_file([(net_name, pickle_path)], t_range=t_range)
     return results
 
 
@@ -319,7 +320,7 @@ def compare_ephocs(pkl_dir: str, t_range):
 
 
 if __name__ == "__main__":
-    # TODO: Write test, to show demonstrate entry point to the experiennt (every options we have in the parse)
+    # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
 
     t_range = range(2, 21)
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',

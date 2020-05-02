@@ -19,12 +19,18 @@ PRINT_GUROBI = False
 
 setParam('Threads', 1)
 setParam('NodefileStart', 0.5)
+STAT_TOTAL_COUNTER = 'total_gurobi_steps'
+STAT_FAIL_COUNTER = 'fail_gurobi_steps'
+STAT_TOTAL_TIME = 'time_gurobi_steps'
+STAT_IMPROVE_DECISION_TIME = 'time_gurobi_imporve_decision'
+STAT_CONTINUOUS_COUNTER_EXAMPLE = 'continuous_counter_examples'
+
 
 
 class GurobiSingleLayer:
     def __init__(self, rnnModel, xlim, polyhedron_max_dim, use_relu=True, use_counter_example=False,
                  add_alpha_constraint=False, max_steps=5,
-                 layer_idx=0, debug=False, **kwargs):
+                 layer_idx=0, debug=False, stats={}, **kwargs):
         '''
 
         :param rnnModel:
@@ -36,6 +42,7 @@ class GurobiSingleLayer:
         self.add_alpha_constraint = add_alpha_constraint
         self.use_counter_example = use_counter_example
         self.use_relu = use_relu
+        self.stats = self.initialize_stats(stats)
         self.return_vars = True
         self.xlim = xlim
         self.initial_values = None
@@ -75,6 +82,16 @@ class GurobiSingleLayer:
 
         self.last_fail = None
         self.alpha_history = []
+
+    @staticmethod
+    def initialize_stats(stats: Dict) -> Dict:
+        if stats == {}:
+            stats[STAT_TOTAL_COUNTER] = 0
+            stats[STAT_FAIL_COUNTER] = 0
+            stats[STAT_TOTAL_TIME] = 0
+            stats[STAT_IMPROVE_DECISION_TIME] = 0
+            stats[STAT_CONTINUOUS_COUNTER_EXAMPLE] = []
+        return stats
 
     def __del__(self):
         return
@@ -408,8 +425,8 @@ class GurobiSingleLayer:
 
     def do_gurobi_step(self, strengthen: bool, counter_examples=None, previous_alphas=None) -> \
             Union[List[int], List['Bound']]:
-
-        start_time = timer()
+        self.stats[STAT_TOTAL_COUNTER] += 1
+        start_time_step = timer()
         env, gmodel = self.get_gurobi_polyhedron_model()
 
         # Use counter example only when invariant failed (strengthen == False)
@@ -447,10 +464,16 @@ class GurobiSingleLayer:
             assert False, status
 
         if error:
-            # TODO: Keep track on the recursion depth and use it for generating new bounds
-            if self.improve_gurobi_model(gmodel):
-                end_time = timer()
-                print("FAIL Gurobi Step, retry, seconds:", round(end_time - start_time, 3))
+            start_time_improve = timer()
+            improve = self.improve_gurobi_model(gmodel)
+            end_time_improve = timer()
+            self.stats[STAT_IMPROVE_DECISION_TIME] += end_time_improve - start_time_improve
+            end_time_step = timer()
+            self.stats[STAT_FAIL_COUNTER] += 1
+            self.stats[STAT_TOTAL_TIME] += (end_time_step - start_time_step)
+            print("FAIL Gurobi Step, {}, seconds: {}".format('retry' if improve else 'strop',
+                                                             round(end_time_step - start_time_step, 3)))
+            if improve:
                 gmodel.dispose()
                 env.dispose()
                 return self.do_gurobi_step(True)
@@ -463,12 +486,11 @@ class GurobiSingleLayer:
                 self.added_constraints = []
                 # self.last_fail = None
 
+                # TODO: Keep track on the recursion depth and use it for generating new bounds
                 alphas = self.do_gurobi_step(strengthen, previous_alphas=self.alphas)
             else:
-                end_time = timer()
                 # gmodel.computeIIS()
                 # gmodel.write('get_gurobi_polyhedron_model_step1.ilp')
-                print("FAIL Gurobi Step, stop, seconds:", round(end_time - start_time, 3))
                 self.UNSAT = True
                 self.equations = None
                 alphas = None
@@ -479,14 +501,15 @@ class GurobiSingleLayer:
 
         # if alphas is None and not self.UNSAT:
         #     assert False
-
+        end_time_step = timer()
+        self.stats[STAT_TOTAL_TIME] += (end_time_step - start_time_step)
         gmodel.dispose()
         env.dispose()
 
         return alphas
 
-    def update_all_equations(self):
 
+    def update_all_equations(self):
         # initial_values = self.initial_values[0] + self.initial_values[1]
         self.equations = []
         if not isinstance(self.alphas[0], list):
@@ -498,6 +521,7 @@ class GurobiSingleLayer:
                 eq = a.get_equation(self.rnn_start_idxs[i], self.rnn_output_idxs_double[i])
                 self.equations[-1].append(eq)
 
+
     def update_equation(self, idx):
         initial_values = self.initial_values[0] + self.initial_values[1]
 
@@ -505,8 +529,10 @@ class GurobiSingleLayer:
         self.equations[idx] = alpha_to_equation(self.rnn_start_idxs[idx], self.rnn_output_idxs_double[idx],
                                                 initial_values[idx], self.alphas[idx], self.inv_type[idx])
 
+
     def name(self):
         return 'gurobi_based_{}_{}'.format(self.alpha_initial_value, self.alpha_step_policy_ptr.__name__)
+
 
     def extract_equation_from_counter_example(self, counter_examples: List[Dict]):
         '''
@@ -530,6 +556,7 @@ class GurobiSingleLayer:
             times.append(counter_example[self.rnn_start_idxs[0]])
         return outputs, times
 
+
     def extract_hyptoesis_from_counter_example(self, counter_examples=[{}]):
         '''
 
@@ -548,6 +575,7 @@ class GurobiSingleLayer:
             assert counter_example[self.rnn_start_idxs[0]] == counter_example[self.rnn_start_idxs[1]]
             times.append(counter_example[self.rnn_start_idxs[0]])
         return outputs, times
+
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
         '''
@@ -589,6 +617,7 @@ class GurobiSingleLayer:
                     if round(sat_var.get(loop_idx, 0), 6) not in self.t_options:
                         improve = True
                         self.t_options.add(round(sat_var[loop_idx], 6))
+                        self.stats[STAT_CONTINUOUS_COUNTER_EXAMPLE].append(sat_var[loop_idx])
                 if not improve:
                     # adding time does not help, let's add as a counter example
                     pass
@@ -616,11 +645,13 @@ class GurobiSingleLayer:
 
         return self.equations
 
+
     def revert_last_step(self):
         '''
         If last step did not work, call this to revert it (and then we still have a valid invariant)
         '''
         return
+
 
     def get_equations(self):
         if self.UNSAT:
@@ -631,8 +662,10 @@ class GurobiSingleLayer:
             self.do_step(True)
         return self.equations
 
+
     def get_alphas(self):
         return self.alphas
+
 
     def get_bounds(self) -> Tuple[List[List[Tuple[int, int]]], List[List[Tuple[int, int]]]]:
         '''

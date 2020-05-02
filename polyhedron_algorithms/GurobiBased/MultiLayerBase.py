@@ -1,3 +1,5 @@
+from typing import List, Dict
+
 from RNN import MarabouRnnModel
 from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
@@ -9,8 +11,7 @@ class GurobiMultiLayer:
     # we need this assumptions in proved_invariant method, if we don't have it we need to extract bounds in another way
     # not sure it is even possible to create multi recurrent layer NOT in a row
     def __init__(self, rnnModel: MarabouRnnModel, xlim, polyhedron_max_dim=POLYHEDRON_MAX_DIM, use_relu=True,
-                 use_counter_example=False,
-                 add_alpha_constraint=False, debug=False, max_steps=10, **kwargs):
+                 use_counter_example=False, add_alpha_constraint=False, debug=False, max_steps=10, **kwargs):
         '''
 
         :param rnnModel: multi layer rnn model (MarabouRnnModel class)
@@ -35,6 +36,7 @@ class GurobiMultiLayer:
         self.debug = debug
         self.max_steps = max_steps
         self.invariant_fail_steps = 0
+        self.stats = [{} for _ in range(self.num_layers)]
         for i in range(self.num_layers):
             self.alphas_algorithm_per_layer.append(self._initialize_single_layer(i))
 
@@ -43,10 +45,11 @@ class GurobiMultiLayer:
             prev_layer_lim = self.input_lim
         else:
             prev_layer_lim = None
+
         return GurobiSingleLayer(self.rnnModel, prev_layer_lim, polyhedron_max_dim=self.polyhedron_max_dim,
                                  use_relu=self.use_relu, use_counter_example=self.use_counter_example,
                                  add_alpha_constraint=self.add_alpha_constraint, layer_idx=layer_idx,
-                                 max_steps=self.max_steps, debug=self.debug)
+                                 max_steps=self.max_steps, debug=self.debug, stats = self.stats[layer_idx])
 
     def proved_invariant(self, layer_idx=0, **kwargs):
         '''
@@ -82,13 +85,9 @@ class GurobiMultiLayer:
             alphas_u.append(max_alpha_bound)
             betas_u.append(max_beta_bound)
 
-        # print(alphas_l, alphas_u, (betas_l, betas_u))
         self.alphas_algorithm_per_layer[layer_idx + 1].update_xlim(alphas_l, alphas_u, (betas_l, betas_u))
-        # TODO: DELETE!!!
-        # self.alphas_algorithm_per_layer[layer_idx + 1].use_relu = False
 
     def do_step(self, strengthen=True, invariants_results=[], sat_vars=None, layer_idx=0):
-
         #     self.invariant_fail_steps += 1
         #     if self.invariant_fail_steps == 2:
         #         assert False
@@ -105,3 +104,9 @@ class GurobiMultiLayer:
 
     def get_alphas(self, layer_idx=0):
         return self.alphas_algorithm_per_layer[layer_idx].get_alphas()
+
+    def get_stats(self) -> List[Dict]:
+        stats = []
+        for layer in self.alphas_algorithm_per_layer:
+            stats.append(layer.stats)
+        return stats
