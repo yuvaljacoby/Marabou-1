@@ -127,6 +127,8 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     if isinstance(name_path_map, str) and os.path.isdir(name_path_map):
         tuples = []
         for f in sorted(os.listdir(name_path_map)):
+            if not f.endswith('.pkl'):
+                continue
             p = os.path.join(name_path_map, f)
             if not os.path.isfile(p):
                 continue
@@ -164,8 +166,8 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             total_timeout += res['len_timeout']
             # assert timeout == 0
             gurobi_time = res['avg_step_time_no_timeout']
-            ffnn_time = res['avg_invariant_time_no_timeout'] + res['avg_property_time_no_timeout']
-            assert ffnn_time + gurobi_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
+            ffnn_time = res['avg_invariant_time_no_timeout'] + res['avg_property_time_no_timeout'] - gurobi_time
+            assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
 
             # print("Format is: time (#success/#total) (#timeout)")
             # rows[t - t_range[0]].append("%.2f (%.2f,%.2f) %d/%d (%d)" % (avg_run_time, ffnn_time, gurobi_time,
@@ -259,7 +261,7 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
     save_results = True
 
     if sys.argv[1] == 'analyze':
-        parse_results_file(sys.argv[2], t_range)
+        parse_results_file(sys.argv[2], t_range, print_latex=1)
     if sys.argv[1] == 'compare':
         compare_ephocs(sys.argv[2], t_range)
     if sys.argv[1] == 'exp':
@@ -310,7 +312,7 @@ def compare_ephocs(pkl_dir: str, t_range):
             print('file {} is duplicate of the ephocs'.format(f))
             continue
         models_to_ephocs[m].update(set([e]))
-        models[m].append((e, os.path.join(OUT_FOLDER, f)))
+        models[m].append((e, os.path.join(pkl_dir, f)))
     for k, v in models.items():
         print("Results for model: {}".format(k))
 
@@ -323,6 +325,7 @@ if __name__ == "__main__":
     # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
 
     t_range = range(2, 21)
+
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
