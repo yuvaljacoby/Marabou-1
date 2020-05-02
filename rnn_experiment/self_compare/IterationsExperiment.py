@@ -247,10 +247,10 @@ def parse_dictionary(exp):
     }
 
     gurobi_time = d['avg_step_time_no_timeout']
-    ffnn_time = d['avg_invariant_time_no_timeout'] + d['avg_property_time_no_timeout']
+    ffnn_time = d['avg_invariant_time_no_timeout'] + d['avg_property_time_no_timeout'] - gurobi_time
     avg_run_time = d['avg_total_time_no_timeout']
 
-    assert ffnn_time + gurobi_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
+    assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
     assert d['num_invariant_avg'] <= 1, "Found point that needed more then one invariant to prove!!! THIS IS GOOD"
     return d
 
