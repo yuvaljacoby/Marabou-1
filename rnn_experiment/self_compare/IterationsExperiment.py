@@ -325,6 +325,7 @@ if __name__ == "__main__":
     # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
 
     t_range = range(2, 21)
+    # name = os.path.join("ATVA_EXP", "out_e6629c3", "gurobi2020-04-2922\:07\:34914800model_20classes_rnn8_fc32_fc32_fc32_fc32_fc32_epochs50.pkl")
 
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',

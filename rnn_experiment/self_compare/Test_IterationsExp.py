@@ -17,3 +17,15 @@ def test_single_network():
                          use_counter_example=True)
     results = run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=10, save_results=True)
     assert len(results) > 0
+
+
+if __name__ == '__main__':
+    # Upper window 9, lower 8
+    points = [pickle.load(open(POINTS_PATH, "rb"))[3]]
+    t_range = [8]
+    other_idx_method = [lambda x: np.argsort(x)[-2]]
+    net = "ATVA_EXP/models/epochs100/model_20classes_rnn4_rnn2_fc32_fc32_fc32_fc32_fc32_epochs100.h5"
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True, max_steps=20)
+    results = run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=2, save_results=True)
+    assert len(results) > 0

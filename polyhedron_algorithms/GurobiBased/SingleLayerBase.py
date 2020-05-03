@@ -151,7 +151,6 @@ class GurobiSingleLayer:
             self.initial_values = initial_values
 
     def calc_prev_layer_in_val_inner_layer(self, i: int, t: int) -> (int, int):
-        assert self.layer_idx > 0
         cond_x_u = 0
         cond_x_l = 0
         for j in range(self.w_in.shape[0]):
@@ -166,13 +165,20 @@ class GurobiSingleLayer:
                     cond_x_u += max((self.xlim[j][0] * t + self.prev_layer_beta[0][j]), 0) * w
                     cond_x_l += max((self.xlim[j][1] * t + self.prev_layer_beta[1][j]), 0) * w
             else:
-                if w > 0:
-                    cond_x_u += max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
-                    cond_x_l += max((self.xlim[j][0] * 0 + self.prev_layer_beta[0][j]), 0) * w
-                else:
-                    # TODO: I am not sure why the outer max is necessary, but it helps to pass tests ....
-                    cond_x_u += max(max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w, 0)
-                    cond_x_l += max((self.xlim[j][1] * 0 + self.prev_layer_beta[1][j]), 0) * w
+
+                # if w > 0:
+                #     cond_x_u += max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
+                # else:
+                #     # TODO: I am not sure why the outer max is necessary, but it helps to pass tests ....
+                #     cond_x_u += max(max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w, 0)
+
+                # We have 4 options of update, use min for lower bound and max to upper
+                x_update1 = max((self.xlim[j][0] * 0 + self.prev_layer_beta[0][j]), 0) * w
+                x_update2 = max((self.xlim[j][1] * 0 + self.prev_layer_beta[1][j]), 0) * w
+                x_update3 = max((self.xlim[j][0] * self.n_iterations + self.prev_layer_beta[0][j]), 0) * w
+                x_update4 = max((self.xlim[j][1] * self.n_iterations + self.prev_layer_beta[1][j]), 0) * w
+                cond_x_l += min(x_update1, x_update2, x_update3, x_update4)
+                cond_x_u += max(x_update1, x_update2, x_update3, x_update4)
             # u_max = (self.xlim[j][1] * (self.n_iterations) + self.prev_layer_beta[1][j]) * w
             # u_min = (self.xlim[j][0] * (self.n_iterations) + self.prev_layer_beta[0][j]) * w
             # cond_x_u += max(u_max, u_min)
@@ -442,7 +448,7 @@ class GurobiSingleLayer:
                     else:
                         real_idx = i % (len(counter_examples[0]) // 2)
                         for a in self.alphas_u[real_idx]:
-                            gmodel.addConstr(a.get_lhs(time - 1) >= out + (10 * SMALL))
+                                gmodel.addConstr(a.get_lhs(time - 1) >= out + (10 * SMALL))
 
         gmodel.optimize()
 
@@ -471,7 +477,7 @@ class GurobiSingleLayer:
             end_time_step = timer()
             self.stats[STAT_FAIL_COUNTER] += 1
             self.stats[STAT_TOTAL_TIME] += (end_time_step - start_time_step)
-            print("FAIL Gurobi Step, {}, seconds: {}".format('retry' if improve else 'strop',
+            print("FAIL Gurobi Step, {}, seconds: {}".format('retry' if improve else 'stop',
                                                              round(end_time_step - start_time_step, 3)))
             if improve:
                 gmodel.dispose()
