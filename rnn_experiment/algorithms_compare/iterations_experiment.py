@@ -1,24 +1,28 @@
-import numpy as np
-from RNN.Adversarial import adversarial_query, get_out_idx
+import pickle
 from timeit import default_timer as timer
+
+import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+from rns_verify.verify_keras import verify_query as rns_verify_query
+from RNN.Adversarial import adversarial_query, get_out_idx
 
 MODELS_FOLDER = "/home/yuval/projects/Marabou/models/"
-# FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
-FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
+FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
+# FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
 
 from functools import partial
-from rnn_algorithms.GurobiBased import AlphasGurobiBased
+from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
+
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iterations=100):
     our_results = []
     rnsverify_results = []
     for i in tqdm(range(2, max_iterations)):
-        # rnsverify_time = rns_verify_query(h5_file, in_tensor, idx_max, other_idx, i, radius)
-        rnsverify_time = -1
-        gurobi_ptr = partial(AlphasGurobiBased, random_threshold=20000, use_relu=True, add_alpha_constraint=True,
+        rnsverify_time = rns_verify_query(h5_file, in_tensor, idx_max, other_idx, i, radius)
+
+        gurobi_ptr = partial(GurobiMultiLayer, random_threshold=20000, use_relu=True, add_alpha_constraint=True,
                              use_counter_example=True)
         try:
             start = timer()
@@ -27,11 +31,10 @@ def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iteration
         except ValueError:
             res = False
             our_time = -1
-        # assert res
+        assert res
 
         our_results.append(our_time)
         rnsverify_results.append(rnsverify_time)
-        # results.append((our_time, rnsverify_time))
         print('iteration: {}, results: {}, {}'.format(i, our_results[-1],
                                                       rnsverify_results[-1]))
     return our_results, rnsverify_results
@@ -43,7 +46,7 @@ def plot_results(our_results, rnsverify_results, exp_name):
 
     plt.figure(figsize=(12.5, 9))
     sns.scatterplot(x_idx, our_results, s=200)
-    sns.scatterplot(x_idx, rnsverify_results , s=200)
+    sns.scatterplot(x_idx, rnsverify_results, s=200)
 
     plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=32)
 
@@ -51,7 +54,8 @@ def plot_results(our_results, rnsverify_results, exp_name):
     plt.ylabel('Time (seconds)', fontsize=36)
     plt.xticks(fontsize=26)
     plt.yticks(fontsize=26)
-    plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
+    # plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
+    plt.show()
 
     # small version:
     # plt.figure(figsize=(14, 11))
@@ -97,17 +101,17 @@ experiemnts = [
     #     2.26092251e+00,  2.08479489e+00,  2.60762089e+00,  2.77880146e+00]), 'radius': 0.01,
     #  'h5_path': "{}/model_20classes_rnn4_fc32_epochs40.h5".format(MODELS_FOLDER), 'n_iterations': 25},
     {'idx_max': 19, 'other_idx': 8,
-     'in_tensor':np.array([2.21710942e-03, -5.79088139e-01, -2.23213261e+00, -2.57655135e-02,
-       -7.56722928e-01, -9.62270726e-01, -3.03466236e+00, -9.81743962e-01,
-       -4.81361157e-01, -1.29589492e+00,  1.27178216e+00,  3.48023461e+00,
-        5.93364435e-01,  1.41500732e+00,  3.64563153e+00,  8.61538059e-01,
-        3.08545925e+00, -1.80144234e+00, -2.74250021e-01,  2.59515802e+00,
-        1.35054233e+00,  6.39162339e-02,  1.83629179e+00,  7.61018933e-01,
-        1.03273497e+00, -7.10478917e-01,  4.17554002e-01,  6.56822152e-01,
-       -9.96449533e-01, -4.18355355e+00, -1.65175481e-01,  4.91036530e+00,
-       -5.34422001e+00, -1.82655856e+00, -4.54628714e-01,  5.38630754e-01,
-        2.26092251e+00,  2.08479489e+00,  2.60762089e+00,  2.77880146e+00]), 'radius': 0.01,
-     'h5_path': "{}/model_classes20_1rnn2_0_64_4.h5".format(MODELS_FOLDER), 'n_iterations': 25},
+     'in_tensor': np.array([2.21710942e-03, -5.79088139e-01, -2.23213261e+00, -2.57655135e-02,
+                            -7.56722928e-01, -9.62270726e-01, -3.03466236e+00, -9.81743962e-01,
+                            -4.81361157e-01, -1.29589492e+00, 1.27178216e+00, 3.48023461e+00,
+                            5.93364435e-01, 1.41500732e+00, 3.64563153e+00, 8.61538059e-01,
+                            3.08545925e+00, -1.80144234e+00, -2.74250021e-01, 2.59515802e+00,
+                            1.35054233e+00, 6.39162339e-02, 1.83629179e+00, 7.61018933e-01,
+                            1.03273497e+00, -7.10478917e-01, 4.17554002e-01, 6.56822152e-01,
+                            -9.96449533e-01, -4.18355355e+00, -1.65175481e-01, 4.91036530e+00,
+                            -5.34422001e+00, -1.82655856e+00, -4.54628714e-01, 5.38630754e-01,
+                            2.26092251e+00, 2.08479489e+00, 2.60762089e+00, 2.77880146e+00]), 'radius': 0.01,
+     'h5_path': "{}/model_marabou_rnsverify_compare.h5".format(MODELS_FOLDER), 'n_iterations': 25},
 ]
 
 if __name__ == "__main__":
@@ -132,8 +136,8 @@ if __name__ == "__main__":
         exp_name = 'verification time as a function of iterations, one rnn cell dimension: {}'.format(rnn_dim)
 
         pickle_dir = "pickles/rns_verify_exp/"
-        pickle_path = pickle_dir + "ONLYOURS_{}_{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2], exp['n_iterations'],
-                                                                  hash(str(exp['in_tensor'])))
-        # pickle.dump({'our' : our, 'rns' : rns, 'exp_name' : exp_name}, open(pickle_path, "wb"))
+        pickle_path = pickle_dir + "{}_{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2],
+                                                                  exp['n_iterations'], hash(str(exp['in_tensor'])))
+        pickle.dump({'our': our, 'rns': rns, 'exp_name': exp_name}, open(pickle_path, "wb"))
 
-        # plot_results(our, rns, exp_name)
+        plot_results(our, rns, exp_name)
