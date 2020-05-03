@@ -20,7 +20,8 @@ from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
 
 IN_SHAPE = (40,)
-
+NUM_SAMPLE_POINTS = 25
+NUM_RUNNER_UP = 1
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n_iterations, steps):
     queries_stats = {}
@@ -337,9 +338,9 @@ if __name__ == "__main__":
     # exit(-1)
 
     # other_idx_method = [lambda x: np.argmin(x)]
-    other_idx_method = [lambda x: np.argsort(x)[-i] for i in range(2, 7)]
+    other_idx_method = [lambda x: np.argsort(x)[-i] for i in range(2, 2 + NUM_RUNNER_UP)]
 
-    points = pickle.load(open(POINTS_PATH, "rb"))[:5]
+    points = pickle.load(open(POINTS_PATH, "rb"))[:NUM_SAMPLE_POINTS]
 
     gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
                          use_counter_example=True)
