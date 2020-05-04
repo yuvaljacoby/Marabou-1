@@ -14,12 +14,13 @@ FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
 
 from functools import partial
 from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
-
+import time
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, max_iterations=100):
     our_results = []
     rnsverify_results = []
     for i in tqdm(range(2, max_iterations)):
+        # rnsverify_time = -1
         rnsverify_time = rns_verify_query(h5_file, in_tensor, idx_max, other_idx, i, radius)
 
         gurobi_ptr = partial(GurobiMultiLayer, random_threshold=20000, use_relu=True, add_alpha_constraint=True,
@@ -44,9 +45,10 @@ def plot_results(our_results, rnsverify_results, exp_name):
     assert len(our_results) == len(rnsverify_results)
     x_idx = range(2, len(our_results) + 2)
 
-    plt.figure(figsize=(12.5, 9))
-    sns.scatterplot(x_idx, our_results, s=200)
-    sns.scatterplot(x_idx, rnsverify_results, s=200)
+    plt.figure(figsize=(13, 9))
+    dot_size = 800
+    sns.scatterplot(x_idx, our_results, s=dot_size)
+    sns.scatterplot(x_idx, rnsverify_results, s=dot_size)
 
     plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=32)
 
@@ -54,23 +56,8 @@ def plot_results(our_results, rnsverify_results, exp_name):
     plt.ylabel('Time (seconds)', fontsize=36)
     plt.xticks(fontsize=26)
     plt.yticks(fontsize=26)
-    # plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
-    plt.show()
-
-    # small version:
-    # plt.figure(figsize=(14, 11))
-    # sns.scatterplot(x_idx, our_results, s=220)
-    # sns.scatterplot(x_idx, rnsverify_results , s=220)
-
-    # plt.legend(['RnnVerify', 'Unrolling'], loc='upper left', fontsize=42)
-
-    # plt.xlabel('Number of Iterations ($T_{max}$)', fontsize=48)
-    # plt.ylabel('Time (seconds)', fontsize=48)
-    # plt.xticks(fontsize=30)
-    # plt.yticks(fontsize=30)
-    # plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0_03.pdf").replace(' ', '_'), dpi=100)
+    plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
     # plt.show()
-
 
 experiemnts = [
     # {'idx_max': 9, 'other_idx': 2,
@@ -121,7 +108,7 @@ if __name__ == "__main__":
     # n_iterations = 20  # 1000?
     # r = 0
     # model_path = 'models/model_classes5_1rnn2_0_64_4.h5'
-    # results_path = "pickles/rns_verify_exp/model_classes20_1rnn2_0_64_4_25.pkl"
+    # results_path = "pickles/rns_verify_exp/model_marabou_rnsverify_compare_25_20200504-004813.pkl"
     # d = pickle.load(open(results_path, "rb"))
     # plot_results(d['our'], d['rns'], d['exp_name'])
     # exit(0)
@@ -137,7 +124,10 @@ if __name__ == "__main__":
 
         pickle_dir = "pickles/rns_verify_exp/"
         pickle_path = pickle_dir + "{}_{}_{}.pkl".format(exp['h5_path'].split("/")[-1].split(".")[-2],
-                                                                  exp['n_iterations'], hash(str(exp['in_tensor'])))
+                                                                  exp['n_iterations'],  time.strftime("%Y%m%d-%H%M%S"))
+        print("#"*100)
+        print(" " * 20 + "PICKLE PATH: {}".format(pickle_path))
+        print("#" * 100)
         pickle.dump({'our': our, 'rns': rns, 'exp_name': exp_name}, open(pickle_path, "wb"))
 
         plot_results(our, rns, exp_name)
