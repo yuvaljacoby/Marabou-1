@@ -20,12 +20,12 @@ def test_single_network():
 
 
 if __name__ == '__main__':
-    # Upper window 9, lower 8
-    points = [pickle.load(open(POINTS_PATH, "rb"))[3]]
-    t_range = [8]
+    points = pickle.load(open(POINTS_PATH, "rb"))[:25]
+    points = points[15:]
+    t_range = [17]
     other_idx_method = [lambda x: np.argsort(x)[-2]]
-    net = "ATVA_EXP/models/epochs100/model_20classes_rnn4_rnn2_fc32_fc32_fc32_fc32_fc32_epochs100.h5"
+    net = "ATVA_EXP/models/epochs200/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs200.h5"
     gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
                          use_counter_example=True, max_steps=20)
-    results = run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=2, save_results=True)
+    results = run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=2, save_results=False)
     assert len(results) > 0

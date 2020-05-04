@@ -615,6 +615,7 @@ class GurobiSingleLayer:
         # If the invariant failed we use two techinques to solve it: a. add the spesific counter example, b. add the time stemp
         counter_examples = None
         if not strengthen:
+            print("{} Previous gurobi was not invariant, improve".format(str(datetime.now()).split(".")[0]))
             improve = False
             # First check if the invariant failed because of continues time
             if sat_vars:

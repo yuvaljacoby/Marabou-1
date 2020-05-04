@@ -247,12 +247,12 @@ def prove_invariant_multi(network, rnn_start_idxs: List[int],
 
     hypothesis_fail = False
     # TODO: DEBUG
-    marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
-    if marabou_result:
-        # UNSAT Conflict in the hypothesis
-        assert False
-        proved_invariants = [False] * len(proved_invariants)
-        hypothesis_fail = True
+    # marabou_result, cur_vars = marabou_solve_negate_eq(network, print_vars=False, return_vars=True)
+    # if marabou_result:
+    #     # UNSAT Conflict in the hypothesis
+    #     assert False
+    #     proved_invariants = [False] * len(proved_invariants)
+    #     hypothesis_fail = True
 
     if not hypothesis_fail:
         for i, steq_eq_ls in enumerate(step_eq):
