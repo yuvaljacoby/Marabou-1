@@ -80,9 +80,11 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
             # This means all the enteris in the out vector are equal...
             return False, None, None
 
+    start_initialize_query = timer()
     xlim = calc_min_max_by_radius(x, radius)
     rnn_model = RnnMarabouModel(h5_file_path, n_iterations)
     rnn_model.set_input_bounds(xlim)
+
 
     # output[y_idx_max] >= output[0] <-> output[y_idx_max] - output[0] >= 0, before feeding marabou we negate this
     adv_eq = MarabouCore.Equation(MarabouCore.Equation.GE)
@@ -93,6 +95,7 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
     time_eq = MarabouCore.Equation()
     time_eq.addAddend(1, rnn_model.get_start_end_idxs(0)[0][0])
     time_eq.setScalar(n_iterations)
+    end_initialize_query = timer()
 
     start_initial_alg = timer()
     algorithm = algorithm_ptr(rnn_model, xlim)
@@ -106,6 +109,7 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
         step_times.insert(0, end_initial_alg - start_initial_alg)
         queries_stats['step_times'] = {'avg': np.mean(step_times), 'median': np.median(step_times), 'raw': step_times}
         queries_stats['step_queries'] = len(step_times)
+        queries_stats['query_initialize'] = end_initialize_query - start_initialize_query
 
     if 'invariant_queries' in queries_stats and 'property_queries' in queries_stats and \
             queries_stats['property_queries'] != queries_stats['invariant_queries']:

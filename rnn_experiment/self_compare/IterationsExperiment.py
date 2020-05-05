@@ -148,6 +148,10 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     total_time = 0
     total_points = 0
     total_timeout = 0
+    total_gurobi_time = 0
+    total_invariant_time = 0
+    total_property_time = 0
+    sum_success = 0
     for p in name_path_map:
         d = pickle.load(open(p[1], "rb"))
         for key, value in d.items():
@@ -160,21 +164,29 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
                 assert False
 
             total_success = res['total_success']
+            sum_success += total_success
             avg_run_time = res['avg_total_time_no_timeout']
 
             total_time += avg_run_time * res['total']
+            assert np.abs(total_time == res['avg_total_time']) < 10**-3
             total_points += res['total']
             total_timeout += res['len_timeout']
+            total_gurobi_time +=  res['avg_step_time'] * res['total']
+            total_invariant_time += res['avg_invariant_time'] * res['total']
+            total_property_time += res['avg_property_time'] * res['total']
             # assert timeout == 0
             gurobi_time = res['avg_step_time_no_timeout']
-            ffnn_time = res['avg_invariant_time_no_timeout'] + res['avg_property_time_no_timeout'] - gurobi_time
+            ffnn_time = res['avg_invariant_time'] + res['avg_property_time'] - gurobi_time
             assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
 
+
+            avg_gurobi_invariant = res['avg_step_time']
+            # avg_marabou_invariant = res['avg_invariant_time_no_timeout'] - avg_gurobi_invariant
             # print("Format is: time (#success/#total) (#timeout)")
             # rows[t - t_range[0]].append("%.2f (%.2f,%.2f) %d/%d (%d)" % (avg_run_time, ffnn_time, gurobi_time,
             #                                                              total_success, res['total'],
             #                                                              res['len_timeout']))
-            rows[t - t_range[0]].append("%.2f (%d/%d)" % (avg_run_time, total_success, res['total']))
+            rows[t - t_range[0]].append("%.2f(%d/%d)" % (avg_run_time, total_success, res['total']))
 
     for row in rows:
         x.add_row(row)
@@ -187,9 +199,20 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             print("\t{} &&&".format(t + 2))
             print(" &&& ".join(row[1:]).replace("  ", " "), "&")
             print("\t\\\\")
+
+    avg_time = total_time / total_points
+    avg_gurobi = total_gurobi_time / total_points
+    avg_marabou_invariant = (total_invariant_time - total_gurobi_time) / total_points
+    avg_property = total_property_time / total_points
     print("#" * 100)
-    print("Average run time {} seconds, over {} points, timeout: {}".format(total_time / total_points, total_points,
-                                                                            total_timeout))
+
+    print("Average run time {} seconds, over {} points, timeout: {}, success: {} ({:.2f})"
+          .format(avg_time, total_points, total_timeout, sum_success, sum_success / total_points))
+    print("avg Time in Gurobi: {}({:.2f}%), avg Time proving Invariant in Marabou {} ({:.2f}%),"
+          "avg Time proving property: {} ({:.2f}%)"
+          .format(avg_gurobi, (avg_gurobi) / avg_time,
+                avg_marabou_invariant, (avg_marabou_invariant) / avg_time,
+                avg_property, (avg_property) / avg_time))
     print("#" * 100)
 
 
@@ -246,7 +269,8 @@ def parse_dictionary(exp):
         'avg_step_time_success': safe_mean([e['stats']['step_times']['avg'] for e in success_exp]),
         'num_invariant_avg_success': safe_mean([e['stats']['invariant_queries'] for e in success_exp]),
         'num_property_avg_success': safe_mean([e['stats']['property_queries'] for e in success_exp]),
-        'num_step_avg_success': safe_mean([e['stats']['step_queries'] for e in success_exp])
+        'num_step_avg_success': safe_mean([e['stats']['step_queries'] for e in success_exp]),
+        # 'initialize_query_time': safe_mean([e['stats']['query_initialize'] for e in success_exp])
     }
 
     gurobi_time = d['avg_step_time_no_timeout']
@@ -327,7 +351,8 @@ if __name__ == "__main__":
 
     t_range = range(2, 21)
     # name = os.path.join("ATVA_EXP", "out_e6629c3", "gurobi2020-04-2922\:07\:34914800model_20classes_rnn8_fc32_fc32_fc32_fc32_fc32_epochs50.pkl")
-
+    parse_results_file('ATVA_EXP/out_8eb20ee/filter/', t_range, print_latex=1)
+    exit(0)
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
