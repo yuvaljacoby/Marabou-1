@@ -166,7 +166,7 @@ def parse_inputs():
         run_multiple_experiment(points, r, DEFAULT_H5, max_iterations)
     if sys.argv[1] == 'exact':
         t = int(sys.argv[2])
-        run_exp_signle_time(points, r, DEFAULT_H5, t, save_results=1, only_rns=1)
+        run_exp_signle_time(points, r, DEFAULT_H5, t, save_results=1, only_rns=0)
 
 experiemnts = [
     # {'idx_max': 9, 'other_idx': 2,
