@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import sys
 import shutil
+import time
 
 BASE_FOLDER = "/home/yuval/projects/Marabou/"
 if os.path.exists("/cs/usr/yuvalja/projects/Marabou"):
@@ -21,13 +22,13 @@ def check_if_model_in_dir(model_name: str, output_folder: str):
     return False
 
 
-def write_one_sbatch(output_folder, time):
+def write_one_sbatch(output_folder, t):
     exp_time = str(datetime.now()).replace(" ", "-")
-    with open(os.path.join(output_folder, "exact_time" + str(time) + ".sh"), "w") as slurm_file:
+    with open(os.path.join(output_folder, "exact_time" + str(t) + ".sh"), "w") as slurm_file:
         slurm_file.write('#!/bin/bash\n')
-        slurm_file.write('#SBATCH --job-name=rns{}_{}\n'.format(time, exp_time))
+        slurm_file.write('#SBATCH --job-name=rns{}_{}\n'.format(t, exp_time))
         slurm_file.write('#SBATCH --cpus-per-task=2\n')
-        slurm_file.write('#SBATCH --output={}/rns_{}.out\n'.format(OUT_FOLDER, time))
+        slurm_file.write('#SBATCH --output={}/rns_{}_{}.out\n'.format(OUT_FOLDER, t, time.strftime("%Y%m%d-%H%M%S")))
         slurm_file.write('#SBATCH --time=24:00:00\n')
         slurm_file.write('#SBATCH --mem-per-cpu=500\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')

@@ -14,6 +14,7 @@ from tqdm import tqdm
 from RNN.Adversarial import adversarial_query, get_out_idx
 try:
     from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
+    from rns_verify.verify_keras import verify_query as rns_verify_query
 except:
     pass
 
@@ -35,7 +36,6 @@ DEFAULT_H5 = os.path.join(MODELS_FOLDER, 'model_marabou_rnsverify_compare.h5')
 
 
 def run_exp_signle_time(points, radius, h5_file, t, only_rns=False, pbar=None, save_results=False):
-    from rns_verify.verify_keras import verify_query as rns_verify_query
     our_raw, rns_raw = [], []
     for j, point in enumerate(points):
         idx_max, other_idx = get_out_idx(point, t, h5_file, lambda x: np.argsort(x)[-2])
