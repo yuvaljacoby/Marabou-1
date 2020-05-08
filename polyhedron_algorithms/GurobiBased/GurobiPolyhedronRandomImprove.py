@@ -10,8 +10,8 @@ from polyhedron_algorithms.GurobiBased.SingleLayerBase import GurobiSingleLayer
 
 class GurobiMultiLayerRandom(GurobiMultiLayer):
     def __init__(self, rnnModel, prev_layer_lim, max_steps=17, **kwargs):
-        self.max_steps = max_steps
-        super(GurobiMultiLayerRandom, self).__init__(rnnModel, prev_layer_lim, **kwargs)
+        super(GurobiMultiLayerRandom, self).__init__(rnnModel, prev_layer_lim, max_steps = max_steps, **kwargs)
+        # self.max_steps = max_steps
 
     def _initialize_single_layer(self, layer_idx: int) -> GurobiSingleLayer:
         if layer_idx == 0:
@@ -21,7 +21,7 @@ class GurobiMultiLayerRandom(GurobiMultiLayer):
         return GurobiSingleLayerRandom(self.rnnModel, prev_layer_lim, polyhedron_max_dim=self.polyhedron_max_dim,
                                        use_relu=self.use_relu, use_counter_example=self.use_counter_example,
                                        add_alpha_constraint=self.add_alpha_constraint, layer_idx=layer_idx,
-                                       max_steps=self.max_steps)
+                                       max_steps=self.max_steps, debug=self.debug)
 
 
 class GurobiSingleLayerRandom(GurobiSingleLayer):
@@ -47,8 +47,6 @@ class GurobiSingleLayerRandom(GurobiSingleLayer):
             for j in range(self.alphas_u_lengths[hidden_idx]):
                 alphas_u[hidden_idx].append(Bound(gmodel, True, cur_init_vals[1], hidden_idx, j))
 
-        print('step_num:', self.step_num)
-        self.step_num += 1
         return alphas_l, alphas_u
 
     def improve_gurobi_model(self, gmodel: Model) -> bool:
@@ -64,4 +62,9 @@ class GurobiSingleLayerRandom(GurobiSingleLayer):
             else:
                 self.alphas_u_lengths[idx] += 1
 
+        print('step_num: {} out of: {}'.format(self.step_num, self.max_steps))
+        print('lower bound lengths:', self.alphas_l_lengths)
+        print('upper bound lengths:', self.alphas_u_lengths)
+        self.step_num += 1
+        # super(GurobiSingleLayerRandom, self).step_num += 1
         return self.step_num <= self.max_steps

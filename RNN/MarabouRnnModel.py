@@ -128,7 +128,10 @@ class RnnMarabouModel():
         self.num_rnn_layers = len(self.rnn_out_idx)
 
     def __del__(self):
-        tf.keras.backend.clear_session()
+        try:
+            tf.keras.backend.clear_session()
+        except Exception:
+            pass
 
     def get_start_end_idxs(self, rnn_layer=0):
         # rnn_start_idxs = []

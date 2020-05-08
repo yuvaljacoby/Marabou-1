@@ -111,8 +111,8 @@ def adversarial_query(x: list, radius: float, y_idx_max: int, other_idx: int, h5
         queries_stats['step_queries'] = len(step_times)
         queries_stats['query_initialize'] = end_initialize_query - start_initialize_query
 
-    if 'invariant_queries' in queries_stats and 'property_queries' in queries_stats and \
-            queries_stats['property_queries'] != queries_stats['invariant_queries']:
-        print("What happened?\n", x)
+    # if 'invariant_queries' in queries_stats and 'property_queries' in queries_stats and \
+    #         queries_stats['property_queries'] != queries_stats['invariant_queries']:
+    #     print("What happened?\n", x)
     del rnn_model
     return res, queries_stats, algorithm.alpha_history
