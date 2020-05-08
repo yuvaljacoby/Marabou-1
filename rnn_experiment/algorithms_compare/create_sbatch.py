@@ -33,7 +33,7 @@ def write_one_sbatch(output_folder, t):
         slurm_file.write('#SBATCH --mem-per-cpu=500\n')
         slurm_file.write('#SBATCH -w, --nodelist=hm-68\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')
-        # slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
+        slurm_file.write('export LD_LIBRARY_PATH=/cs/usr/yuvalja/projects/Marabou\n')
         slurm_file.write('export PYTHONPATH=$PYTHONPATH:"$(dirname "$(pwd)")"/Marabou\n')
         slurm_file.write('python3 rnn_experiment/algorithms_compare/iterations_experiment.py {} {}\n'.format("exact", t))
 
