@@ -29,6 +29,7 @@ def write_one_sbatch(output_folder, t):
         slurm_file.write('#SBATCH --job-name=rns{}_{}\n'.format(t, exp_time))
         slurm_file.write('#SBATCH --cpus-per-task=6\n')
         slurm_file.write('#SBATCH --time=24:00:00\n')
+        slurm_file.write('#SBATCH --output={}/rns_{}_{}.out\n'.format(OUT_FOLDER, t, time.strftime("%Y%m%d-%H%M%S")))
         slurm_file.write('#SBATCH --mem-per-cpu=500\n')
         slurm_file.write('#SBATCH -w, --nodelist=hm-68\n')
         slurm_file.write('#SBATCH --mail-user=yuvalja@cs.huji.ac.il\n')

@@ -12,11 +12,8 @@ import seaborn as sns
 from tqdm import tqdm
 
 from RNN.Adversarial import adversarial_query, get_out_idx
-try:
-    from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
-    from rns_verify.verify_keras import verify_query as rns_verify_query
-except:
-    pass
+from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
+from rns_verify.verify_keras import verify_query as rns_verify_query
 
 BASE_FOLDER = "/home/yuval/projects/Marabou/"
 CS_BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
