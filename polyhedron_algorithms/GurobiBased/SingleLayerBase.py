@@ -405,8 +405,9 @@ class GurobiSingleLayer:
         #     self.approximate_layers = True
         #     return True
 
-        self.approximate_layers = False
         self.step_num += 1
+        # self.polyhedron_current_dim += 1
+        self.approximate_layers = False
         return self.step_num <= self.polyhedron_max_dim
 
     def gurobi_step_in_random_direction(self, previous_alphas, failed_improves=set()):
@@ -594,7 +595,6 @@ class GurobiSingleLayer:
         if self.step_num > self.max_steps:
             assert False
 
-        self.step_num += 1
         if invariants_results != [] and invariants_results is not None:
             pass
             # If we all invariants from above or bottom are done do step in the other
@@ -625,9 +625,6 @@ class GurobiSingleLayer:
                         improve = True
                         self.t_options.add(round(sat_var[loop_idx], 6))
                         self.stats[STAT_CONTINUOUS_COUNTER_EXAMPLE].append(sat_var[loop_idx])
-                if not improve:
-                    # adding time does not help, let's add as a counter example
-                    pass
                 outputs, times = self.extract_equation_from_counter_example(sat_vars)
                 counter_examples = (outputs, times)
 
@@ -637,7 +634,9 @@ class GurobiSingleLayer:
 
         if new_alphas == self.alphas:
             # No improvement
-            assert False
+            # TODO: What should we do in this case?
+            # assert False
+            return None
 
         if new_alphas is None:
             assert False
