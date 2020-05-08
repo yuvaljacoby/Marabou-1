@@ -13,6 +13,7 @@ from prettytable import PrettyTable
 from tqdm import tqdm
 
 from RNN.Adversarial import adversarial_query, get_out_idx
+from polyhedron_algorithms.GurobiBased.GurobiPolyhedronRandomImprove import GurobiMultiLayerRandom
 from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
 from rnn_experiment.self_compare.create_sbatch_iterations_exp import BASE_FOLDER, OUT_FOLDER
 from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
@@ -22,6 +23,7 @@ MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
 IN_SHAPE = (40,)
 NUM_SAMPLE_POINTS = 25
 NUM_RUNNER_UP = 1
+
 
 def run_experiment(in_tensor, radius, idx_max, other_idx, h5_file, gurobi_ptr, n_iterations, steps):
     queries_stats = {}
@@ -101,6 +103,8 @@ def run_all_experiments(net_options, points, t_range, other_idx_method, gurobi_p
                         result.update({'h5_file': net_name, 't': t, 'other_idx': other_idx, 'in_tensor': point,
                                        'steps_num': steps_num})
                         results[name].append(result)
+                        if not result['result']:
+                            print("FAIL on point index: {}".format(idx))
                         pbar.update(1)
                         if save_results:
                             pickle.dump(results, open(pickle_path, "wb"))
@@ -151,6 +155,7 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     total_gurobi_time = 0
     total_invariant_time = 0
     total_property_time = 0
+    total_init_time = 0
     sum_success = 0
     for p in name_path_map:
         d = pickle.load(open(p[1], "rb"))
@@ -168,17 +173,17 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             avg_run_time = res['avg_total_time_no_timeout']
 
             total_time += avg_run_time * res['total']
-            assert np.abs(total_time == res['avg_total_time']) < 10**-3
+            assert np.abs(total_time == res['avg_total_time']) < 10 ** -3
             total_points += res['total']
             total_timeout += res['len_timeout']
-            total_gurobi_time +=  res['avg_step_time'] * res['total']
+            total_init_time += res['avg_initialize_query_time'] * res['total']
+            total_gurobi_time += res['avg_step_time'] * res['total']
             total_invariant_time += res['avg_invariant_time'] * res['total']
             total_property_time += res['avg_property_time'] * res['total']
             # assert timeout == 0
             gurobi_time = res['avg_step_time_no_timeout']
             ffnn_time = res['avg_invariant_time'] + res['avg_property_time'] - gurobi_time
             assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
-
 
             avg_gurobi_invariant = res['avg_step_time']
             # avg_marabou_invariant = res['avg_invariant_time_no_timeout'] - avg_gurobi_invariant
@@ -204,15 +209,17 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     avg_gurobi = total_gurobi_time / total_points
     avg_marabou_invariant = (total_invariant_time - total_gurobi_time) / total_points
     avg_property = total_property_time / total_points
+    avg_init = total_init_time / total_points
     print("#" * 100)
 
     print("Average run time {} seconds, over {} points, timeout: {}, success: {} ({:.2f})"
           .format(avg_time, total_points, total_timeout, sum_success, sum_success / total_points))
     print("avg Time in Gurobi: {}({:.2f}%), avg Time proving Invariant in Marabou {} ({:.2f}%),"
-          "avg Time proving property: {} ({:.2f}%)"
-          .format(avg_gurobi, (avg_gurobi) / avg_time,
-                avg_marabou_invariant, (avg_marabou_invariant) / avg_time,
-                avg_property, (avg_property) / avg_time))
+          "avg Time proving property: {} ({:.2f}%), avg initialize time: {} ({:.2f%})"
+          .format(avg_gurobi, avg_gurobi / avg_time,
+                  avg_marabou_invariant, avg_marabou_invariant / avg_time,
+                  avg_property, avg_property / avg_time,
+                  avg_init, avg_init / avg_time))
     print("#" * 100)
 
 
@@ -270,7 +277,8 @@ def parse_dictionary(exp):
         'num_invariant_avg_success': safe_mean([e['stats']['invariant_queries'] for e in success_exp]),
         'num_property_avg_success': safe_mean([e['stats']['property_queries'] for e in success_exp]),
         'num_step_avg_success': safe_mean([e['stats']['step_queries'] for e in success_exp]),
-        # 'initialize_query_time': safe_mean([e['stats']['query_initialize'] for e in success_exp])
+        'avg_initialize_query_time': safe_mean(
+            [e['stats']['query_initialize'] for e in success_exp if 'query_initialize' in e['stats']])
     }
 
     gurobi_time = d['avg_step_time_no_timeout']
@@ -350,9 +358,10 @@ if __name__ == "__main__":
     # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
 
     t_range = range(2, 21)
+    t_range = range(19, 20)
     # name = os.path.join("ATVA_EXP", "out_e6629c3", "gurobi2020-04-2922\:07\:34914800model_20classes_rnn8_fc32_fc32_fc32_fc32_fc32_epochs50.pkl")
-    parse_results_file('ATVA_EXP/out_8eb20ee/filter/', t_range, print_latex=1)
-    exit(0)
+    # parse_results_file('ATVA_EXP/out_8eb20ee/filter/', t_range, print_latex=1)
+    # exit(0)
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
@@ -367,8 +376,8 @@ if __name__ == "__main__":
 
     points = pickle.load(open(POINTS_PATH, "rb"))[:NUM_SAMPLE_POINTS]
 
-    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
-                         use_counter_example=True)
+    gurobi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=2, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True, debug=1)
     if len(sys.argv) > 1:
         net_options = None
         parse_inputs(t_range, FMCAD_networks, points, other_idx_method)
@@ -376,20 +385,23 @@ if __name__ == "__main__":
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,
     #                     other_idx_method, gurobi_ptr, steps_num=10)
     # exit(0)
-
-    point = np.array([-1.90037058, 2.80762335, 5.6615233, -3.3241606, -0.83999373, -4.67291775,
-                      -2.37340524, -3.94152213, 1.78206783, -0.37256191, 1.07329743, 0.02954765,
-                      0.50143303, -3.98823161, -1.05437203, -1.98067338, 6.12760627, -2.53038902,
-                      -0.90698131, 4.40535622, -3.30067319, -1.60564116, 0.22373327, 0.43266462,
-                      5.45421917, 4.11029858, -4.65444165, 0.50871269, 1.40619639, -0.7546163,
-                      3.68131841, 1.18965503, 0.81459484, 2.36269942, -2.4609835, -1.14228611,
-                      -0.28604645, -6.39739288, -3.54854402, -3.21648808])
-    net = "model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_fc32_0200.ckpt"
-    # net = "model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.ckpt"
-    t_range = range(2, 21)
-    run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, steps_num=10)
+    net = "ATVA_EXP/models/epochs200/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs200.h5"
+    t_range = range(19, 20)
+    points = [points[0]]
+    run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, save_results=0, steps_num=1)
     exit(0)
-    gurobi_multi_ptr = partial(GurobiMultiLayer, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
-                               use_counter_example=True)
-    run_all_experiments([net], points[:5], t_range, other_idx_method, gurobi_multi_ptr, save_results=0, steps_num=2)
+
+    net = "ATVA_EXP/models/epochs200/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs200.h5"
+    # net = "model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.ckpt"
+    t_range = range(13, 14)
+    fail_indices = [2, 7, 9, 11, 12, 13, 15, 16, 17, 18, 20, 21, 22, 24]
+    import operator
+
+    points = operator.itemgetter(*fail_indices)(points)
+    # points = map(points.__getitem__, fail_indices)
+
+    gurobi_ptr = partial(GurobiMultiLayerRandom, polyhedron_max_dim=1, use_relu=True, add_alpha_constraint=True,
+                         use_counter_example=True, max_steps=5, debug=True)
+
+    run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, save_results=0, steps_num=1)
     # run_all_experiments([net_options[3]], points[:2], t_range, other_idx_method, gurobi_multi, save_results=0, steps_num=2)

@@ -385,7 +385,7 @@ def property_oracle_generator(network, property_equations):
 
 
 def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algorithm, return_alphas=False,
-                            number_of_steps=5000, debug=False, return_queries_stats=False):
+                            number_of_steps=5000, debug=False, return_queries_stats=False, stats=None):
     network = rnnModel.network
     rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(rnn_layer=None)
     add_loop_indices_equations(network, rnn_start_idxs)
@@ -394,11 +394,14 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
 
     res = False
     unsat = False
-    invariant_times = []
-    property_times = []
-    step_times = []
+    if stats is None:
+        stats = {}
+    if 'invariant_times' not in stats:
+        stats['invariant_times'] = []
+        stats['property_times'] = []
+        stats['step_times'] = []
+
     for i in range(number_of_steps):
-        start_invariant = timer()
         invariant_results = []
         proved_equations = []
 
@@ -410,13 +413,16 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
             else:
                 rnn_start_idxs, rnn_output_idxs = rnnModel.get_start_end_idxs(rnn_layer=None)
                 equations = algorithm.get_equations()
+            end_step = timer()
+            stats['step_times'].append(end_step - start_step)
             if equations is None:
                 unsat = True
                 break
-            end_step = timer()
-            step_times.append(end_step - start_step)
+            start_invariant = timer()
             invariant_oracle = invariant_oracle_generator(network, rnn_start_idxs, rnn_output_idxs, return_vars=True)
             layer_invariant_results, sat_vars = invariant_oracle(equations)
+            end_invariant = timer()
+            stats['invariant_times'].append(end_invariant - start_invariant)
             invariant_results += layer_invariant_results
             if all(layer_invariant_results):
                 if hasattr(algorithm, 'proved_invariant'):
@@ -433,28 +439,26 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 res = algorithm.do_step(strengthen=False, invariants_results=invariant_results, sat_vars=sat_vars,
                                         layer_idx=l)
                 end_step = timer()
-                step_times.append(end_step - start_step)
+                stats['step_times'].append(end_step - start_step)
                 if res:
                     proved_equations = []
                     for eq in proved_equations:
                         network.removeEquation(eq)
                     return prove_multidim_property(rnnModel, property_equations, algorithm, return_alphas,
-                                                   number_of_steps, debug, return_queries_stats)
+                                                   number_of_steps, debug, return_queries_stats, stats)
 
-        end_invariant = timer()
         if unsat:
             res = False
             break
         for eq in proved_equations:
             network.removeEquation(eq)
         # print(invariant_results)
-        invariant_times.append(end_invariant - start_invariant)
         if all(invariant_results):
             # print('proved an invariant: {}'.format(algorithm.get_alphas()))
             start_property = timer()
             prop_res = property_oracle(proved_equations)
             end_property = timer()
-            property_times.append(end_property - start_property)
+            stats['property_times'].append(end_property - start_property)
             if prop_res:
                 # print("proved property after {} iterations, using alphas: {}".format(i, algorithm.get_alphas()))
                 res = True
@@ -467,7 +471,7 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 else:
                     algorithm.do_step(True, None)
                 end_step = timer()
-                step_times.append(end_step - start_step)
+                stats['step_times'].append(end_step - start_step)
         else:
             # assert False
             start_step = timer()
@@ -481,13 +485,13 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 if res:
                     return prove_multidim_property(rnnModel, property_equations, algorithm, return_alphas,
                                                    number_of_steps,
-                                                   debug, return_queries_stats)
+                                                   debug, return_queries_stats, stats)
                 #  FAIL to prove
                 break
             else:
                 algorithm.do_step(False, invariant_results)
             end_step = timer()
-            step_times.append(end_step - start_step)
+            stats['step_times'].append(end_step - start_step)
 
         #  print progress for debug
         if debug:
@@ -495,28 +499,28 @@ def prove_multidim_property(rnnModel: RnnMarabouModel, property_equations, algor
                 print('iteration {}, alphas: {}'.format(i, algorithm.get_alphas()))
 
     if debug:
-        if len(property_times) > 0:
+        if len(stats['property_times']) > 0:
             # print("did {} invariant queries that took on avg: {}, and {} property, that took: {} on avg".format(
-            #     len(invariant_times), sum(invariant_times) / len(invariant_times), len(property_times),
-            #                           sum(property_times) / len(property_times)))
+            #     len(stats['invariant_times']), sum(stats['invariant_times']) / len(stats['invariant_times']), len(stats['property_times']),
+            #                           sum(stats['property_times']) / len(stats['property_times'])))
             pass
         else:
-            avg_inv_time = sum(invariant_times) / len(invariant_times) if len(invariant_times) > 0 else 0
+            avg_inv_time = sum(stats['invariant_times']) / len(stats['invariant_times']) if len(stats['invariant_times']) > 0 else 0
             print("{}\t{} invariant queries that took on avg: {}, and {} property".format(
-                'SUCCESS' if res else 'FAIL', len(invariant_times), avg_inv_time, len(property_times)))
+                'SUCCESS' if res else 'FAIL', len(stats['invariant_times']), avg_inv_time, len(stats['property_times'])))
     queries_stats = {}
     if return_queries_stats:
         safe_percentile = lambda func, x: func(x) if len(x) > 0 else 0
-        queries_stats['property_times'] = {'avg': safe_percentile(np.mean, property_times),
-                                           'median': safe_percentile(np.median, property_times), 'raw': property_times}
-        queries_stats['invariant_times'] = {'avg': safe_percentile(np.mean, invariant_times),
-                                            'median': safe_percentile(np.median, invariant_times),
-                                            'raw': invariant_times}
-        queries_stats['step_times'] = {'avg': safe_percentile(np.mean, step_times),
-                                       'median': safe_percentile(np.median, step_times), 'raw': step_times}
-        queries_stats['step_queries'] = len(step_times)
-        queries_stats['property_queries'] = len(property_times)
-        queries_stats['invariant_queries'] = len(invariant_times)
+        queries_stats['property_times'] = {'avg': safe_percentile(np.mean, stats['property_times']),
+                                           'median': safe_percentile(np.median, stats['property_times']), 'raw': stats['property_times']}
+        queries_stats['invariant_times'] = {'avg': safe_percentile(np.mean, stats['invariant_times']),
+                                            'median': safe_percentile(np.median, stats['invariant_times']),
+                                            'raw': stats['invariant_times']}
+        queries_stats['step_times'] = {'avg': safe_percentile(np.mean, stats['step_times']),
+                                       'median': safe_percentile(np.median, stats['step_times']), 'raw': stats['step_times']}
+        queries_stats['step_queries'] = len(stats['step_times'])
+        queries_stats['property_queries'] = len(stats['property_times'])
+        queries_stats['invariant_queries'] = len(stats['invariant_times'])
         queries_stats['number_of_updates'] = i + 1  # one based counting
         queries_stats['algorithm'] = []
         if hasattr(algorithm, 'get_stats'):
