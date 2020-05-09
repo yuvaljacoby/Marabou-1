@@ -286,7 +286,6 @@ def parse_dictionary(exp):
     avg_run_time = d['avg_total_time_no_timeout']
 
     assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
-    assert d['num_invariant_avg'] <= 1, "Found point that needed more then one invariant to prove!!! THIS IS GOOD"
     return d
 
 
