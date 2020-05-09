@@ -23,7 +23,7 @@ if os.path.exists(CS_BASE_FOLDER):
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models")
 FIGUERS_FOLDER = os.path.join(BASE_FOLDER, "figures")
 # FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
-# FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
+FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
 POINTS_PICKLE = os.path.join(BASE_FOLDER, "pickles", 'points.pkl')
 PICKLE_DIR = os.path.join(BASE_FOLDER, "pickles/rns_verify_exp")
 
@@ -60,7 +60,6 @@ def run_exp_signle_time(points, radius, h5_file, t, only_rns=False, pbar=None, s
         our_raw.append(our_time)
         rns_raw.append(rnsverify_time)
         print('time: {}, point: {} our: {}, rns: {}'.format(t, j, our_time, rnsverify_time))
-
 
     if save_results:
         exp_name = 'verification time as a function of iterations, one rnn cell over {} points, time: {}'.format(
@@ -132,7 +131,7 @@ def plot_results(our_results, rnsverify_results, exp_name):
     plt.ylabel('Time (seconds)', fontsize=36)
     plt.xticks(fontsize=26)
     plt.yticks(fontsize=26)
-    # plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0.pdf").replace(' ', '_'), dpi=100)
+    plt.savefig((FIGUERS_FOLDER + "rns_ours_rnn2_fc0_avg.pdf").replace(' ', '_'), dpi=100)
     plt.show()
 
 
@@ -155,7 +154,7 @@ def parse_inputs():
     points = pickle.load(open(POINTS_PICKLE, "rb"))[:NUM_POINTS]
     r = 0.01
     if sys.argv[1] == 'analyze':
-        parse_results_file(sys.argv[2])
+        parse_results_file_per_time(sys.argv[2])
     if sys.argv[1] == 'exp':
         max_iterations = MAX_ITERATIONS
         if len(sys.argv) > 2:
@@ -164,6 +163,34 @@ def parse_inputs():
     if sys.argv[1] == 'exact':
         t = int(sys.argv[2])
         run_exp_signle_time(points, r, DEFAULT_H5, t, save_results=1, only_rns=0)
+
+def parse_results_file_per_time(dir_path: str):
+    if not os.path.exists(dir_path):
+        raise FileNotFoundError
+    results = {}
+    len_results = []
+    for f in os.listdir(dir_path):
+        if not "rns_ours_time" in f:
+            continue
+        data = pickle.load(open(os.path.join(dir_path, f), "rb"))
+        t = f.replace("rns_ours_time", "").split("_")[0]
+        results[int(t)] = {'our': data['our_raw'], 'rns': data['rns_raw']}
+        assert len(data['our_raw']) == len(data['rns_raw'])
+        len_results.append(len(data['our_raw']))
+    print([l for l in len_results])
+    assert all([l == len_results[0] for l in len_results])
+
+    avg = lambda x: sum(x) / len(x) if len(x) > 0 else 0
+    our_avg = [-1] * len(results.keys())
+    rns_avg = [-1] * len(results.keys())
+    start_idx = min(results.keys())
+    for k, v in results.items():
+        our_avg[k - start_idx] = avg(v['our'])
+        rns_avg[k - start_idx] = avg(v['rns'])
+
+    plot_results(our_avg, rns_avg, "Compare RNSVerify and RNNVerifiy on {} points".format(len_results[0]))
+    print_table(our_avg, rns_avg)
+
 
 experiemnts = [
     # {'idx_max': 9, 'other_idx': 2,
@@ -219,7 +246,8 @@ if __name__ == "__main__":
     # d = pickle.load(open(results_path, "rb"))
     # plot_results(d['our'], d['rns'], d['exp_name'])
     # exit(0)
-
+    parse_results_file_per_time("pickles/rns_verify_exp/")
+    exit(0)
     if len(sys.argv) > 1:
         parse_inputs()
         exit(0)
