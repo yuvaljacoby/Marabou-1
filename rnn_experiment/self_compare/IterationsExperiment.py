@@ -164,13 +164,11 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             t = int(key.split("_")[-1])
             res = parse_dictionary(value)
             success_rate = int(res['success_rate'] * 100)
-            if res['num_invariant_avg_success'] > 1:
-                # TODO: Check this out, we improve an invariant using our heuristic
-                assert False
 
             total_success = res['total_success']
             sum_success += total_success
             avg_run_time = res['avg_total_time_no_timeout']
+            avg_init_time = res['avg_initialize_query_time']
 
             total_time += avg_run_time * res['total']
             assert np.abs(total_time == res['avg_total_time']) < 10 ** -3
@@ -182,16 +180,19 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             total_property_time += res['avg_property_time'] * res['total']
             # assert timeout == 0
             gurobi_time = res['avg_step_time_no_timeout']
-            ffnn_time = res['avg_invariant_time'] + res['avg_property_time'] - gurobi_time
+            ffnn_time = res['avg_invariant_time'] + res['avg_property_time'] + gurobi_time
             assert ffnn_time < avg_run_time, "{}, {}, {}".format(ffnn_time, gurobi_time, avg_run_time)
-
-            avg_gurobi_invariant = res['avg_step_time']
+            # print(p)s
+            # print("total time: {}".format(total_time ))
+            # print("gurobi time: {}".format(total_gurobi_time))
+            # print("prop time: {}".format(total_property_time))
+            # print("ffnn time: {}".format(total_invariant_time + total_property_time))
             # avg_marabou_invariant = res['avg_invariant_time_no_timeout'] - avg_gurobi_invariant
             # print("Format is: time (#success/#total) (#timeout)")
             # rows[t - t_range[0]].append("%.2f (%.2f,%.2f) %d/%d (%d)" % (avg_run_time, ffnn_time, gurobi_time,
             #                                                              total_success, res['total'],
             #                                                              res['len_timeout']))
-            rows[t - t_range[0]].append("%.2f(%d/%d)" % (avg_run_time, total_success, res['total']))
+            rows[t - t_range[0]].append("%.2f(%d/%d)" % (avg_run_time - avg_init_time, total_success, res['total']))
 
     for row in rows:
         x.add_row(row)
@@ -207,19 +208,20 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
 
     avg_time = total_time / total_points
     avg_gurobi = total_gurobi_time / total_points
-    avg_marabou_invariant = (total_invariant_time - total_gurobi_time) / total_points
+    avg_marabou_invariant = total_invariant_time / total_points
     avg_property = total_property_time / total_points
     avg_init = total_init_time / total_points
     print("#" * 100)
 
-    print("Average run time {} seconds, over {} points, timeout: {}, success: {} ({:.2f})"
-          .format(avg_time, total_points, total_timeout, sum_success, sum_success / total_points))
-    print("avg Time in Gurobi: {}({:.2f}%), avg Time proving Invariant in Marabou {} ({:.2f}%),"
-          "avg Time proving property: {} ({:.2f}%), avg initialize time: {} ({:.2f%})"
-          .format(avg_gurobi, avg_gurobi / avg_time,
-                  avg_marabou_invariant, avg_marabou_invariant / avg_time,
-                  avg_property, avg_property / avg_time,
-                  avg_init, avg_init / avg_time))
+    avg_actual_time = avg_time - avg_init
+    print("Average run time {:.2f} seconds ({:.2f} including creating the query), over {} points, timeout: {}, success: {} ({:.2f})"
+          .format(avg_actual_time, avg_time, total_points, total_timeout, sum_success, sum_success / total_points))
+    print("avg Time in Gurobi: {:.2f}({:.2f}%), avg Time proving Invariant in Marabou {:.2f} ({:.2f}%),"
+          "avg Time proving property: {:.2f} ({:.2f}%), avg initialize time: {:.2f}"
+          .format(avg_gurobi, avg_gurobi / avg_actual_time,
+                  avg_marabou_invariant, avg_marabou_invariant / avg_actual_time,
+                  avg_property, avg_property / avg_actual_time,
+                  avg_init))
     print("#" * 100)
 
 
@@ -255,25 +257,25 @@ def parse_dictionary(exp):
         'avg_total_time': safe_mean([e['time'] for e in exp]),
         'avg_total_time_no_timeout': safe_mean([e['time'] for e in no_timeout_exp]),
         'avg_invariant_time_no_timeout': safe_mean(
-            [e['stats']['invariant_times']['avg'] for e in no_timeout_exp if 'invariant_times' in e['stats']]),
+            [sum(e['stats']['invariant_times']['raw']) for e in no_timeout_exp if 'invariant_times' in e['stats']]),
         'avg_property_time_no_timeout': safe_mean(
             [e['stats']['property_times']['avg'] for e in no_timeout_exp if 'property_times' in e['stats']]),
         'avg_step_time_no_timeout': safe_mean(
             [e['stats']['step_times']['avg'] for e in no_timeout_exp if 'step_times' in e['stats']]),
         'avg_invariant_time': safe_mean(
-            [e['stats']['invariant_times']['avg'] for e in exp if 'invariant_times' in e['stats']]),
+            [sum(e['stats']['invariant_times']['raw']) for e in exp if 'invariant_times' in e['stats']]),
         'avg_property_time': safe_mean(
-            [e['stats']['property_times']['avg'] for e in exp if 'property_times' in e['stats']]),
-        'avg_step_time': safe_mean([e['stats']['step_times']['avg'] for e in exp if 'step_times' in e['stats']]),
+            [sum(e['stats']['property_times']['raw']) for e in exp if 'property_times' in e['stats']]),
+        'avg_step_time': safe_mean([sum(e['stats']['step_times']['raw']) for e in exp if 'step_times' in e['stats']]),
         'num_invariant_avg': safe_mean(
             [e['stats']['invariant_queries'] for e in exp if 'invariant_queries' in e['stats']]),
         'num_property_avg': safe_mean(
             [e['stats']['property_queries'] for e in exp if 'property_queries' in e['stats']]),
         'num_step_avg': safe_mean([e['stats']['step_queries'] for e in exp if 'step_queries' in e['stats']]),
         'avg_total_time_success': safe_mean([e['time'] for e in success_exp]),
-        'avg_invariant_time_success': safe_mean([e['stats']['invariant_times']['avg'] for e in success_exp]),
-        'avg_property_time_success': safe_mean([e['stats']['property_times']['avg'] for e in success_exp]),
-        'avg_step_time_success': safe_mean([e['stats']['step_times']['avg'] for e in success_exp]),
+        'avg_invariant_time_success': safe_mean([sum(e['stats']['invariant_times']['raw']) for e in success_exp]),
+        'avg_property_time_success': safe_mean([sum(e['stats']['property_times']['raw']) for e in success_exp]),
+        'avg_step_time_success': safe_mean([sum(e['stats']['step_times']['raw']) for e in success_exp]),
         'num_invariant_avg_success': safe_mean([e['stats']['invariant_queries'] for e in success_exp]),
         'num_property_avg_success': safe_mean([e['stats']['property_queries'] for e in success_exp]),
         'num_step_avg_success': safe_mean([e['stats']['step_queries'] for e in success_exp]),
