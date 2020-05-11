@@ -157,6 +157,8 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     total_property_time = 0
     total_init_time = 0
     sum_success = 0
+    max_query_time = -1
+    all_times = []
     for p in name_path_map:
         d = pickle.load(open(p[1], "rb"))
         for key, value in d.items():
@@ -164,7 +166,12 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
             t = int(key.split("_")[-1])
             res = parse_dictionary(value)
             success_rate = int(res['success_rate'] * 100)
-
+            # if max(res['time']) > 1000:
+            #     arg = np.argmax(res['time'])
+            #     print(p[0], arg, res['time'][arg], res['invariant_time'][arg], res['gurobi_time'][arg])
+            all_times += res['time']
+            if max(res['time']) > max_query_time:
+                max_query_time = max(res['time'])
             total_success = res['total_success']
             sum_success += total_success
             avg_run_time = res['avg_total_time_no_timeout']
@@ -216,6 +223,8 @@ def parse_results_file(name_path_map: Union[List[Tuple[str, str]], str], t_range
     avg_actual_time = avg_time - avg_init
     print("Average run time {:.2f} seconds ({:.2f} including creating the query), over {} points, timeout: {}, success: {} ({:.2f})"
           .format(avg_actual_time, avg_time, total_points, total_timeout, sum_success, sum_success / total_points))
+    print("Max query took: {:.2f} seconds ({:.2f} minutes), median: {:.2f}, 90percentie: {:.2f}".format(
+        max_query_time, max_query_time / 60, np.median(all_times), np.percentile(all_times, 90)))
     print("avg Time in Gurobi: {:.2f}({:.2f}%), avg Time proving Invariant in Marabou {:.2f} ({:.2f}%),"
           "avg Time proving property: {:.2f} ({:.2f}%), avg initialize time: {:.2f}"
           .format(avg_gurobi, avg_gurobi / avg_actual_time,
@@ -254,6 +263,9 @@ def parse_dictionary(exp):
         'total_success': len(success_exp),
         'success_rate': len(success_exp) / len(exp),
         'len_timeout': len(timeout_exp),
+        'time': [e['time'] - e['stats']['query_initialize'] for e in exp],
+        'invariant_time': [sum(e['stats']['invariant_times']['raw']) for e in exp],
+        'gurobi_time': [sum(e['stats']['step_times']['raw']) for e in exp],
         'avg_total_time': safe_mean([e['time'] for e in exp]),
         'avg_total_time_no_timeout': safe_mean([e['time'] for e in no_timeout_exp]),
         'avg_invariant_time_no_timeout': safe_mean(
@@ -295,7 +307,7 @@ def parse_inputs(t_range, net_options, points, other_idx_method):
     save_results = True
 
     if sys.argv[1] == 'analyze':
-        parse_results_file(sys.argv[2], t_range, print_latex=1)
+        parse_results_file(sys.argv[2], t_range, print_latex=0)
     if sys.argv[1] == 'compare':
         compare_ephocs(sys.argv[2], t_range)
     if sys.argv[1] == 'exp':
@@ -359,9 +371,9 @@ if __name__ == "__main__":
     # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
 
     t_range = range(2, 21)
-    # name = os.path.join("ATVA_EXP", "out_e6629c3", "gurobi2020-04-2922\:07\:34914800model_20classes_rnn8_fc32_fc32_fc32_fc32_fc32_epochs50.pkl")
-    # parse_results_file('ATVA_EXP/out_8eb20ee/filter/', t_range, print_latex=1)
-    # exit(0)
+    name = os.path.join("ATVA_EXP", "out_da49232/")
+    parse_results_file(name, t_range, print_latex=0)
+    exit(0)
     FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
                       'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
