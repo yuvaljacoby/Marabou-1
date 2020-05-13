@@ -89,6 +89,7 @@ void Engine::adjustWorkMemorySize()
 
 bool Engine::solve( unsigned timeoutInSeconds )
 {
+    printf("Optimize: %d", _costFunctionManager->getOptimize());
     if (_costFunctionManager->getOptimize())
     {
         return optimize(timeoutInSeconds);
@@ -313,7 +314,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     updateDirections();
     storeInitialEngineState();
 
-    printf("Engine::Solving Optimization Problem");
+    printf("Engine::Solving Optimization Problem\n");
 
 
     if ( _verbosity > 0 )
@@ -330,8 +331,23 @@ bool Engine::optimize( unsigned timeoutInSeconds )
         if (_tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()) <= _bestOptValSoFar)
         {
             printf("!!!!!!!!!!!!!!!!!!!!!The upper bound matches are best so far - so we could trim this!!!!!!!!!!!!!\n");
+            printf( "\n Trimming this branch \n" );
+            if ( !_smtCore.popSplit() )
+            {
+                printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
+                // TODO (Chris Strong): Rethink how we want to return 
+                _exitCode = Engine::SAT;
+                return true;
+            }
+            else
+            {
+                splitJustPerformed = true;
+            }
+
+            continue; // SHOULD THIS BE HERE?
+
         }
-        printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
+        //printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
 
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
@@ -541,12 +557,12 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 // We've found an optimum
                 if ( allVarsWithinBounds() )
                 {
-                    //printf("\nWe've found an optimum!!!!!!!\n");
+                    printf("\nWe've found an optimum!!!!!!!\n");
                 }
                 // The query is infeasible if there's no more options but we're not within bounds yet.
                 else
                 {
-                    //printf("\n Infeasible query!!!!!!!\n");
+                    printf("\n Infeasible query!!!!!!!\n");
                     if( !_smtCore.popSplit() )
                     {
                         printf("\nWe've explored the full tree with opt val (print 3): %f\n", _bestOptValSoFar);
@@ -973,13 +989,14 @@ void Engine::informConstraintsOfInitialBounds( InputQuery &inputQuery ) const
 
 void Engine::invokePreprocessor( const InputQuery &inputQuery, bool preprocess )
 {
+    printf("Starting invoke preprocessor!!!\n");
+
     if ( _verbosity > 0 )
         printf( "Engine::processInputQuery: Input query (before preprocessing): "
                 "%u equations, %u variables\n",
                 inputQuery.getEquations().size(),
                 inputQuery.getNumberOfVariables() );
 
-    printf("before invoke, enabled is: %d\n", preprocess);
     // If processing is enabled, invoke the preprocessor
     _preprocessingEnabled = preprocess;
     if ( _preprocessingEnabled )
@@ -1393,19 +1410,15 @@ void Engine::initializeNetworkLevelReasoning()
 bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
 {
     log( "processInputQuery starting\n" );
-
     struct timespec start = TimeUtils::sampleMicro();
 
-    printf("processing input query\n");
     try
     {
         informConstraintsOfInitialBounds( inputQuery );
-        printf("after inform constraints\n");
 
         invokePreprocessor( inputQuery, preprocess );
         if ( _verbosity > 0 )
             printInputBounds( inputQuery );
-        printf("after preprocessor\n");
 
         double *constraintMatrix = createConstraintMatrix();
         removeRedundantEquations( constraintMatrix );
@@ -1413,14 +1426,12 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
         // The equations have changed, recreate the constraint matrix
         delete[] constraintMatrix;
         constraintMatrix = createConstraintMatrix();
-        printf("after create constraint matrix\n");
 
         List<unsigned> initialBasis;
         List<unsigned> basicRows;
         selectInitialVariablesForBasis( constraintMatrix, initialBasis, basicRows );
         addAuxiliaryVariables();
         augmentInitialBasisIfNeeded( initialBasis, basicRows );
-        printf("Storing equationsin deg checker\n");
 
         storeEquationsInDegradationChecker();
 
@@ -1428,9 +1439,7 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
         delete[] constraintMatrix;
         constraintMatrix = createConstraintMatrix();
         
-        printf("initializing network level reasoning\n");
         initializeNetworkLevelReasoning();
-        printf("initializing tableau\n");
         initializeTableau( constraintMatrix, initialBasis );
 
         if ( GlobalConfiguration::WARM_START )

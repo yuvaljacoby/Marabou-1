@@ -222,8 +222,6 @@ void InputQuery::removeEquation( Equation e )
 
 InputQuery &InputQuery::operator=( const InputQuery &other )
 {
-    printf("in equality at start\n");
-
     _numberOfVariables = other._numberOfVariables;
     _equations = other._equations;
     _lowerBounds = other._lowerBounds;
@@ -238,14 +236,11 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
     _optimize = other._optimize;
     _optimizationVariable = other._optimizationVariable;
 
-    printf("in equality after set a bunch equal\n");
-
     freeConstraintsIfNeeded();
-
-    printf("freed constraints\n");
 
     for ( const auto &constraint : other._plConstraints )
         _plConstraints.append( constraint->duplicateConstraint() );
+
 
     if ( other._networkLevelReasoner )
     {
@@ -272,6 +267,7 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
     {
         if ( _sbt )
         {
+            printf("Deleting sbt here\n");
             delete _sbt;
             _sbt = NULL;
         }
@@ -510,6 +506,7 @@ void InputQuery::dump() const
 
 void InputQuery::setSymbolicBoundTightener( SymbolicBoundTightener *sbt )
 {
+    printf("setting symbolic bound tightener\n");
     _sbt = sbt;
 }
 

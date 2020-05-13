@@ -771,10 +771,11 @@ void Tableau::performPivot()
     unsigned currentBasic = _basicIndexToVariable[_leavingVariable];
     unsigned currentNonBasic = _nonBasicIndexToVariable[_enteringVariable];
 
-/*
-    _costFunctionManager->dumpCostFunction();
-    dumpAssignment();
 
+    //_costFunctionManager->dumpCostFunction();
+    //dumpAssignment();
+
+    /*
     printf("Tableau performing pivot. Entering: %u, Leaving: %u\n",
                   _nonBasicIndexToVariable[_enteringVariable],
                   _basicIndexToVariable[_leavingVariable] );
@@ -790,7 +791,7 @@ void Tableau::performPivot()
                   _nonBasicAssignment[_enteringVariable],
                   _lowerBounds[currentNonBasic], _upperBounds[currentNonBasic] );
     printf("Change ratio is: %.15lf\n", _changeRatio );
-*/
+
 
     log( Stringf( "Tableau performing pivot. Entering: %u, Leaving: %u",
                   _nonBasicIndexToVariable[_enteringVariable],
@@ -805,6 +806,7 @@ void Tableau::performPivot()
                   _nonBasicAssignment[_enteringVariable],
                   _lowerBounds[currentNonBasic], _upperBounds[currentNonBasic] ) );
     log( Stringf( "Change ratio is: %.15lf\n", _changeRatio ) );
+    */
 
     // As part of the pivot operation we use both the pivot row and
     // pivot column. If they don't agree on the intersection, there's some

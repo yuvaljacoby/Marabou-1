@@ -157,8 +157,11 @@ bool SmtCore::popSplit()
     // can I get that info from the previously active split?
     // WE FINISHED something at this depth, so can increment here?
     // Maybe stack depth + 1 since it'll be 0 when we're at layer 1?
-    _statistics->incPercentDone(getStackDepth());
-
+    if(_statistics != NULL)
+    {
+        _statistics->incPercentDone(getStackDepth());
+    }
+    
     if ( _stack.empty() )
         return false;
 

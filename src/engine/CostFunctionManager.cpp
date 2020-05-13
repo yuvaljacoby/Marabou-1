@@ -145,7 +145,6 @@ void CostFunctionManager::computeCoreCostFunction()
       evaluation thereof on a specific point.
     */
 
-
     // Once linear is solved, we won't need to check anymore since it will stay
     if( _optimize)
     {
@@ -164,7 +163,12 @@ void CostFunctionManager::computeCoreCostFunction()
     // Phase II - optimize our objective function
     else
     {
-
+      //printf("Linear is solved, generating cost function to optimize\n");
+      //printf("Opt var: %d\n", _optimizationVariable);
+      //printf("Value of opt var: %f\n", _tableau->getValue(_optimizationVariable));
+      //printf("Val via basic assignment: %f\n", _tableau->getBasicAssignment( _tableau->variableToIndex(_optimizationVariable) ));
+      //printf("Our opt variable is basic: %d\n", _tableau->isBasic(_optimizationVariable));
+      
       std::fill( _basicCosts, _basicCosts + _m, 0.0 );
       _basicCosts[_tableau->variableToIndex(_optimizationVariable)] = -1.0;
       computeMultipliers();
