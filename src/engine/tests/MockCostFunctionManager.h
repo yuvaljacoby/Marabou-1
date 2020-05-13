@@ -133,14 +133,14 @@ public:
     /*
       Set _optimize and _optimizationVariable
     */
-    void setOptimize( bool optimize ) 
+    void setOptimize( bool optimize )
     {
         TS_ASSERT(optimize || !optimize);
     }
-    void setOptimizationVariable( unsigned variable )
+    void setOptimizationVariable( unsigned )
     {
-        TS_ASSERT(variable >= 0);
     }
+
     bool getOptimize()
     {
         return false;
@@ -152,7 +152,7 @@ public:
 
     void updateLinearSolved()
     {
-        
+
     }
 
 };
