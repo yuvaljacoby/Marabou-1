@@ -163,6 +163,8 @@ public:
 
     // Whether symbolic bound tightening should be used or not
     static const bool USE_SYMBOLIC_BOUND_TIGHTENING;
+    static const bool USE_LINEAR_CONCRETIZATION;
+
 
     // Symbolic tightening rounding constant
     static const double SYMBOLIC_TIGHTENING_ROUNDING_CONSTANT;

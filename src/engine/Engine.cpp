@@ -332,10 +332,6 @@ bool Engine::optimize( unsigned timeoutInSeconds )
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
         mainLoopStart = mainLoopEnd;
-        printf("Main loop end time: %ld\n", mainLoopEnd.tv_sec);
-        printf("Main loop start time: %ld\n", mainLoopStart.tv_sec);
-        printf("Dif: %ld\n", (mainLoopEnd.tv_nsec - mainLoopStart.tv_nsec)/1000000);
-        _statistics.print();
 
         if ( shouldExitDueToTimeout( timeoutInSeconds ) )
         {
@@ -360,6 +356,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
                 // TODO (Chris Strong): Rethink how we want to return
                 _exitCode = Engine::SAT;
+                _statistics.print();
+
                 return true;
             }
             else
@@ -473,6 +471,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
                         // TODO (Chris Strong): Rethink how we want to return
                         _exitCode = Engine::SAT;
+                        _statistics.print();
+
                         return true;
                     }
                     else
@@ -526,6 +526,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         printf("\nWe've explored the full tree with opt val (print 2): %f\n", _bestOptValSoFar);
                         // TODO (Chris Strong): Rethink how we want to return
                         _exitCode = Engine::SAT;
+                        _statistics.print();
+
                         return true;
                     }
                     else
@@ -572,6 +574,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         printf("\nWe've explored the full tree with opt val (print 3): %f\n", _bestOptValSoFar);
                         // TODO (Chris Strong): Rethink how we want to return
                         _exitCode = Engine::SAT;
+                        _statistics.print();
+
                         return true;
                     }
                     else
@@ -2194,7 +2198,6 @@ bool Engine::shouldExitDueToTimeout( unsigned timeout ) const
     if ( timeout == 0 )
         return false;
 
-    printf("total time: %llu, timeout: %d\n", _statistics.getTotalTime(), timeout);
     return _statistics.getTotalTime() / MILLISECONDS_TO_SECONDS > timeout;
 }
 
