@@ -328,6 +328,30 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
     {
+        //printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
+
+        struct timespec mainLoopEnd = TimeUtils::sampleMicro();
+        _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
+        mainLoopStart = mainLoopEnd;
+        printf("Main loop end time: %ld\n", mainLoopEnd.tv_sec);
+        printf("Main loop start time: %ld\n", mainLoopStart.tv_sec);
+        printf("Dif: %ld\n", (mainLoopEnd.tv_nsec - mainLoopStart.tv_nsec)/1000000);
+        _statistics.print();
+
+        if ( shouldExitDueToTimeout( timeoutInSeconds ) )
+        {
+            if ( _verbosity > 0 )
+            {
+                printf( "\n\nEngine: quitting due to timeout...\n\n" );
+                printf( "Final statistics:\n" );
+                _statistics.print();
+            }
+
+            _exitCode = Engine::TIMEOUT;
+            _statistics.timeout();
+            return false;
+        }
+
         if (_tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()) <= _bestOptValSoFar)
         {
             printf("!!!!!!!!!!!!!!!!!!!!!The upper bound matches are best so far - so we could trim this!!!!!!!!!!!!!\n");
@@ -346,25 +370,6 @@ bool Engine::optimize( unsigned timeoutInSeconds )
 
             continue; // SHOULD THIS BE HERE?
 
-        }
-        //printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
-
-        struct timespec mainLoopEnd = TimeUtils::sampleMicro();
-        _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
-        mainLoopStart = mainLoopEnd;
-
-        if ( shouldExitDueToTimeout( timeoutInSeconds ) )
-        {
-            if ( _verbosity > 0 )
-            {
-                printf( "\n\nEngine: quitting due to timeout...\n\n" );
-                printf( "Final statistics:\n" );
-                _statistics.print();
-            }
-
-            _exitCode = Engine::TIMEOUT;
-            _statistics.timeout();
-            return false;
         }
 
         if ( _quitRequested )
@@ -2217,6 +2222,7 @@ bool Engine::shouldExitDueToTimeout( unsigned timeout ) const
     if ( timeout == 0 )
         return false;
 
+    printf("total time: %llu, timeout: %d\n", _statistics.getTotalTime(), timeout);
     return _statistics.getTotalTime() / MILLISECONDS_TO_SECONDS > timeout;
 }
 
