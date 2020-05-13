@@ -142,6 +142,8 @@ void SmtCore::performSplit()
         struct timespec end = TimeUtils::sampleMicro();
         _statistics->addTimeSmtCore( TimeUtils::timePassed( start, end ) );
     }
+
+    _constraintForSplitting = NULL;
 }
 
 unsigned SmtCore::getStackDepth() const

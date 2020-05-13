@@ -147,9 +147,10 @@ public:
     {
     }
 
+    PiecewiseLinearConstraint *_nextSplitPLConstraint;
     PiecewiseLinearConstraint *pickSplitPLConstraint()
     {
-        return NULL;
+        return _nextSplitPLConstraint;
     }
 };
 
