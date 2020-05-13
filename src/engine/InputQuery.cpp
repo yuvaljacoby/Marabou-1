@@ -22,7 +22,6 @@
 
 InputQuery::InputQuery()
     : _networkLevelReasoner( NULL )
-    , _sbt( NULL )
 {
 }
 
@@ -33,12 +32,6 @@ InputQuery::~InputQuery()
     {
         delete _networkLevelReasoner;
         _networkLevelReasoner = NULL;
-    }
-
-    if ( _sbt )
-    {
-        delete _sbt;
-        _sbt = NULL;
     }
 }
 
@@ -257,28 +250,11 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
         }
     }
 
-    if ( other._sbt )
-    {
-        if ( !_sbt )
-            _sbt = new SymbolicBoundTightener;
-        other._sbt->storeIntoOther( *_sbt );
-    }
-    else
-    {
-        if ( _sbt )
-        {
-            printf("Deleting sbt here\n");
-            delete _sbt;
-            _sbt = NULL;
-        }
-    }
-
     return *this;
 }
 
 InputQuery::InputQuery( const InputQuery &other )
     : _networkLevelReasoner( NULL )
-    , _sbt( NULL )
 {
     *this = other;
 }
@@ -357,7 +333,7 @@ void InputQuery::saveQuery( const String &fileName )
     // Lower Bounds
     for ( const auto &lb : _lowerBounds )
         queryFile->write( Stringf( "\n%d,%f", lb.first, lb.second ) );
-    
+
     // Upper Bounds
     for ( const auto &ub : _upperBounds )
         queryFile->write( Stringf( "\n%d,%f", ub.first, ub.second ) );
@@ -450,9 +426,33 @@ List<unsigned> InputQuery::getOutputVariables() const
     return result;
 }
 
+
 unsigned InputQuery::getOptimizationVariable() const
 {
     return _optimizationVariable;
+}
+
+void InputQuery::printAllBounds() const
+{
+    printf( "InputQuery: Dumping all bounds\n" );
+
+    for ( unsigned i = 0; i < _numberOfVariables; ++i )
+    {
+        printf( "\tx%u: [", i );
+        if ( _lowerBounds.exists( i ) )
+            printf( "%lf, ", _lowerBounds[i] );
+        else
+            printf( "-INF, " );
+
+        if ( _upperBounds.exists( i ) )
+            printf( "%lf]", _upperBounds[i] );
+        else
+            printf( "+INF]" );
+        printf( "\n" );
+
+    }
+
+    printf( "\n\n" );
 }
 
 void InputQuery::printInputOutputBounds() const
@@ -504,12 +504,6 @@ void InputQuery::dump() const
     }
 }
 
-void InputQuery::setSymbolicBoundTightener( SymbolicBoundTightener *sbt )
-{
-    printf("setting symbolic bound tightener\n");
-    _sbt = sbt;
-}
-
 void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldIndexToNewIndex,
                                            const Map<unsigned, unsigned> &mergedVariables )
 {
@@ -520,17 +514,17 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     // Input variables
     for ( const auto &it : _inputIndexToVariable )
     {
-        if ( mergedVariables.exists( it.second ) ) 
+        if ( mergedVariables.exists( it.second ) )
         {
-            if (!_optimize) 
+            if (!_optimize)
             {
-            
-                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+
+                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE,
                                         Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
             }
             else
             {
-            
+
             // Why do we need the count?
             printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
 
@@ -542,9 +536,9 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
                 finalMergeTarget = mergedVariables[finalMergeTarget];
             }
             printf("Final merge target is: %d \n", finalMergeTarget);
-            newInputIndexToVariable[it.first] = finalMergeTarget; 
+            newInputIndexToVariable[it.first] = finalMergeTarget;
             ++currentIndex;
-            
+
             }
         }
 
@@ -569,15 +563,15 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
     {
         if ( mergedVariables.exists( it.second ) )
         {
-            if (!_optimize) 
+            if (!_optimize)
             {
-            
-                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE, 
+
+                throw MarabouError( MarabouError::MERGED_OUTPUT_VARIABLE,
                                         Stringf( "Output variable %u has been merged\n", it.second ).ascii() );
             }
             else
             {
-            
+
                 // Why do we need the count? INDEXING FEELS WRONG HERE?????
                 printf("merged var at it.second is: %d \n", mergedVariables[it.second]);
 
@@ -586,7 +580,7 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
                 while ( mergedVariables.exists( finalMergeTarget ) )
                     finalMergeTarget = mergedVariables[finalMergeTarget];
                 printf("Final merge target is: %d \n", finalMergeTarget);
-                newOutputIndexToVariable[currentIndex] = finalMergeTarget; 
+                newOutputIndexToVariable[currentIndex] = finalMergeTarget;
                 ++currentIndex;
 
             }
@@ -626,7 +620,7 @@ void InputQuery::adjustInputOutputMapping( const Map<unsigned, unsigned> &oldInd
             while ( mergedVariables.exists( finalMergeTarget ) )
                 finalMergeTarget = mergedVariables[finalMergeTarget];
             printf("Final merge target is: %d \n", finalMergeTarget);
-            _optimizationVariable = finalMergeTarget; 
+            _optimizationVariable = finalMergeTarget;
         }
 
 
