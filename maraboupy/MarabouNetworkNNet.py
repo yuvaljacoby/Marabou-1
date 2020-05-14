@@ -85,11 +85,12 @@ class MarabouNetworkNNet(MarabouNetwork.MarabouNetwork):
         # Set the number of variables
         self.numVars = self.numberOfVariables()
         if use_nlr:
-            self.nlr = self.createNLR(filename)
+            self.nlr = self.createNLR()
         else:
             self.nlr = None
+        self.use_nlr = use_nlr
 
-    def createNLR(self, filename):
+    def createNLR(self):
         nlr = MarabouCore.NetworkLevelReasoner()
         nlr.setNumberOfLayers(self.numLayers + 1)
         for layer, size in enumerate(self.layerSizes):
@@ -125,8 +126,12 @@ class MarabouNetworkNNet(MarabouNetwork.MarabouNetwork):
 
         return nlr
 
-    def getMarabouQuery(self, optimize = False):
+    def getMarabouQuery(self, optimize = False, ):
         ipq = super(MarabouNetworkNNet, self).getMarabouQuery(optimize)
+        if self.use_nlr:
+            self.nlr = self.createNLR()
+        else:
+            self.nlr = None
         ipq.setNetworkLevelReasoner(self.nlr)
         return ipq
 

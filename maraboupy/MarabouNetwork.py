@@ -44,6 +44,7 @@ class MarabouNetwork:
         self.inputVars = []
         self.outputVars = np.array([])
         self.optimizationVariable = -1
+        self.use_nlr = False
 
     def getNewVariable(self):
         """
