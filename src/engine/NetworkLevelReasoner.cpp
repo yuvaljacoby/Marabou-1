@@ -23,7 +23,8 @@
 #include <cstring>
 
 NetworkLevelReasoner::NetworkLevelReasoner()
-    : _weights( NULL )
+    : _numberOfLayers( 0 )
+    , _weights( NULL )
     , _positiveWeights( NULL )
     , _negativeWeights( NULL )
     , _maxLayerSize( 0 )
@@ -240,6 +241,9 @@ void NetworkLevelReasoner::allocateMemoryByTopology()
 {
     freeMemoryIfNeeded();
 
+    if ( _numberOfLayers == 0 )
+        return;
+
     _weights = new double *[_numberOfLayers - 1];
     if ( !_weights )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "NetworkLevelReasoner::weights" );
@@ -427,6 +431,17 @@ unsigned NetworkLevelReasoner::getActivationResultVariable( unsigned layer, unsi
     return _indexToActivationResultVariable[index];
 }
 
+NetworkLevelReasoner::NetworkLevelReasoner( const NetworkLevelReasoner &other )
+{
+    other.storeIntoOther( *this );
+}
+
+NetworkLevelReasoner &NetworkLevelReasoner::operator=( const NetworkLevelReasoner &other )
+{
+    other.storeIntoOther( *this );
+    return *this;
+}
+
 void NetworkLevelReasoner::storeIntoOther( NetworkLevelReasoner &other ) const
 {
     other.freeMemoryIfNeeded();
@@ -439,11 +454,14 @@ void NetworkLevelReasoner::storeIntoOther( NetworkLevelReasoner &other ) const
     for ( const auto &pair : _neuronToActivationFunction )
         other.setNeuronActivationFunction( pair.first._layer, pair.first._neuron, pair.second );
 
-    for ( unsigned i = 0; i < _numberOfLayers - 1; ++i )
+    if ( _numberOfLayers != 0 )
     {
-        memcpy( other._weights[i], _weights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
-        memcpy( other._positiveWeights[i], _positiveWeights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
-        memcpy( other._negativeWeights[i], _negativeWeights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
+        for ( unsigned i = 0; i < _numberOfLayers - 1; ++i )
+        {
+            memcpy( other._weights[i], _weights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
+            memcpy( other._positiveWeights[i], _positiveWeights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
+            memcpy( other._negativeWeights[i], _negativeWeights[i], sizeof(double) * _layerSizes[i] * _layerSizes[i+1] );
+        }
     }
 
     for ( const auto &pair : _bias )

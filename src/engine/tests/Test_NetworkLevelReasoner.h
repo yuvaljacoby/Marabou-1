@@ -1150,6 +1150,13 @@ public:
         for ( const auto &bound : bounds )
             TS_ASSERT( expectedBounds.exists( bound ) );
     }
+
+    void test_copy_empty_nlr()
+    {
+        NetworkLevelReasoner nlr;
+        NetworkLevelReasoner other;
+        other = nlr;
+    }
 };
 
 //

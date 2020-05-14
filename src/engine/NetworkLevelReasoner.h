@@ -58,6 +58,7 @@ public:
 
     NetworkLevelReasoner();
     ~NetworkLevelReasoner();
+    NetworkLevelReasoner( const NetworkLevelReasoner &other );
 
     /*
       Interface methods for populating the network: settings its
@@ -108,6 +109,7 @@ public:
     /*
       Duplicate the reasoner
     */
+    NetworkLevelReasoner &operator=( const NetworkLevelReasoner &other );
     void storeIntoOther( NetworkLevelReasoner &other ) const;
 
     /*
