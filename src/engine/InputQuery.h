@@ -22,6 +22,7 @@
 #include "Map.h"
 #include "NetworkLevelReasoner.h"
 #include "PiecewiseLinearConstraint.h"
+#include "DivideStrategy.h"
 
 class InputQuery
 {
@@ -35,6 +36,8 @@ public:
     void setNumberOfVariables( unsigned numberOfVariables );
     void setOptimize( bool optimize );
     bool getOptimize();
+    void setDivideStrategy(DivideStrategy divideStrategy);
+    DivideStrategy getDivideStrategy();
 
     void setLowerBound( unsigned variable, double bound );
     void setUpperBound( unsigned variable, double bound );
@@ -137,6 +140,8 @@ private:
     unsigned _numberOfVariables;
     bool _optimize;
     unsigned _optimizationVariable;
+    DivideStrategy _divideStrategy = DivideStrategy::None; // TODO: How to deal with it not being set? 
+
 
     List<Equation> _equations;
     Map<unsigned, double> _lowerBounds;

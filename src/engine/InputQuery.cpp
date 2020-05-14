@@ -19,6 +19,7 @@
 #include "InputQuery.h"
 #include "MStringf.h"
 #include "MarabouError.h"
+#include "DivideStrategy.h"
 
 InputQuery::InputQuery()
     : _networkLevelReasoner( NULL )
@@ -41,8 +42,33 @@ void InputQuery::setNumberOfVariables( unsigned numberOfVariables )
 }
 void InputQuery::setOptimize( bool optimize )
 {
+    printf("Setting optimize in input query\n");
     _optimize = optimize;
 }
+void InputQuery::setDivideStrategy(DivideStrategy divideStrategy)
+{
+    switch(divideStrategy) {
+        case DivideStrategy::EarliestReLU: 
+            _divideStrategy = DivideStrategy::EarliestReLU;
+            break;
+        case DivideStrategy::ReLUViolation: 
+            _divideStrategy = DivideStrategy::ReLUViolation;
+            break;
+        case DivideStrategy::LargestInterval: 
+            return;             
+            break; // This shouldn't be sent, decides input splitting
+        case DivideStrategy::None: 
+            _divideStrategy = DivideStrategy::None;
+            break;
+        }
+}
+
+DivideStrategy InputQuery::getDivideStrategy()
+{
+    return _divideStrategy;
+}
+
+
 bool InputQuery::getOptimize()
 {
     return _optimize;
@@ -228,6 +254,7 @@ InputQuery &InputQuery::operator=( const InputQuery &other )
     _outputIndexToVariable = other._outputIndexToVariable;
     _optimize = other._optimize;
     _optimizationVariable = other._optimizationVariable;
+    _divideStrategy = other._divideStrategy;
 
     freeConstraintsIfNeeded();
 

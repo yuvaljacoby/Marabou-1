@@ -325,6 +325,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
 
     bool splitJustPerformed = true;
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
+
     while ( true )
     {
         //printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
@@ -510,6 +511,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         printf( "\nEngine::solve: sat assignment found\n" );
                         _statistics.print();
                     }
+
+
                     // We've found an optimum - update our best so far if needed - this completes our search of this subtree
                     if (_bestOptValSoFar < curOptValue)
                     {
@@ -563,7 +566,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 // We've found an optimum
                 if ( allVarsWithinBounds() )
                 {
-                    printf("\nWe've found an optimum!!!!!!!\n");
+                    //printf("\nWe've found an optimum!!!!!!!\n");
                 }
                 // The query is infeasible if there's no more options but we're not within bounds yet.
                 else
@@ -1468,10 +1471,11 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
         return false;
     }
 
-
     // Update at the end so that the optimization variable can get reassigned if need be.
     _costFunctionManager->setOptimize(_preprocessedQuery.getOptimize());
     _costFunctionManager->setOptimizationVariable(_preprocessedQuery.getOptimizationVariable());
+    // Set the divide strategy - it will default to DivideStrategy::None
+    _smtCore.setDivideStrategy(_preprocessedQuery.getDivideStrategy());
 
     log( "processInputQuery done\n" );
 
