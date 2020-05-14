@@ -218,6 +218,21 @@ void NetworkLevelReasoner::freeMemoryIfNeeded()
         delete[] _previousLayerUpperBias;
         _previousLayerUpperBias = NULL;
     }
+
+    _numberOfLayers = 0;
+    _maxLayerSize = 0;
+    _inputLayerSize = 0;
+
+    _indexToWeightedSumVariable.clear();
+    _indexToActivationResultVariable.clear();
+    _weightedSumVariableToIndex.clear();
+    _activationResultVariableToIndex.clear();
+
+    _indexToWeightedSumAssignment.clear();
+    _indexToActivationResultAssignment.clear();
+
+    _eliminatedWeightedSumVariables.clear();
+    _eliminatedActivationResultVariables.clear();
 }
 
 void NetworkLevelReasoner::setNumberOfLayers( unsigned numberOfLayers )
