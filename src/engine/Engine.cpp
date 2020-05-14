@@ -999,8 +999,6 @@ void Engine::informConstraintsOfInitialBounds( InputQuery &inputQuery ) const
 
 void Engine::invokePreprocessor( const InputQuery &inputQuery, bool preprocess )
 {
-    printf("Starting invoke preprocessor!!!\n");
-
     if ( _verbosity > 0 )
         printf( "Engine::processInputQuery: Input query (before preprocessing): "
                 "%u equations, %u variables\n",
