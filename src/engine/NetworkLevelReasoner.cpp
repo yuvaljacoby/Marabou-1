@@ -254,8 +254,6 @@ void NetworkLevelReasoner::setLayerSize( unsigned layer, unsigned size )
 
 void NetworkLevelReasoner::allocateMemoryByTopology()
 {
-    freeMemoryIfNeeded();
-
     if ( _numberOfLayers == 0 )
         return;
 
