@@ -202,11 +202,9 @@ class MarabouNetwork:
                     to how an input query was solved.
         """
         ipq = self.getMarabouQuery(options._optimize)
-        print("in solve in marabounetwork")
 
         if options == None:
             options = MarabouCore.Options()
-        print("setting input query set divide strategy")
         ipq.setDivideStrategy(options._divideStrategy)
         vals, stats = MarabouCore.solve(ipq, options, filename)
         if verbose:

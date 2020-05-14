@@ -42,7 +42,6 @@ void InputQuery::setNumberOfVariables( unsigned numberOfVariables )
 }
 void InputQuery::setOptimize( bool optimize )
 {
-    printf("Setting optimize in input query\n");
     _optimize = optimize;
 }
 void InputQuery::setDivideStrategy(DivideStrategy divideStrategy)

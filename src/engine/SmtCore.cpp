@@ -66,11 +66,9 @@ void SmtCore::reportViolatedConstraint( PiecewiseLinearConstraint *constraint )
         DivideStrategy _strategyToUse = (_divideStrategy == DivideStrategy::None) ? GlobalConfiguration::SPLITTING_HEURISTICS : _divideStrategy;
 
         if ( _strategyToUse == DivideStrategy::ReLUViolation ) {
-            printf("Using ReLUViolation\n");
             _constraintForSplitting = constraint;
         }
         else {
-            printf("Using EarliestReLU\n");
             pickSplitPLConstraint();
         }
     }

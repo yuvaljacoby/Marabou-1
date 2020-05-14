@@ -35,9 +35,9 @@ Preprocessor::Preprocessor()
 
 InputQuery Preprocessor::preprocess( const InputQuery &query, bool attemptVariableElimination )
 {
-
     printf("Preprocessing\n");
     _preprocessed = query;
+    printf("after equality\n");
 
     /*
       Initial work: if needed, have the PL constraints add their additional
