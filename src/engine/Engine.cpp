@@ -626,7 +626,6 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 if ( _verbosity > 0 )
                 {
                     printf( "\nEngine::solve: unsat query\n" );
-                    _statistics.print();
                 }
                 // switched to SAT / true b/c as long as the original isnt infeasible there will always be a satisfying solution?
                 // Although if we want to run a query where it finds the optimizer within some output set this

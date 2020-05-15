@@ -215,12 +215,14 @@ class MarabouNetwork:
                 print("unsat")
             else:
                 print("sat")
-                for j in range(len(self.inputVars)):
-                    for i in range(self.inputVars[j].size):
-                        print("input {} = {}".format(i, vals[self.inputVars[j].item(i)]))
+                print("verbosity: ", options._verbosity)
+                if (options._verbosity > 0):
+                    for j in range(len(self.inputVars)):
+                        for i in range(self.inputVars[j].size):
+                            print("input {} = {}".format(i, vals[self.inputVars[j].item(i)]))
 
-                for i in range(self.outputVars.size):
-                    print("output {} = {}".format(i, vals[self.outputVars.item(i)]))
+                    for i in range(self.outputVars.size):
+                        print("output {} = {}".format(i, vals[self.outputVars.item(i)]))
 
         return [vals, stats]
 
