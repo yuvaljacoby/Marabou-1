@@ -3,6 +3,7 @@ language: cpp
 cache:
   directories:
     - tools/boost_1_68_0
+    - tools/OpenBLAS-0.3.9
 
 
 before_install:
