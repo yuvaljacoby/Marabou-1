@@ -1760,6 +1760,7 @@ void Engine::performSymbolicBoundTightening()
         _symbolicBoundTightener->setInputLowerBound( inputVariable, min );
         _symbolicBoundTightener->setInputUpperBound( inputVariable, max );
     }
+    struct timespec endSBTInit = TimeUtils::sampleMicro();
 
     // Step 2: tell the SBT about the state of the ReLU constraints
     for ( const auto &constraint : _plConstraints )
@@ -1772,9 +1773,11 @@ void Engine::performSymbolicBoundTightening()
         SymbolicBoundTightener::NodeIndex nodeIndex = _symbolicBoundTightener->nodeIndexFromB( b );
         _symbolicBoundTightener->setReluStatus( nodeIndex._layer, nodeIndex._neuron, relu->getPhaseStatus() );
     }
+    struct timespec endSBTReLU = TimeUtils::sampleMicro();
 
     // Step 3: perfrom the bound tightening
-    _symbolicBoundTightener->run();
+    _symbolicBoundTightener->run(&_statistics);
+    struct timespec endSBTMainRun= TimeUtils::sampleMicro();
 
     // Stpe 4: extract any tighter bounds that were discovered
     for ( const auto &pair : _symbolicBoundTightener->getNodeIndexToFMapping() )
@@ -1800,7 +1803,12 @@ void Engine::performSymbolicBoundTightening()
     }
 
     struct timespec end = TimeUtils::sampleMicro();
+
     _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
+    _statistics.addTimeForSBTInit( TimeUtils::timePassed( start, endSBTInit ) );
+    _statistics.addTimeForSBTRelu( TimeUtils::timePassed( endSBTInit , endSBTReLU ) );
+    _statistics.addTimeForSBTRun( TimeUtils::timePassed( endSBTReLU, endSBTMainRun) );
+    _statistics.addTimeForSymbolicBoundExtraction( TimeUtils::timePassed( endSBTMainRun, end ) );
     _statistics.incNumTighteningsFromSymbolicBoundTightening( numTightenedBounds );
 }
 

@@ -68,6 +68,7 @@ public:
     static bool directory( const String &path );
     static unsigned getSize( const String &path );
     void open( Mode openMode );
+    FILE *getStream(Mode openMode);
     void write( const String &line );
     void write( const ConstSimpleData &data );
     void read( HeapData &buffer, unsigned maxReadSize );

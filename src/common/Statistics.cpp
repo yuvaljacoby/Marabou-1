@@ -75,12 +75,24 @@ Statistics::Statistics()
     , _totalTimeApplyingStoredTighteningsMicro( 0 )
     , _totalTimeSmtCoreMicro( 0 )
     , _timedOut( false )
+
+    , _totalTimePerformingSBTRelu( 0 )
+    , _totalTimePerformingSBTRun( 0 )
+    , _totalTimePerformingSBTInit( 0 )
+    , _totalTimePerformingSBTExtraction( 0 )
+
+    , _totalTimePerformingSBTRunLog ( 0 )
+    , _totalTimePerformingSBTRunInit( 0 )
+    , _totalTimePerformingSBTMulti( 0 )
+    , _totalTimePerformingSBTBias( 0 )
+    , _totalTimePerformingSBTVals( 0 )
+    , _totalTimePerformingSBTPrepareNext( 0 )
 {
 }
 
-void Statistics::print()
+void Statistics::print(FILE *stream) const
 {
-    printf( "\n%s Statistics update:\n", TimeUtils::now().ascii() );
+    fprintf(stream, "\n%s Statistics update:\n", TimeUtils::now().ascii() );
 
     struct timespec now = TimeUtils::sampleMicro();
 
@@ -90,20 +102,20 @@ void Statistics::print()
     unsigned minutes = seconds / 60;
     unsigned hours = minutes / 60;
 
-    printf( "\t--- Time Statistics ---\n" );
-    printf( "\tTotal time elapsed: %llu milli (%02u:%02u:%02u)\n",
+    fprintf(stream, "\t--- Time Statistics ---\n" );
+    fprintf(stream, "\tTotal time elapsed: %llu milli (%02u:%02u:%02u)\n",
             totalElapsed / 1000, hours, minutes - ( hours * 60 ), seconds - ( minutes * 60 ) );
 
     seconds = _timeMainLoopMicro / 1000000;
     minutes = seconds / 60;
     hours = minutes / 60;
-    printf( "\t\tMain loop: %llu milli (%02u:%02u:%02u)\n",
+    fprintf(stream, "\t\tMain loop: %llu milli (%02u:%02u:%02u)\n",
             _timeMainLoopMicro / 1000, hours, minutes - ( hours * 60 ), seconds - ( minutes * 60 ) );
 
     seconds = _preprocessingTimeMicro / 1000000;
     minutes = seconds / 60;
     hours = minutes / 60;
-    printf( "\t\tPreprocessing time: %llu milli (%02u:%02u:%02u)\n",
+    fprintf(stream, "\t\tPreprocessing time: %llu milli (%02u:%02u:%02u)\n",
             _preprocessingTimeMicro / 1000, hours, minutes - ( hours * 60 ), seconds - ( minutes * 60 ) );
 
     unsigned long long totalUnknown = totalElapsed - _timeMainLoopMicro - _preprocessingTimeMicro;
@@ -111,59 +123,101 @@ void Statistics::print()
     seconds = totalUnknown / 1000000;
     minutes = seconds / 60;
     hours = minutes / 60;
-    printf( "\t\tUnknown: %llu milli (%02u:%02u:%02u)\n",
+    fprintf(stream, "\t\tUnknown: %llu milli (%02u:%02u:%02u)\n",
             totalUnknown / 1000, hours, minutes - ( hours * 60 ), seconds - ( minutes * 60 ) );
 
-    printf( "\tBreakdown for main loop:\n" );
-    printf( "\t\t[%.2lf%%] Simplex steps: %llu milli\n"
+    fprintf(stream, "\tBreakdown for main loop:\n" );
+    fprintf(stream, "\t\t[%.2lf%%] Simplex steps: %llu milli\n"
             , printPercents( _timeSimplexStepsMicro, _timeMainLoopMicro )
             , _timeSimplexStepsMicro / 1000
             );
-    printf( "\t\t[%.2lf%%] Explicit-basis bound tightening: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Explicit-basis bound tightening: %llu milli\n"
             , printPercents( _totalTimeExplicitBasisBoundTighteningMicro, _timeMainLoopMicro )
             , _totalTimeExplicitBasisBoundTighteningMicro / 1000
             );
-    printf( "\t\t[%.2lf%%] Constraint-matrix bound tightening: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Constraint-matrix bound tightening: %llu milli\n"
             , printPercents( _totalTimeConstraintMatrixBoundTighteningMicro, _timeMainLoopMicro )
             , _totalTimeConstraintMatrixBoundTighteningMicro / 1000
             );
-    printf( "\t\t[%.2lf%%] Degradation checking: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Degradation checking: %llu milli\n"
             , printPercents( _totalTimeDegradationChecking, _timeMainLoopMicro )
             , _totalTimeDegradationChecking / 1000
             );
-    printf( "\t\t[%.2lf%%] Precision restoration: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Precision restoration: %llu milli\n"
             , printPercents( _totalTimePrecisionRestoration, _timeMainLoopMicro )
             , _totalTimePrecisionRestoration / 1000
             );
-    printf( "\t\t[%.2lf%%] Statistics handling: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Statistics handling: %llu milli\n"
             , printPercents( _totalTimeHandlingStatisticsMicro, _timeMainLoopMicro )
             , _totalTimeHandlingStatisticsMicro / 1000
             );
-    printf( "\t\t[%.2lf%%] Constraint-fixing steps: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Constraint-fixing steps: %llu milli\n"
             , printPercents( _timeConstraintFixingStepsMicro, _timeMainLoopMicro )
             , _timeConstraintFixingStepsMicro / 1000
             );
-    printf( "\t\t[%.2lf%%] Valid case splits: %llu milli. Average per split: %.2lf milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Valid case splits: %llu milli. Average per split: %.2lf milli\n"
             , printPercents( _totalTimePerformingValidCaseSplitsMicro, _timeMainLoopMicro )
             , _totalTimePerformingValidCaseSplitsMicro / 1000
             , printAverage( _totalTimePerformingValidCaseSplitsMicro / 1000,
                             _totalNumberOfValidCaseSplits )
             );
-    printf( "\t\t[%.2lf%%] Applying stored bound-tightening: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Applying stored bound-tightening: %llu milli\n"
             , printPercents( _totalTimeApplyingStoredTighteningsMicro, _timeMainLoopMicro )
             , _totalTimeApplyingStoredTighteningsMicro / 1000
             );
 
-    printf( "\t\t[%.2lf%%] SMT core: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] SMT core: %llu milli\n"
             , printPercents( _totalTimeSmtCoreMicro, _timeMainLoopMicro )
             , _totalTimeSmtCoreMicro / 1000
             );
 
-    printf( "\t\t[%.2lf%%] Symbolic Bound Tightening: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Symbolic Bound Tightening: %llu milli\n"
             , printPercents( _totalTimePerformingSymbolicBoundTightening, _timeMainLoopMicro )
             , _totalTimePerformingSymbolicBoundTightening / 1000
             );
 
+    fprintf(stream, "\t\t[%.2lf%%] SBT ReLU: %llu milli\n"
+            , printPercents( _totalTimePerformingSBTRelu, _timeMainLoopMicro )
+            , _totalTimePerformingSBTRelu/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT run: %llu milli\n"
+            , printPercents( _totalTimePerformingSBTRun, _timeMainLoopMicro )
+            , _totalTimePerformingSBTRun / 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT init: %llu milli\n"
+            , printPercents( _totalTimePerformingSBTInit, _timeMainLoopMicro )
+            , _totalTimePerformingSBTInit/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT extraction: %llu milli\n"
+            , printPercents( _totalTimePerformingSBTExtraction, _timeMainLoopMicro )
+            , _totalTimePerformingSBTExtraction/ 1000
+            );
+
+    fprintf(stream, "\t\t[%.2lf%%] SBT run init: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTRunInit , _timeMainLoopMicro )
+            , _totalTimePerformingSBTRunInit/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT run log: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTRunLog , _timeMainLoopMicro )
+            , _totalTimePerformingSBTRunLog / 1000
+            );
+
+    fprintf(stream, "\t\t[%.2lf%%] SBT run multiplication: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTMulti, _timeMainLoopMicro )
+            , _totalTimePerformingSBTMulti/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT run bias: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTBias, _timeMainLoopMicro )
+            , _totalTimePerformingSBTBias/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT run vals: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTVals, _timeMainLoopMicro )
+            , _totalTimePerformingSBTVals/ 1000
+            );
+    fprintf(stream, "\t\t[%.2lf%%] SBT run prepare next: %llu milli\n"
+            , printPercents(_totalTimePerformingSBTPrepareNext, _timeMainLoopMicro )
+            , _totalTimePerformingSBTPrepareNext/ 1000
+            );
     unsigned long long total =
         _timeSimplexStepsMicro +
         _timeConstraintFixingStepsMicro +
@@ -177,23 +231,23 @@ void Statistics::print()
         _totalTimeSmtCoreMicro +
         _totalTimePerformingSymbolicBoundTightening;
 
-    printf( "\t\t[%.2lf%%] Unaccounted for: %llu milli\n"
+    fprintf(stream, "\t\t[%.2lf%%] Unaccounted for: %llu milli\n"
             , printPercents( _timeMainLoopMicro - total, _timeMainLoopMicro )
             , _timeMainLoopMicro > total ? ( _timeMainLoopMicro - total ) / 1000 : 0
             );
 
-    printf( "\t--- Preprocessor Statistics ---\n" );
-    printf( "\tNumber of preprocessor bound-tightening loop iterations: %u\n",
+    fprintf(stream, "\t--- Preprocessor Statistics ---\n" );
+    fprintf(stream, "\tNumber of preprocessor bound-tightening loop iterations: %u\n",
             _ppNumTighteningIterations );
-    printf( "\tNumber of eliminated variables: %u\n",
+    fprintf(stream, "\tNumber of eliminated variables: %u\n",
             _ppNumEliminatedVars );
-    printf( "\tNumber of constraints removed due to variable elimination: %u\n",
+    fprintf(stream, "\tNumber of constraints removed due to variable elimination: %u\n",
             _ppNumConstraintsRemoved );
-    printf( "\tNumber of equations removed due to variable elimination: %u\n",
+    fprintf(stream, "\tNumber of equations removed due to variable elimination: %u\n",
             _ppNumEquationsRemoved );
 
-    printf( "\t--- Engine Statistics ---\n" );
-    printf( "\tNumber of main loop iterations: %llu\n"
+    fprintf(stream, "\t--- Engine Statistics ---\n" );
+    fprintf(stream, "\tNumber of main loop iterations: %llu\n"
             "\t\t%llu iterations were simplex steps. Total time: %llu milli. Average: %.2lf milli.\n"
             "\t\t%llu iterations were constraint-fixing steps. "
             "Total time: %llu milli. Average: %.2lf milli\n"
@@ -205,7 +259,7 @@ void Statistics::print()
             , _timeConstraintFixingStepsMicro / 1000
             , printAverage( _timeConstraintFixingStepsMicro / 1000, _numConstraintFixingSteps )
             );
-    printf( "\tNumber of active piecewise-linear constraints: %u / %u\n"
+    fprintf(stream, "\tNumber of active piecewise-linear constraints: %u / %u\n"
             "\t\tConstraints disabled by valid splits: %u. "
             "By SMT-originated splits: %u\n"
             , _numActivePlConstraints
@@ -213,80 +267,80 @@ void Statistics::print()
             , _numPlValidSplits
             , _numPlSmtOriginatedSplits
             );
-    printf( "\tLast reported degradation: %.10lf. Max degradation so far: %.10lf. "
+    fprintf(stream, "\tLast reported degradation: %.10lf. Max degradation so far: %.10lf. "
             "Restorations so far: %u\n"
             , _currentDegradation
             , _maxDegradation
             , _numPrecisionRestorations
             );
-    printf( "\tNumber of simplex pivots we attempted to skip because of instability: %llu.\n"
+    fprintf(stream, "\tNumber of simplex pivots we attempted to skip because of instability: %llu.\n"
             "\tUnstable pivots performed anyway: %llu\n"
             , _numSimplexPivotSelectionsIgnoredForStability
             , _numSimplexUnstablePivots );
 
-    printf( "\t--- Tableau Statistics ---\n" );
-    printf( "\tTotal number of pivots performed: %llu\n", _numTableauPivots );
-    printf( "\t\tReal pivots: %llu. Degenerate: %llu (%.2lf%%)\n"
+    fprintf(stream, "\t--- Tableau Statistics ---\n" );
+    fprintf(stream, "\tTotal number of pivots performed: %llu\n", _numTableauPivots );
+    fprintf(stream, "\t\tReal pivots: %llu. Degenerate: %llu (%.2lf%%)\n"
             , _numTableauPivots - _numTableauDegeneratePivots
             , _numTableauDegeneratePivots
             , printPercents( _numTableauDegeneratePivots, _numTableauPivots ) );
 
-    printf( "\t\tDegenerate pivots by request (e.g., to fix a PL constraint): %llu (%.2lf%%)\n"
+    fprintf(stream, "\t\tDegenerate pivots by request (e.g., to fix a PL constraint): %llu (%.2lf%%)\n"
             , _numTableauDegeneratePivotsByRequest
             , printPercents( _numTableauDegeneratePivotsByRequest, _numTableauDegeneratePivots ) );
 
-    printf( "\t\tAverage time per pivot: %.2lf milli\n",
+    fprintf(stream, "\t\tAverage time per pivot: %.2lf milli\n",
             printAverage( _timePivotsMicro / 1000, _numTableauPivots ) );
 
-    printf( "\tTotal number of fake pivots performed: %llu\n", _numTableauBoundHopping );
-    printf( "\tTotal number of rows added: %llu. Number of merged columns: %llu\n"
+    fprintf(stream, "\tTotal number of fake pivots performed: %llu\n", _numTableauBoundHopping );
+    fprintf(stream, "\tTotal number of rows added: %llu. Number of merged columns: %llu\n"
             , _numAddedRows
             , _numMergedColumns );
-    printf( "\tCurrent tableau dimensions: M = %u, N = %u\n"
+    fprintf(stream, "\tCurrent tableau dimensions: M = %u, N = %u\n"
             , _currentTableauM
             , _currentTableauN );
 
-    printf( "\t--- SMT Core Statistics ---\n" );
-    printf( "\tTotal depth is %u. Total visited states: %u. Number of splits: %u. Number of pops: %u\n"
+    fprintf(stream, "\t--- SMT Core Statistics ---\n" );
+    fprintf(stream, "\tTotal depth is %u. Total visited states: %u. Number of splits: %u. Number of pops: %u\n"
             , _currentStackDepth
             , _numVisitedTreeStates
             , _numSplits
             , _numPops );
-    printf( "\tMax stack depth: %u\n"
+    fprintf(stream, "\tMax stack depth: %u\n"
             , _maxStackDepth );
 
-    printf( "\t--- Bound Tightening Statistics ---\n" );
-    printf( "\tNumber of tightened bounds: %llu.\n", _numTightenedBounds );
-    printf( "\t\tNumber of rows examined by row tightener: %llu. Consequent tightenings: %llu\n"
+    fprintf(stream, "\t--- Bound Tightening Statistics ---\n" );
+    fprintf(stream, "\tNumber of tightened bounds: %llu.\n", _numTightenedBounds );
+    fprintf(stream, "\t\tNumber of rows examined by row tightener: %llu. Consequent tightenings: %llu\n"
             , _numRowsExaminedByRowTightener
             , _numTighteningsFromRows );
 
-    printf( "\t\tNumber of explicit basis matrices examined by row tightener: %llu. Consequent tightenings: %llu\n"
+    fprintf(stream, "\t\tNumber of explicit basis matrices examined by row tightener: %llu. Consequent tightenings: %llu\n"
             , _numBoundTighteningsOnExplicitBasis
             , _numTighteningsFromExplicitBasis );
 
-    printf( "\t\tNumber of bound tightening rounds on the entire constraint matrix: %llu. "
+    fprintf(stream, "\t\tNumber of bound tightening rounds on the entire constraint matrix: %llu. "
             "Consequent tightenings: %llu\n"
             , _numBoundTighteningsOnConstraintMatrix
             , _numTighteningsFromConstraintMatrix );
 
-    printf( "\t\tNumber of bound notifications sent to PL constraints: %llu. Tightenings proposed: %llu\n"
+    fprintf(stream, "\t\tNumber of bound notifications sent to PL constraints: %llu. Tightenings proposed: %llu\n"
             , _numBoundNotificationsToPlConstraints
             , _numBoundsProposedByPlConstraints );
 
-    printf( "\t--- Basis Factorization statistics ---\n" );
-    printf( "\tNumber of basis refactorizations: %llu\n",
+    fprintf(stream, "\t--- Basis Factorization statistics ---\n" );
+    fprintf(stream, "\tNumber of basis refactorizations: %llu\n",
             _numBasisRefactorizations );
 
-    printf( "\t--- Projected Steepest Edge Statistics ---\n" );
-    printf( "\tNumber of iterations: %llu.\n", _pseNumIterations );
-    printf( "\tNumber of resets to reference space: %llu. Avg. iterations per reset: %u\n"
+    fprintf(stream, "\t--- Projected Steepest Edge Statistics ---\n" );
+    fprintf(stream, "\tNumber of iterations: %llu.\n", _pseNumIterations );
+    fprintf(stream, "\tNumber of resets to reference space: %llu. Avg. iterations per reset: %u\n"
             , _pseNumResetReferenceSpace
             , _pseNumResetReferenceSpace > 0 ?
             (unsigned)((double)_pseNumIterations / _pseNumResetReferenceSpace) : 0 );
 
-    printf( "\t--- SBT ---\n" );
-    printf( "\tNumber of tightened bounds: %llu\n", _numTighteningsFromSymbolicBoundTightening );
+    fprintf(stream, "\t--- SBT ---\n" );
+    fprintf(stream, "\tNumber of tightened bounds: %llu\n", _numTighteningsFromSymbolicBoundTightening );
 }
 
 double Statistics::printPercents( unsigned long long part, unsigned long long total ) const
@@ -684,6 +738,53 @@ void Statistics::incNumTighteningsFromSymbolicBoundTightening( unsigned incremen
     _numTighteningsFromSymbolicBoundTightening += increment;
 }
 
+unsigned long long Statistics::getTimeForSymbolicBoundTightening() const
+{
+    return _totalTimePerformingSymbolicBoundTightening;
+}
+void Statistics::addTimeForSymbolicBoundExtraction( unsigned long long time )
+{
+    _totalTimePerformingSBTExtraction += time;
+}
+void Statistics::addTimeForSBTInit( unsigned long long time )
+{
+    _totalTimePerformingSBTInit += time;
+}
+void Statistics::addTimeForSBTRun( unsigned long long time )
+{
+    _totalTimePerformingSBTRun += time;
+}
+void Statistics::addTimeForSBTRelu( unsigned long long time )
+{
+    _totalTimePerformingSBTRelu += time;
+}
+
+void Statistics::addTimeSBTRunLog( unsigned long long time )
+{
+    _totalTimePerformingSBTRunLog += time;
+}
+void Statistics::addTimeSBTRunInit( unsigned long long time )
+{
+    _totalTimePerformingSBTRunInit += time;
+}
+void Statistics::addTimeSBTMulti( unsigned long long time )
+{
+    _totalTimePerformingSBTMulti += time;
+}
+void Statistics::addTimeSBTBias( unsigned long long time )
+{
+    _totalTimePerformingSBTBias += time;
+}
+void Statistics::addTimeSBTVals( unsigned long long time )
+{
+    _totalTimePerformingSBTVals += time;
+}
+void Statistics::addTimeSBTPrepareNext( unsigned long long time )
+{
+    _totalTimePerformingSBTPrepareNext += time;
+}
+
+//
 //
 // Local Variables:
 // compile-command: "make -C ../.. "

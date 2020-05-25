@@ -278,18 +278,24 @@ void SymbolicBoundTightener::setInputUpperBound( unsigned neuron, double bound )
     _inputUpperBounds[_inputNeuronToIndex[neuron]] = bound;
 }
 
-void SymbolicBoundTightener::run()
+void SymbolicBoundTightener::run( Statistics *_statistics )
 {
-    run( GlobalConfiguration::USE_LINEAR_CONCRETIZATION );
+    run( GlobalConfiguration::USE_LINEAR_CONCRETIZATION, _statistics );
 }
 
-void SymbolicBoundTightener::run( bool useLinearConcretization )
+void SymbolicBoundTightener::run( bool useLinearConcretization) {
+
+    run( useLinearConcretization, NULL );
+}
+
+void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _statistics )
 {
     /*
       Initialize the symbolic bounds for the first layer. Each variable has symbolic
       upper and lower bound 1 for itself, 0 for all other variables.
       The input layer has no biases.
     */
+    struct timespec start = TimeUtils::sampleMicro();
     std::fill_n( _previousLayerLowerBounds, _maxLayerSize * _inputLayerSize, 0 );
     std::fill_n( _previousLayerUpperBounds, _maxLayerSize * _inputLayerSize, 0 );
     for ( unsigned i = 0; i < _inputLayerSize; ++i )
@@ -320,9 +326,19 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
         }
         log( "\n" );
     }
+    struct timespec endInit = TimeUtils::sampleMicro();
+
+    struct timespec endBias;
+    struct timespec startLog;
+    struct timespec endLog;
+    struct timespec startMultiplication;
+    struct timespec endMultiplication;
+    struct timespec endPrepareNext;
+    struct timespec endComputeVal;
 
     for ( unsigned currentLayer = 1; currentLayer < _numberOfLayers; ++currentLayer )
     {
+        startLog = TimeUtils::sampleMicro();
         log( Stringf( "\nStarting work on layer %u\n", currentLayer ) );
 
         unsigned currentLayerSize = _layerSizes[currentLayer];
@@ -359,6 +375,9 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
             }
             log( "\n" );
         }
+        endLog= TimeUtils::sampleMicro();
+        if (_statistics)
+            _statistics->addTimeSBTRunLog( TimeUtils::timePassed( startLog, endLog ) );
 
         /*
           Perform the multiplication.
@@ -371,6 +390,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
 
             newUB, newLB dimensions: inputLayerSize x layerSize
         */
+        startMultiplication = TimeUtils::sampleMicro();
         matrixMultiplication( _previousLayerUpperBounds, weights._positiveValues,
                               _currentLayerUpperBounds, _inputLayerSize,
                               previousLayerSize, currentLayerSize );
@@ -384,6 +404,9 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
                               _currentLayerLowerBounds, _inputLayerSize,
                               previousLayerSize, currentLayerSize );
 
+        endMultiplication = TimeUtils::sampleMicro();
+        if (_statistics)
+            _statistics->addTimeSBTMulti( TimeUtils::timePassed( startMultiplication, endMultiplication ) );
         /*
           Compute the biases for the new layer
         */
@@ -409,6 +432,9 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
                 }
             }
         }
+        endBias= TimeUtils::sampleMicro();
+        if (_statistics)
+            _statistics->addTimeSBTBias( TimeUtils::timePassed( endMultiplication, endBias ) );
 
         log( "\nAfter matrix multiplication, newLB is:\n" );
         for ( unsigned i = 0; i < _inputLayerSize; ++i )
@@ -437,6 +463,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
         //
         // newUB, newLB dimensions: inputLayerSize x layerSize
         //
+
         for ( unsigned i = 0; i < currentLayerSize; ++i )
         {
             // lbLb: the lower bound for the expression of the lower bound
@@ -643,6 +670,9 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
             _lowerBounds[currentLayer][i] = lbLb;
             _upperBounds[currentLayer][i] = ubUb;
         }
+        endComputeVal = TimeUtils::sampleMicro();
+        if (_statistics)
+            _statistics->addTimeSBTVals( TimeUtils::timePassed( endBias, endComputeVal ) );
 
         log( "Dumping current layer upper bounds, before copy:\n" );
         for ( unsigned i = 0; i < _maxLayerSize * _inputLayerSize; ++i )
@@ -654,7 +684,14 @@ void SymbolicBoundTightener::run( bool useLinearConcretization )
         memcpy( _previousLayerUpperBounds, _currentLayerUpperBounds, sizeof(double) * _maxLayerSize * _inputLayerSize );
         memcpy( _previousLayerLowerBias, _currentLayerLowerBias, sizeof(double) * _maxLayerSize );
         memcpy( _previousLayerUpperBias, _currentLayerUpperBias, sizeof(double) * _maxLayerSize );
+        endPrepareNext = TimeUtils::sampleMicro();
+
+        if (_statistics)
+            _statistics->addTimeSBTPrepareNext( TimeUtils::timePassed( endComputeVal, endPrepareNext ) );
     }
+
+    if (_statistics)
+        _statistics->addTimeSBTRunInit( TimeUtils::timePassed( start, endInit ) );
 }
 
 double SymbolicBoundTightener::getLowerBound( unsigned layer, unsigned neuron ) const

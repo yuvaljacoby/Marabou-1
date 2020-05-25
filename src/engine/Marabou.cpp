@@ -191,6 +191,9 @@ void Marabou::displayResults( unsigned long long microSecondsElapsed ) const
                                     _engine.getStatistics()->getAveragePivotTimeInMicro() ) );
 
         summaryFile.write( "\n" );
+        FILE *stream =summaryFile.getStream(File::MODE_WRITE_APPEND);
+        _engine.getStatistics()->print(stream);
+        fclose(stream);
     }
 }
 

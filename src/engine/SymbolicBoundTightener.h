@@ -23,6 +23,7 @@
 
 // Todo: remove this include later
 #include "ReluConstraint.h"
+#include "Statistics.h"
 
 /*
   A utility class for performing symbolic bound tightening.
@@ -118,8 +119,9 @@ public:
     /*
       Running the tool, with or without linear concertization
     */
-    void run();
-    void run( bool useLinearConcretization );
+    void run( Statistics *_statistics =NULL );
+    void run( bool useLinearConcretization, Statistics* _statistics );
+    void run( bool useLinearConcretization);
 
     /*
       After running the tools, these methods will extract the discovered

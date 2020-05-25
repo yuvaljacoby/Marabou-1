@@ -79,6 +79,21 @@ void File::open( Mode openMode )
         throw CommonError( CommonError::OPEN_FAILED, _path.ascii() );
 }
 
+FILE *File::getStream(Mode openMode)
+{
+    if ( openMode == File::MODE_WRITE_APPEND ) {
+        return fdopen(_descriptor, "a");
+    }
+    else if ( openMode == File::MODE_WRITE_TRUNCATE ) {
+        return fdopen(_descriptor, "w");
+    }
+    else if( openMode == File::MODE_READ ) {
+        return fdopen(_descriptor, "r");
+    }
+    return NULL;
+
+}
+
 void File::write( const String &line )
 {
     if ( T::write( _descriptor, line.ascii(), line.length() ) != (int)line.length() )
