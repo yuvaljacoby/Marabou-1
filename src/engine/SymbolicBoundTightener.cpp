@@ -18,6 +18,8 @@
 #include "MStringf.h"
 #include "MarabouError.h"
 #include "SymbolicBoundTightener.h"
+#include <algorithm>
+
 
 SymbolicBoundTightener::SymbolicBoundTightener()
     : _layerSizes( NULL )
@@ -680,10 +682,14 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
         log( "\n\n" );
 
         // Prepare for next iteration
-        memcpy( _previousLayerLowerBounds, _currentLayerLowerBounds, sizeof(double) * _maxLayerSize * _inputLayerSize );
-        memcpy( _previousLayerUpperBounds, _currentLayerUpperBounds, sizeof(double) * _maxLayerSize * _inputLayerSize );
-        memcpy( _previousLayerLowerBias, _currentLayerLowerBias, sizeof(double) * _maxLayerSize );
-        memcpy( _previousLayerUpperBias, _currentLayerUpperBias, sizeof(double) * _maxLayerSize );
+        /* memcpy( _previousLayerLowerBounds, _currentLayerLowerBounds, sizeof(double) * _maxLayerSize * _inputLayerSize ); */
+        /* memcpy( _previousLayerUpperBounds, _currentLayerUpperBounds, sizeof(double) * _maxLayerSize * _inputLayerSize ); */
+        /* memcpy( _previousLayerLowerBias, _currentLayerLowerBias, sizeof(double) * _maxLayerSize ); */
+        /* memcpy( _previousLayerUpperBias, _currentLayerUpperBias, sizeof(double) * _maxLayerSize ); */
+        std::swap( _previousLayerLowerBounds, _currentLayerLowerBounds );
+        std::swap( _previousLayerUpperBounds, _currentLayerUpperBounds );
+        std::swap( _previousLayerLowerBias, _currentLayerLowerBias );
+        std::swap(  _previousLayerUpperBias, _currentLayerUpperBias );
         endPrepareNext = TimeUtils::sampleMicro();
 
         if (_statistics)
