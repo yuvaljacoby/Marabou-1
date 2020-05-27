@@ -88,7 +88,7 @@ void Engine::adjustWorkMemorySize()
 
 bool Engine::solve( unsigned timeoutInSeconds )
 {
-    printf("Optimize: %d", _costFunctionManager->getOptimize());
+    printf("Optimize: %d\n", _costFunctionManager->getOptimize());
     if (_costFunctionManager->getOptimize())
     {
         return optimize(timeoutInSeconds);
@@ -313,7 +313,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     updateDirections();
     storeInitialEngineState();
 
-    printf("Engine::Solving Optimization Problem\n");
+    printf("Engine::Solving Optimization Problem!!!!!!\n");
+    printf("Reached here!!\n");
 
 
     if ( _verbosity > 0 )
@@ -329,7 +330,6 @@ bool Engine::optimize( unsigned timeoutInSeconds )
     while ( true )
     {
         //printf("\n Starting main loop :D - best so far: %f -- bounds on it: %f\n", _bestOptValSoFar, _tableau->getUpperBound(_costFunctionManager->getOptimizationVariable()));
-
         struct timespec mainLoopEnd = TimeUtils::sampleMicro();
         _statistics.addTimeMainLoop( TimeUtils::timePassed( mainLoopStart, mainLoopEnd ) );
         mainLoopStart = mainLoopEnd;
@@ -352,6 +352,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!The upper bound matches are best so far - so we could trim this!!!!!!!!!!!!!\n");
             printf( "\n Trimming this branch \n" );
+            _noEnteringCandidatesLeft = false;
             if ( !_smtCore.popSplit() )
             {
                 printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
@@ -365,9 +366,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             {
                 splitJustPerformed = true;
             }
-
             continue; // SHOULD THIS BE HERE?
-
         }
 
         if ( _quitRequested )
@@ -441,9 +440,9 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
-                //printf("Splitting Cases\n");
-
+                printf("Splitting Cases\n");
                 _smtCore.performSplit();
+                _noEnteringCandidatesLeft = false;
                 splitJustPerformed = true;
                 continue;
             }
@@ -467,6 +466,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 if (curOptValue < _bestOptValSoFar)
                 {
                    //printf( "\n Trimming this branch \n" );
+                    _noEnteringCandidatesLeft = false;
                     if ( !_smtCore.popSplit() )
                     {
                         printf("\nWe've explored the full tree with opt val (print 1): %f\n", _bestOptValSoFar);
@@ -484,7 +484,7 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                     continue; // SHOULD THIS BE HERE?
                 }
 
-                _costFunctionManager->computeCoreCostFunction();
+                //_costFunctionManager->computeCoreCostFunction();
 
                 // The linear portion of the problem has been solved.
                 // Check the status of the PL constraints
@@ -512,7 +512,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         _statistics.print();
                     }
 
-
+                    printf("Newly found opt val: %f\n", curOptValue);
+                    printf("Best opt val so far: %f\n", _bestOptValSoFar);
                     // We've found an optimum - update our best so far if needed - this completes our search of this subtree
                     if (_bestOptValSoFar < curOptValue)
                     {
@@ -522,8 +523,8 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                         updateBestSolutionSoFar();
 
                     }
-                    printf("    Best solution so far: %f\n", _bestOptValSoFar);
                     // Now, pop one to keep the search going
+                    _noEnteringCandidatesLeft = false;
                     if( !_smtCore.popSplit() )
                     {
                         printf("\nWe've explored the full tree with opt val (print 2): %f\n", _bestOptValSoFar);
@@ -566,12 +567,13 @@ bool Engine::optimize( unsigned timeoutInSeconds )
                 // We've found an optimum
                 if ( allVarsWithinBounds() )
                 {
-                    //printf("\nWe've found an optimum!!!!!!!\n");
+                    //printf("\nWe've found an optimum in our simplex!!!!!!!\n");
                 }
                 // The query is infeasible if there's no more options but we're not within bounds yet.
                 else
                 {
                     printf("\n Infeasible query!!!!!!!\n");
+                    _noEnteringCandidatesLeft = false;
                     if( !_smtCore.popSplit() )
                     {
                         printf("\nWe've explored the full tree with opt val (print 3): %f\n", _bestOptValSoFar);
@@ -621,11 +623,13 @@ bool Engine::optimize( unsigned timeoutInSeconds )
         {
             // The current query is unsat, and we need to pop.
             // If we're at level 0, the whole query is unsat.
+            _noEnteringCandidatesLeft = false;
             if ( !_smtCore.popSplit() )
             {
                 if ( _verbosity > 0 )
                 {
-                    printf( "\nEngine::solve: unsat query\n" );
+                    printf( "\nEngine::solve: final pop was an unsat query\n" );
+                    printf("Best value so far is %f\n", _bestOptValSoFar);
                 }
                 // switched to SAT / true b/c as long as the original isnt infeasible there will always be a satisfying solution?
                 // Although if we want to run a query where it finds the optimizer within some output set this
@@ -638,7 +642,6 @@ bool Engine::optimize( unsigned timeoutInSeconds )
             {
                 splitJustPerformed = true;
             }
-
         }
         catch ( ... )
         {
