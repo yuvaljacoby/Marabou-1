@@ -308,26 +308,26 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
     std::fill_n( _previousLayerLowerBias, _maxLayerSize, 0 );
     std::fill_n( _previousLayerUpperBias, _maxLayerSize, 0 );
 
-    log( "Initializing.\n\tLB matrix:\n" );
-    for ( unsigned i = 0; i < _inputLayerSize; ++i )
-    {
-        log( "\t" );
-        for ( unsigned j = 0; j < _inputLayerSize; ++j )
-        {
-            log( Stringf( "%.2lf ", _previousLayerLowerBounds[i*_inputLayerSize + j] ) );
-        }
-        log( "\n" );
-    }
-    log( "\nUB matrix:\n" );
-    for ( unsigned i = 0; i < _inputLayerSize; ++i )
-    {
-        log( "\t" );
-        for ( unsigned j = 0; j < _inputLayerSize; ++j )
-        {
-            log( Stringf( "%.2lf ", _previousLayerUpperBounds[i*_inputLayerSize + j] ) );
-        }
-        log( "\n" );
-    }
+    /* log( "Initializing.\n\tLB matrix:\n" ); */
+    /* for ( unsigned i = 0; i < _inputLayerSize; ++i ) */
+    /* { */
+    /*     log( "\t" ); */
+    /*     for ( unsigned j = 0; j < _inputLayerSize; ++j ) */
+    /*     { */
+    /*         log( Stringf( "%.2lf ", _previousLayerLowerBounds[i*_inputLayerSize + j] ) ); */
+    /*     } */
+    /*     log( "\n" ); */
+    /* } */
+    /* log( "\nUB matrix:\n" ); */
+    /* for ( unsigned i = 0; i < _inputLayerSize; ++i ) */
+    /* { */
+    /*     log( "\t" ); */
+    /*     for ( unsigned j = 0; j < _inputLayerSize; ++j ) */
+    /*     { */
+    /*         log( Stringf( "%.2lf ", _previousLayerUpperBounds[i*_inputLayerSize + j] ) ); */
+    /*     } */
+    /*     log( "\n" ); */
+    /* } */
     struct timespec endInit = TimeUtils::sampleMicro();
 
     struct timespec endBias;
@@ -341,7 +341,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
     for ( unsigned currentLayer = 1; currentLayer < _numberOfLayers; ++currentLayer )
     {
         startLog = TimeUtils::sampleMicro();
-        log( Stringf( "\nStarting work on layer %u\n", currentLayer ) );
+        /* log( Stringf( "\nStarting work on layer %u\n", currentLayer ) ); */
 
         unsigned currentLayerSize = _layerSizes[currentLayer];
         unsigned previousLayerSize = _layerSizes[currentLayer - 1];
@@ -357,26 +357,26 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
         // Grab the weights
         WeightMatrix weights = _weights[currentLayer-1];
 
-        log( "Positive weights:\n" );
-        for ( unsigned i = 0; i < _layerSizes[currentLayer - 1]; ++i )
-        {
-            log( "\t" );
-            for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j )
-            {
-                log( Stringf( "%.2lf ", weights._positiveValues[i*_layerSizes[currentLayer] + j] ) );
-            }
-            log( "\n" );
-        }
-        log( "\nNegative weights:\n" );
-        for ( unsigned i = 0; i < _layerSizes[currentLayer - 1]; ++i )
-        {
-            log( "\t" );
-            for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j )
-            {
-                log( Stringf( "%.2lf ", weights._negativeValues[i*_layerSizes[currentLayer] + j] ) );
-            }
-            log( "\n" );
-        }
+        /* log( "Positive weights:\n" ); */
+        /* for ( unsigned i = 0; i < _layerSizes[currentLayer - 1]; ++i ) */
+        /* { */
+        /*     log( "\t" ); */
+        /*     for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j ) */
+        /*     { */
+        /*         log( Stringf( "%.2lf ", weights._positiveValues[i*_layerSizes[currentLayer] + j] ) ); */
+        /*     } */
+        /*     log( "\n" ); */
+        /* } */
+        /* log( "\nNegative weights:\n" ); */
+        /* for ( unsigned i = 0; i < _layerSizes[currentLayer - 1]; ++i ) */
+        /* { */
+        /*     log( "\t" ); */
+        /*     for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j ) */
+        /*     { */
+        /*         log( Stringf( "%.2lf ", weights._negativeValues[i*_layerSizes[currentLayer] + j] ) ); */
+        /*     } */
+        /*     log( "\n" ); */
+        /* } */
         endLog= TimeUtils::sampleMicro();
         if (_statistics)
             _statistics->addTimeSBTRunLog( TimeUtils::timePassed( startLog, endLog ) );
@@ -438,26 +438,26 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
         if (_statistics)
             _statistics->addTimeSBTBias( TimeUtils::timePassed( endMultiplication, endBias ) );
 
-        log( "\nAfter matrix multiplication, newLB is:\n" );
-        for ( unsigned i = 0; i < _inputLayerSize; ++i )
-        {
-            log( "\t" );
-            for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j )
-            {
-                log( Stringf( "%.2lf ", _currentLayerLowerBounds[i*_layerSizes[currentLayer] + j] ) );
-            }
-            log( "\n" );
-        }
-        log( "\nnew UB is:\n" );
-        for ( unsigned i = 0; i < _inputLayerSize; ++i )
-        {
-            log( "\t" );
-            for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j )
-            {
-                log( Stringf( "%.2lf ", _currentLayerUpperBounds[i*_layerSizes[currentLayer] + j] ) );
-            }
-            log( "\n" );
-        }
+        /* log( "\nAfter matrix multiplication, newLB is:\n" ); */
+        /* for ( unsigned i = 0; i < _inputLayerSize; ++i ) */
+        /* { */
+        /*     log( "\t" ); */
+        /*     for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j ) */
+        /*     { */
+        /*         log( Stringf( "%.2lf ", _currentLayerLowerBounds[i*_layerSizes[currentLayer] + j] ) ); */
+        /*     } */
+        /*     log( "\n" ); */
+        /* } */
+        /* log( "\nnew UB is:\n" ); */
+        /* for ( unsigned i = 0; i < _inputLayerSize; ++i ) */
+        /* { */
+        /*     log( "\t" ); */
+        /*     for ( unsigned j = 0; j < _layerSizes[currentLayer]; ++j ) */
+        /*     { */
+        /*         log( Stringf( "%.2lf ", _currentLayerUpperBounds[i*_layerSizes[currentLayer] + j] ) ); */
+        /*     } */
+        /*     log( "\n" ); */
+        /* } */
 
         // We now have the symbolic representation for the new layer. Next, we compute new lower
         // and upper bounds for it. For each of these bounds, we compute an upper bound and a lower
@@ -518,7 +518,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
             ubLb += _currentLayerUpperBias[i];
             ubUb += _currentLayerUpperBias[i];
 
-            log( Stringf( "Neuron %u: Computed concrete lb: %lf, ub: %lf\n", i, lbLb, ubUb ) );
+            /* log( Stringf( "Neuron %u: Computed concrete lb: %lf, ub: %lf\n", i, lbLb, ubUb ) ); */
 
             // Handle the ReLU activation. We know that:
             //   lbLb <= true LB <= lbUb
@@ -564,7 +564,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
                         // 0 <= lb <= ub
                         // The ReLU will not affect this entry
 
-                        log( "SBT: eliminated nothing!\n" );
+                        /* log( "SBT: eliminated nothing!\n" ); */
                     }
                     else
                     {
@@ -600,7 +600,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
                         }
                         else
                         {
-                            log( "SBT: did not eliminate upper!\n" );
+                            /* log( "SBT: did not eliminate upper!\n" ); */
                         }
 
                         if ( useLinearConcretization )
@@ -635,7 +635,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
                         lbLb = 0;
                     }
 
-                    log( Stringf( "\tAfter ReLU: concrete lb: %lf, ub: %lf\n", lbLb, ubUb ) );
+                    /* log( Stringf( "\tAfter ReLU: concrete lb: %lf, ub: %lf\n", lbLb, ubUb ) ); */
                 }
                 else
                 {
@@ -664,7 +664,7 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
                         _currentLayerUpperBias[i] = 0;
                     }
 
-                    log( Stringf( "\tAfter phase-fixed ReLU: concrete lb: %lf, ub: %lf\n", lbLb, ubUb ) );
+                    /* log( Stringf( "\tAfter phase-fixed ReLU: concrete lb: %lf, ub: %lf\n", lbLb, ubUb ) ); */
                 }
             }
 
@@ -676,10 +676,10 @@ void SymbolicBoundTightener::run( bool useLinearConcretization, Statistics* _sta
         if (_statistics)
             _statistics->addTimeSBTVals( TimeUtils::timePassed( endBias, endComputeVal ) );
 
-        log( "Dumping current layer upper bounds, before copy:\n" );
-        for ( unsigned i = 0; i < _maxLayerSize * _inputLayerSize; ++i )
-            log( Stringf( "%.5lf ", _currentLayerUpperBounds[i] ) );
-        log( "\n\n" );
+        /* log( "Dumping current layer upper bounds, before copy:\n" ); */
+        /* for ( unsigned i = 0; i < _maxLayerSize * _inputLayerSize; ++i ) */
+        /*     log( Stringf( "%.5lf ", _currentLayerUpperBounds[i] ) ); */
+        /* log( "\n\n" ); */
 
         // Prepare for next iteration
         /* memcpy( _previousLayerLowerBounds, _currentLayerLowerBounds, sizeof(double) * _maxLayerSize * _inputLayerSize ); */
