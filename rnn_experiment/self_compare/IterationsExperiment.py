@@ -16,9 +16,11 @@ from RNN.Adversarial import adversarial_query, get_out_idx
 from polyhedron_algorithms.GurobiBased.GurobiPolyhedronRandomImprove import GurobiMultiLayerRandom
 from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
 from rnn_experiment.self_compare.create_sbatch_iterations_exp import BASE_FOLDER, OUT_FOLDER
-from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
+#TODO: delete generate_random_points
+# from rnn_experiment.self_compare.generate_random_points import POINTS_PATH
 
-MODELS_FOLDER = os.path.join(BASE_FOLDER, "FMCAD_EXP/models/")
+MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
+POINTS_PATH = os.path.join(BASE_FOLDER, "models/points.pkl") 
 
 IN_SHAPE = (40,)
 NUM_SAMPLE_POINTS = 25
@@ -368,22 +370,10 @@ def compare_ephocs(pkl_dir: str, t_range):
 
 
 if __name__ == "__main__":
-    # TODO: Write test, to demonstrate entry point to the experiment (for every parse option)
-
     t_range = range(2, 21)
-    name = os.path.join("ATVA_EXP", "out_da49232/")
-    parse_results_file(name, t_range, print_latex=0)
-    exit(0)
-    FMCAD_networks = ['model_20classes_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn4_rnn4_rnn4_rnn4_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn8_rnn8_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn12_rnn12_fc32_fc32_fc32_fc32_0200.pkl',
-                      'model_20classes_rnn16_fc32_fc32_fc32_fc32_0100.pkl',
-                      'model_20classes_rnn8_rnn4_rnn4_fc32_fc32_fc32_fc32_0150.pkl']
-    # parse_results_file('FMCAD_EXP/out_filter/second_filter', t_range)
-    # exit(-1)
-
-    # other_idx_method = [lambda x: np.argmin(x)]
+    # name = os.path.join("ATVA_EXP", "out_da49232/")
+    # parse_results_file(name, t_range, print_latex=0)
+    # exit(0)
     other_idx_method = [lambda x: np.argsort(x)[-i] for i in range(2, 2 + NUM_RUNNER_UP)]
 
     points = pickle.load(open(POINTS_PATH, "rb"))[:NUM_SAMPLE_POINTS]
@@ -397,10 +387,8 @@ if __name__ == "__main__":
     # run_all_experiments(['models/AUTOMATIC_MODELS/model_20classes_rnn4_rnn4_fc32_fc320002.ckpt'], points, t_range,
     #                     other_idx_method, gurobi_ptr, steps_num=10)
     # exit(0)
-    net = "ATVA_EXP/models/epochs200/model_20classes_rnn4_fc32_fc32_fc32_fc32_fc32_epochs200.h5"
-    t_range = range(19, 20)
-    points = [points[0]]
-    run_all_experiments([net], points, t_range, other_idx_method, gurobi_ptr, save_results=0, steps_num=1)
+    nets = [f for f in os.listdir(MODELS_FOLDER) if "20classes" in f]
+    run_all_experiments(nets, points, t_range, other_idx_method, gurobi_ptr, save_results=0, steps_num=1)
     exit(0)
 
     net = "ATVA_EXP/models/epochs200/model_20classes_rnn2_fc32_fc32_fc32_fc32_fc32_epochs200.h5"

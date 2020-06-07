@@ -15,15 +15,14 @@ from RNN.Adversarial import adversarial_query, get_out_idx
 from polyhedron_algorithms.GurobiBased.MultiLayerBase import GurobiMultiLayer
 from rns_verify.verify_keras import verify_query as rns_verify_query
 
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+# BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "../.."
 CS_BASE_FOLDER = "/cs/usr/yuvalja/projects/Marabou"
 if os.path.exists(CS_BASE_FOLDER):
     BASE_FOLDER = CS_BASE_FOLDER
 
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models")
 FIGUERS_FOLDER = os.path.join(BASE_FOLDER, "figures")
-# FIGUERS_FOLDER = "/home/yuval/projects/Marabou/figures/"
-FIGUERS_FOLDER = "/home/yuval/projects/MarabouPapers/rnn/figures/"
 POINTS_PICKLE = os.path.join(BASE_FOLDER, "pickles", 'points.pkl')
 PICKLE_DIR = os.path.join(BASE_FOLDER, "pickles/rns_verify_exp")
 

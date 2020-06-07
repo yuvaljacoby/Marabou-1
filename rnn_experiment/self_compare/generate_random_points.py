@@ -4,10 +4,10 @@ import sys
 
 from tqdm import tqdm
 
-POINTS_PATH = "pickles/points.pkl"
 IN_SHAPE = (40,)
-BASE_FOLDER = "/home/yuval/projects/Marabou/"
+BASE_FOLDER = "../.."
 MODELS_FOLDER = os.path.join(BASE_FOLDER, "models/")
+POINTS_PATH = os.path.join(BASE_FOLDER, "models/points.pkl") 
 
 
 def generate_points(models_folder, number=500, max_t=20):
