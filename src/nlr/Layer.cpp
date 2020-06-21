@@ -14,6 +14,7 @@
  **/
 
 #include "Layer.h"
+#include "FloatUtils.h"
 
 namespace NLR {
 
@@ -853,6 +854,44 @@ void Layer::computeSymbolicBoundsForAbsoluteValue()
     }
 }
 
+void Layer::oldMultiplication(unsigned sourceLayerIndex, unsigned sourceLayerSize, const Layer* sourceLayer){
+    double oldSymbolicLb [_size * _inputLayerSize] = {0};
+    double oldSymbolicUb [_size * _inputLayerSize] = {0};
+
+    for ( unsigned i = 0; i < _inputLayerSize; ++i )
+    {
+        for ( unsigned j = 0; j < _size; ++j )
+        {
+            if ( _eliminatedNeurons.exists( j ) )
+                continue;
+
+            for ( unsigned k = 0; k < sourceLayerSize; ++k )
+            {
+                oldSymbolicLb[i * _size + j] +=
+                    sourceLayer->getSymbolicUb()[i * sourceLayerSize + k] *
+                    _layerToNegativeWeights[sourceLayerIndex][k * _size + j];
+
+                oldSymbolicLb[i * _size + j] +=
+                    sourceLayer->getSymbolicLb()[i * sourceLayerSize + k] *
+                    _layerToPositiveWeights[sourceLayerIndex][k * _size + j];
+
+                oldSymbolicUb[i * _size + j] +=
+                    sourceLayer->getSymbolicUb()[i * sourceLayerSize + k] *
+                    _layerToPositiveWeights[sourceLayerIndex][k * _size + j];
+
+                oldSymbolicUb[i * _size + j] +=
+                    sourceLayer->getSymbolicLb()[i * sourceLayerSize + k] *
+                    _layerToNegativeWeights[sourceLayerIndex][k * _size + j];
+            }
+        }
+    }
+
+    for (unsigned i =0; i< _size * _inputLayerSize; ++i) {
+        ASSERT( FloatUtils::areEqual( oldSymbolicUb[i], _symbolicUb[i] ) );
+        ASSERT( FloatUtils::areEqual( oldSymbolicLb[i], _symbolicLb[i] ) );
+    }
+}
+
 void Layer::computeSymbolicBoundsForWeightedSum()
 {
     std::fill_n( _symbolicLb, _size * _inputLayerSize, 0 );
@@ -908,6 +947,8 @@ void Layer::computeSymbolicBoundsForWeightedSum()
                     _symbolicUb[index] = 0;
                 }
         }
+
+        oldMultiplication(sourceLayerIndex, sourceLayerSize, sourceLayer );
 
         /*
           Compute the biases for the new layer

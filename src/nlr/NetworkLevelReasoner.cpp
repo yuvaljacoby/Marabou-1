@@ -117,8 +117,10 @@ void NetworkLevelReasoner::getConstraintTightenings( List<Tightening> &tightenin
 
 void NetworkLevelReasoner::symbolicBoundPropagation()
 {
-    for ( unsigned i = 0; i < _layerIndexToLayer.size(); ++i )
+    for ( unsigned i = 0; i < _layerIndexToLayer.size(); ++i ) {
         _layerIndexToLayer[i]->computeSymbolicBounds();
+    }
+
 }
 
 void NetworkLevelReasoner::lpRelaxationPropagation()

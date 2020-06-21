@@ -175,6 +175,7 @@ private:
     double getSymbolicUbOfLb( unsigned neuron ) const;
     double getSymbolicLbOfUb( unsigned neuron ) const;
     double getSymbolicUbOfUb( unsigned neuron ) const;
+    void oldMultiplication(unsigned sourceLayerIndex, unsigned sourceLayerSize, const Layer* sourceLayer);
 };
 
 } // namespace NLR
